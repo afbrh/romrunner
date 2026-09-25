@@ -79,3 +79,23 @@ includeBuild("../dusklight-src/platforms/android") {
         substitute(module("dev.twilitrealm:app")).using(project(":app"))
     }
 }
+
+// Embedded Nintendo Switch emulation: our local build of Eden (a Yuzu fork), consumed as a
+// library module the same way. Gated behind -Promrunner.switchEmbedded (default true, must match
+// app/build.gradle.kts's own read of the same property) for legal-risk management — Nintendo has
+// sued multiple Switch emulator projects; passing -Promrunner.switchEmbedded=false skips this
+// includeBuild entirely so a "lite" release never even configures eden-src (a large native C++
+// project) as part of the build.
+val switchEmbedded: Boolean = providers.gradleProperty("romrunner.switchEmbedded")
+    .orElse("true")
+    .map(String::toBoolean)
+    .get()
+
+if (switchEmbedded) {
+    includeBuild("../eden-src/src/android") {
+        name = "eden"
+        dependencySubstitution {
+            substitute(module("dev.eden_emu:app")).using(project(":app"))
+        }
+    }
+}

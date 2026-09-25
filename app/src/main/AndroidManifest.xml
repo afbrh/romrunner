@@ -26,7 +26,15 @@
          as well. PrimeHack's own android:banner/android:dataExtractionRules (an Android TV banner
          image and custom backup-extraction rules) aren't things RomRunner sets or wants at all,
          so those are dropped outright with tools:remove rather than replaced. DuskLight's own
-         android:icon (@mipmap/icon, a resource RomRunner doesn't have) is contested the same way. -->
+         android:icon (@mipmap/icon, a resource RomRunner doesn't have) is contested the same way.
+         Eden and ARMSX2 each declare android:fullBackupContent pointing at their own, mutually
+         incompatible backup-rules XML resource — RomRunner sets its own explicit "false" (skip
+         auto backup content entirely) rather than picking one library's arbitrarily, since ROM
+         libraries/save data are large and not something to auto-backup anyway. Eden and PrimeHack
+         also disagree on android:enableOnBackInvokedCallback (true/false) and
+         android:hasFragileUserData (false/true) — RomRunner picks true/false respectively
+         (predictive-back support on; PrimeHack's opt-in re-request-on-uninstall flag off),
+         cosmetic/behavioral picks in the same spirit as the android.max_aspect one below. -->
     <application
         android:name=".RomRunnerApp"
         android:allowBackup="true"
@@ -35,7 +43,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.RomRunner"
-        tools:replace="android:name,android:allowBackup,android:theme,android:label,android:icon"
+        android:fullBackupContent="false"
+        android:enableOnBackInvokedCallback="true"
+        android:hasFragileUserData="false"
+        tools:replace="android:name,android:allowBackup,android:theme,android:label,android:icon,android:fullBackupContent,android:enableOnBackInvokedCallback,android:hasFragileUserData"
         tools:remove="android:banner,android:dataExtractionRules">
 
         <!-- Inter-library conflict, not a RomRunner-vs-library one: ARMSX2's in-app-updater

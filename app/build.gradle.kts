@@ -8,11 +8,28 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Embedded Nintendo Switch emulation (Eden, a Yuzu fork) is gated behind this property rather
+// than always-on like the other embedded cores, for legal-risk management — Nintendo has sued
+// multiple Switch emulator projects. Default true (a plain build includes Eden); passing
+// -Promrunner.switchEmbedded=false switches to the "lite" flavor instead, which excludes Eden's
+// code entirely (see the "switchSupport" flavor dimension below and settings.gradle.kts, where
+// the same property also skips configuring eden-src as part of the build at all).
+val switchEmbedded: Boolean = providers.gradleProperty("romrunner.switchEmbedded")
+    .orElse("true")
+    .map(String::toBoolean)
+    .get()
+
 android {
     namespace = "com.noryan.romrunner"
     // compileSdk bumped to satisfy the embedded ARMSX2 library module's requirement (compileSdk
     // 37) — a consuming app can't target lower than its dependencies.
     compileSdk = 37
+
+    flavorDimensions += "switchSupport"
+    productFlavors {
+        create("full") { dimension = "switchSupport" }
+        create("lite") { dimension = "switchSupport" }
+    }
 
     defaultConfig {
         applicationId = "com.noryan.romrunner"
@@ -34,6 +51,10 @@ android {
         // project's arm64-v8a-only ABI targeting elsewhere and avoiding the Play Store flavors'
         // extra Play Feature/Asset Delivery dependencies RomRunner doesn't want.
         missingDimensionStrategy("variant", "aarch64")
+        // Same idea again for the embedded Eden library's "edenVersion" dimension
+        // (chromeOS/genshinSpoof/legacy/mainline) — pick "legacy", the standard build (the other
+        // three are Eden's own special-purpose variants, not relevant to RomRunner).
+        missingDimensionStrategy("edenVersion", "legacy")
     }
 
     buildTypes {
@@ -93,7 +114,22 @@ android {
             // Cemu also vendors its own libc++_shared.so (standard NDK C++ runtime) — same
             // collision class as above, any one copy works since it's ABI-stable across builds.
             pickFirsts += "**/libc++_shared.so"
+            // Eden and Azahar each bundle their own Vulkan validation layer for debug builds —
+            // same collision class again, debug-only tooling with a stable public ABI.
+            pickFirsts += "**/libVkLayer_khronos_validation.so"
         }
+    }
+}
+
+// Only one of "full"/"lite" is ever enabled for a given build (see romrunner.switchEmbedded
+// above) — this is what makes a plain "assembleDebug"/"assembleRelease" produce exactly one APK
+// instead of Gradle trying to build both flavors.
+androidComponents {
+    beforeVariants(selector().withFlavor("switchSupport" to "full")) { variant ->
+        variant.enable = switchEmbedded
+    }
+    beforeVariants(selector().withFlavor("switchSupport" to "lite")) { variant ->
+        variant.enable = !switchEmbedded
     }
 }
 
@@ -156,4 +192,11 @@ dependencies {
     // DuskActivity/Borealis UI layer comes through this dependency; its native libmain.so is
     // bundled separately as a plain asset (see DuskLightEmbeddedLauncher.kt).
     implementation("dev.twilitrealm:app:embedded")
+
+    // Embedded Nintendo Switch emulation — our local library build of Eden (see ../eden-src and
+    // settings.gradle.kts for the composite-build wiring). Only present on the "full" flavor's
+    // classpath — see romrunner.switchEmbedded above and EdenIntegration.kt.
+    if (switchEmbedded) {
+        "fullImplementation"("dev.eden_emu:app:embedded")
+    }
 }

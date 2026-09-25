@@ -11,7 +11,7 @@ object BuiltInPlatforms {
         PS2EmbeddedLauncher.PLATFORM_NAME,
         CemuEmbeddedLauncher.PLATFORM_NAME,
         PrimeHackEmbeddedLauncher.PLATFORM_NAME
-    ) + RetroArchEmbeddedLauncher.PLATFORM_NAMES
+    ) + RetroArchEmbeddedLauncher.PLATFORM_NAMES + listOfNotNull(EdenIntegration.platformName)
 
     /** Matches [name] against [NAMES] case-insensitively, returning the canonical-cased name. */
     fun canonicalNameOrNull(name: String): String? =

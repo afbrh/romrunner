@@ -59,6 +59,7 @@ import com.noryan.romrunner.data.embedded.AzaharEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.PS2EmbeddedLauncher
 import com.noryan.romrunner.data.embedded.CemuEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.DuskLightEmbeddedLauncher
+import com.noryan.romrunner.data.embedded.EdenIntegration
 import com.noryan.romrunner.data.embedded.PrimeHackEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.RetroArchEmbeddedLauncher
 import com.noryan.romrunner.data.launch.EmulatorLauncher
@@ -144,6 +145,10 @@ fun LibraryScreen(
         }
     }
 
+    // Nintendo Switch (Eden, "full" flavor only — a no-op stub on "lite"): keys/firmware import
+    // state and dialogs live behind this seam so this file never references Eden types directly.
+    val edenState = EdenIntegration.rememberState(context, state.romsRootUri, viewModel::markPlayed)
+
     val platformsById = remember(state.platforms) { state.platforms.associateBy { it.id } }
 
     fun attemptLaunch(platform: Platform, game: Game) {
@@ -210,6 +215,7 @@ fun LibraryScreen(
             viewModel.markPlayed(game)
             return
         }
+        if (edenState.attemptLaunch(platform, game)) return
         val target = EmulatorLauncher.resolveTarget(platform, game)
         if (target != null && !EmulatorLauncher.isPackageInstalled(context, target.packageName)) {
             installPrompt = MissingAppRequest(platform, game, target)
@@ -388,6 +394,8 @@ fun LibraryScreen(
             onChooseFile = { biosPicker.launch(arrayOf("*/*")) }
         )
     }
+
+    edenState.Dialogs()
 }
 
 /** One-time prompt for PS2's required BIOS dump, shown in place of ARMSX2's own onboarding

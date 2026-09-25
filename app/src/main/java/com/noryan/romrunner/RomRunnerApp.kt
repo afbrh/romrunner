@@ -1,6 +1,7 @@
 package com.noryan.romrunner
 
 import com.noryan.romrunner.data.db.AppDatabase
+import com.noryan.romrunner.data.embedded.EdenIntegration
 import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.data.settings.LibrarySettings
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,9 @@ class RomRunnerApp : CitraApplication() {
         // Same story again for Cemu (embedded Wii U core) — a FOURTH embedded
         // Application-subclassing library; see CemuApplication.kt.
         CemuApplication.initializeForEmbedding(this)
+        // Eden (embedded Nintendo Switch core, "full" flavor only) is a no-op here — its own
+        // directory/native init happens lazily on first touch instead; see EdenIntegration.kt.
+        EdenIntegration.initialize(this)
         val db = AppDatabase.getInstance(this)
         val settings = LibrarySettings(this)
         repository = LibraryRepository(db.platformDao(), db.gameDao(), settings)
@@ -65,6 +69,9 @@ class RomRunnerApp : CitraApplication() {
             // Same story for Wii U — routed to the embedded Cemu core (see CemuEmbeddedLauncher)
             // instead of an external info.cemu.cemu install.
             repository.clearLaunchPackage("Wii U")
+            // Same story for Nintendo Switch ("full" flavor only) — routed to the embedded Eden
+            // core instead of an external dev.eden.eden_emulator install. No-op on "lite".
+            EdenIntegration.applyLaunchRoutingDefaults(repository)
         }
     }
 }
