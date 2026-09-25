@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Needed on Android 11+ to see other apps (emulators) at all: to check whether a specific
+         one is installed, and to list installed apps in the "which app should play this?" picker. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <!-- ARMSX2 and RetroArch declare this same legacy-storage permission with different
+         maxSdkVersion values (28 vs 29) — pick RetroArch's (29), a safe superset of ARMSX2's. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"
+        tools:replace="android:maxSdkVersion" />
+
+    <!-- The embedded Azahar/ARMSX2/PrimeHack library modules each declare their own <application
+         android:name>, android:allowBackup, and android:theme (ARMSX2's Theme.ARMSX2); RomRunner's
+         own values win here (and RomRunnerApp.kt explicitly calls into Azahar's CitraApplication
+         init logic, plus PrimeHack's DolphinApplication.initializeForEmbedding). android:label is
+         contested too (PrimeHack's suffixed app name) — RomRunner's plain app identity wins that
+         as well. PrimeHack's own android:banner/android:dataExtractionRules (an Android TV banner
+         image and custom backup-extraction rules) aren't things RomRunner sets or wants at all,
+         so those are dropped outright with tools:remove rather than replaced. DuskLight's own
+         android:icon (@mipmap/icon, a resource RomRunner doesn't have) is contested the same way. -->
+    <application
+        android:name=".RomRunnerApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.RomRunner"
+        tools:replace="android:name,android:allowBackup,android:theme,android:label,android:icon"
+        tools:remove="android:banner,android:dataExtractionRules">
+
+        <!-- Inter-library conflict, not a RomRunner-vs-library one: ARMSX2's in-app-updater
+             dependency and PrimeHack both declare this same meta-data with different values.
+             Pick PrimeHack's TV aspect ratio hint arbitrarily — cosmetic only (Android TV
+             launcher card sizing), matches neither app's own image well. -->
+        <meta-data
+            android:name="android.max_aspect"
+            android:value="2.1"
+            tools:replace="android:value" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.RomRunner">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Separate filter (rather than folding HOME into the one above) so RomRunner shows
+                 up both as a normal app-drawer icon AND as a candidate in Android's "Select Home
+                 app"/Settings > Apps > Default apps > Home app picker, matching how Android
+                 itself distinguishes the two roles. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

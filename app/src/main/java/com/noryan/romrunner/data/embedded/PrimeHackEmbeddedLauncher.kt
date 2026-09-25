@@ -1,0 +1,119 @@
+package com.noryan.romrunner.data.embedded
+
+import android.content.Context
+import android.content.Intent
+import com.noryan.romrunner.data.model.Game
+import org.dolphinemu.dolphinemu.activities.EmulationActivity
+import org.dolphinemu.dolphinemu.utils.DirectoryInitialization
+import java.io.File
+
+/**
+ * Starts the embedded PrimeHack (Dolphin) core's own EmulationActivity in-process for a
+ * GameCube/Wii ROM, instead of handing off to a separate installed app.
+ *
+ * Unlike Azahar, no real-path resolution is needed: Dolphin's own file layer (see
+ * Common/FileUtil.cpp's `content://` branches, and AndroidCommon.cpp/ContentHandler.java) already
+ * reads directly from a SAF content:// Uri, so [game]'s raw fileUri is passed straight through —
+ * closer to how PS2EmbeddedLauncher hands ARMSX2 a raw Uri than to Azahar's path translation.
+ *
+ * PrimeHack's own onboarding (game-folder scan, controller setup wizard) is never shown: native
+ * directory setup happens via DolphinApplication.initializeForEmbedding (called once from
+ * RomRunnerApp, since RomRunnerApp extends a DIFFERENT embedded core's Application class and
+ * PrimeHack's own onCreate() never runs — see that file); [applyDefaultsIfNeeded] writes the
+ * Wiimote control scheme, hides the on-screen touch overlay, and enables compile-shaders-before-
+ * starting directly into the global Config ini files, so every GameCube/Wii title gets the same
+ * setup with no per-game step — unlike PS2/Azahar, there's no mandatory external BIOS/keys file
+ * to import first.
+ */
+object PrimeHackEmbeddedLauncher {
+    const val PLATFORM_NAME = "GameCube / Wii"
+
+    private const val PREFS_NAME = "primehack_embedded_launcher"
+    // Bumped from "defaults_applied": the settings this gate covers changed (odin.ini as the
+    // controls source, hide overlay, compile shaders before starting), so installs that already
+    // ran under the old key need to reapply once under the new one.
+    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v2"
+
+    fun launch(context: Context, game: Game, romsRootUri: String) {
+        applyDefaultsIfNeeded(context)
+
+        val intent = Intent(context, EmulationActivity::class.java)
+        intent.putExtra(EmulationActivity.EXTRA_SELECTED_GAMES, arrayOf(game.fileUri))
+        intent.putExtra(EmulationActivity.EXTRA_RIIVOLUTION, false)
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
+    private fun applyDefaultsIfNeeded(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_DEFAULTS_APPLIED, false)) return
+        if (!DirectoryInitialization.areDolphinDirectoriesReady()) return
+
+        val configDir = File(DirectoryInitialization.getUserDirectory(), "Config")
+        configDir.mkdirs()
+
+        // Wiimote controls: the AYN Thor-tuned "odin.ini" profile, bundled as an asset (not
+        // hardcoded here) so it's easy to inspect/replace on its own. Its [Profile] header is
+        // stripped and the remaining key=value lines become the body of [Wiimote1], replaced
+        // wholesale (not a key-by-key patch) so our bindings fully own that section — every other
+        // section (Wiimote2/3/4, BalanceBoard) native init already wrote is left untouched.
+        val odinProfileBody = context.assets.open("odin.ini").bufferedReader().use { it.readText() }
+            .lineSequence()
+            .filterNot { it.trim() == "[Profile]" }
+            .joinToString("\n")
+            .trim()
+        replaceSection(File(configDir, "WiimoteNew.ini"), "Wiimote1", odinProfileBody)
+
+        // Hide the on-screen touch overlay by default — a physical controller is expected.
+        setIniValue(File(configDir, "Dolphin.ini"), "Android", "ShowInputOverlay", "False")
+
+        // Compile shaders before starting a game, instead of stuttering mid-gameplay while
+        // shaders JIT-compile on first use.
+        setIniValue(File(configDir, "GFX.ini"), "Settings", "WaitForShadersBeforeStarting", "True")
+
+        prefs.edit().putBoolean(KEY_DEFAULTS_APPLIED, true).apply()
+    }
+
+    /** Replaces (or adds) a whole `[sectionName]` section in [file] with [body] wholesale. */
+    private fun replaceSection(file: File, sectionName: String, body: String) {
+        val existing = if (file.exists()) file.readText() else ""
+        val withoutSection = existing.replace(Regex("""\[$sectionName\][^\[]*"""), "")
+        file.writeText(withoutSection.trimEnd() + "\n\n[$sectionName]\n$body\n")
+    }
+
+    /**
+     * Sets a single `key = value` inside `[sectionName]` of [file], creating the file/section as
+     * needed. Every other key in that section, and every other section, is left untouched — unlike
+     * [replaceSection], since these files (Dolphin.ini, GFX.ini) already carry native-init-written
+     * settings we don't want to clobber.
+     */
+    private fun setIniValue(file: File, sectionName: String, key: String, value: String) {
+        val lines = (if (file.exists()) file.readText() else "").lines().toMutableList()
+        val sectionHeader = "[$sectionName]"
+        val sectionStart = lines.indexOfFirst { it.trim() == sectionHeader }
+        if (sectionStart == -1) {
+            if (lines.isNotEmpty() && lines.last().isNotBlank()) lines.add("")
+            lines.add(sectionHeader)
+            lines.add("$key = $value")
+        } else {
+            var sectionEnd = lines.size
+            for (i in sectionStart + 1 until lines.size) {
+                if (lines[i].trim().startsWith("[")) {
+                    sectionEnd = i
+                    break
+                }
+            }
+            val keyIndex = (sectionStart + 1 until sectionEnd).firstOrNull {
+                val trimmed = lines[it].trim()
+                trimmed.startsWith("$key ") || trimmed.startsWith("$key=")
+            }
+            if (keyIndex != null) {
+                lines[keyIndex] = "$key = $value"
+            } else {
+                lines.add(sectionEnd, "$key = $value")
+            }
+        }
+        file.writeText(lines.joinToString("\n"))
+    }
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark-mode counterpart to ../values/citra_colors.xml — see that file for context. -->
+<resources>
+    <color name="citra_primary_blue">#C5CAFF</color>
+    <color name="citra_onPrimary_blue">#1A2166</color>
+    <color name="citra_primaryContainer_blue">#333B99</color>
+    <color name="citra_onPrimaryContainer_blue">#DEE0FF</color>
+    <color name="citra_secondary_blue">#FFD9A6</color>
+    <color name="citra_onSecondary_blue">#4A2E00</color>
+    <color name="citra_secondaryContainer_blue">#6B4300</color>
+    <color name="citra_onSecondaryContainer_blue">#FFDDB3</color>
+    <color name="citra_tertiary_blue">#FFD9A6</color>
+    <color name="citra_onTertiary_blue">#4A2E00</color>
+    <color name="citra_tertiaryContainer_blue">#6B4300</color>
+    <color name="citra_onTertiaryContainer_blue">#FFDDB3</color>
+    <color name="citra_background_blue">#000000</color>
+    <color name="citra_onBackground_blue">#E4E1E6</color>
+    <color name="citra_surface_blue">#000000</color>
+    <color name="citra_onSurface_blue">#E4E1E6</color>
+    <color name="citra_surfaceVariant_blue">#45464F</color>
+    <color name="citra_onSurfaceVariant_blue">#C6C5D0</color>
+    <color name="citra_outline_blue">#90909A</color>
+    <color name="citra_inverseOnSurface_blue">#12131A</color>
+    <color name="citra_inverseSurface_blue">#E4E1E6</color>
+    <color name="citra_inversePrimary_blue">#4B54C7</color>
+    <color name="citra_surfaceTint_blue">#C5CAFF</color>
+</resources>
