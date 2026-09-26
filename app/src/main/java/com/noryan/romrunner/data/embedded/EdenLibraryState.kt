@@ -1,6 +1,5 @@
 package com.noryan.romrunner.data.embedded
 
-import androidx.compose.runtime.Composable
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 
@@ -13,7 +12,4 @@ import com.noryan.romrunner.data.model.Platform
 interface EdenLibraryState {
     /** Returns true if this state fully handled the launch (caller should not fall through). */
     fun attemptLaunch(platform: Platform, game: Game): Boolean
-
-    @Composable
-    fun Dialogs()
 }

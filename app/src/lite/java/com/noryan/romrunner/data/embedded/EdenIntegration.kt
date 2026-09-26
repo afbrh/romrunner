@@ -2,7 +2,7 @@ package com.noryan.romrunner.data.embedded
 
 import android.app.Application
 import android.content.Context
-import androidx.compose.runtime.Composable
+import android.net.Uri
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
@@ -22,15 +22,14 @@ object EdenIntegration {
     suspend fun applyLaunchRoutingDefaults(repository: LibraryRepository) {
     }
 
-    @Composable
+    fun importKeysFromUri(context: Context, uri: Uri): Boolean = false
+
+    fun importFirmwareFromUri(context: Context, uri: Uri): Boolean = false
+
     fun rememberState(context: Context, romsRootUri: String?, markPlayed: (Game) -> Unit): EdenLibraryState =
         NoOpEdenLibraryState
 }
 
 private object NoOpEdenLibraryState : EdenLibraryState {
     override fun attemptLaunch(platform: Platform, game: Game): Boolean = false
-
-    @Composable
-    override fun Dialogs() {
-    }
 }

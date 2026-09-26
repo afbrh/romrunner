@@ -142,6 +142,11 @@ class LibraryRepository(
         settings.rootFolderUri = uri
     }
 
+    fun getBiosKeysFolderUri(): String? = settings.biosKeysFolderUri
+    fun setBiosKeysFolderUri(uri: String?) {
+        settings.biosKeysFolderUri = uri
+    }
+
     fun getKillBackgroundAppsOnLaunch(): Boolean = settings.killBackgroundAppsOnLaunch
     fun setKillBackgroundAppsOnLaunch(value: Boolean) {
         settings.killBackgroundAppsOnLaunch = value

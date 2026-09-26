@@ -121,24 +121,6 @@ fun LibraryScreen(
         if (uri != null) viewModel.setRootFolder(context, uri)
     }
 
-    // PS2 BIOS import: a one-time RomRunner-native prompt in place of ARMSX2's own onboarding
-    // wizard. pendingPs2Launch holds the game to resume launching once the BIOS is in place.
-    var pendingPs2Launch by remember { mutableStateOf<Game?>(null) }
-    val biosPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        val game = pendingPs2Launch
-        pendingPs2Launch = null
-        val romsRootUri = state.romsRootUri
-        if (uri == null || game == null || romsRootUri == null) return@rememberLauncherForActivityResult
-        if (PS2EmbeddedLauncher.importBios(context, uri)) {
-            PS2EmbeddedLauncher.launch(context, game, romsRootUri)
-            viewModel.markPlayed(game)
-        } else {
-            Toast.makeText(context, "Couldn't import that BIOS file.", Toast.LENGTH_LONG).show()
-        }
-    }
-
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)
@@ -146,8 +128,8 @@ fun LibraryScreen(
         }
     }
 
-    // Nintendo Switch (Eden, "full" flavor only — a no-op stub on "lite"): keys/firmware import
-    // state and dialogs live behind this seam so this file never references Eden types directly.
+    // Nintendo Switch (Eden, "full" flavor only — a no-op stub on "lite") — lives behind this seam
+    // so this file never references Eden types directly.
     val edenState = EdenIntegration.rememberState(context, state.romsRootUri, viewModel::markPlayed)
 
     val platformsById = remember(state.platforms) { state.platforms.associateBy { it.id } }
@@ -175,7 +157,7 @@ fun LibraryScreen(
                 return
             }
             if (!PS2EmbeddedLauncher.isBiosImported(context)) {
-                pendingPs2Launch = game
+                Toast.makeText(context, "Set your BIOS/Keys folder in Settings first.", Toast.LENGTH_LONG).show()
                 return
             }
             PS2EmbeddedLauncher.launch(context, game, romsRootUri)
@@ -394,37 +376,6 @@ fun LibraryScreen(
         )
     }
 
-    if (pendingPs2Launch != null) {
-        ImportBiosDialog(
-            onDismiss = { pendingPs2Launch = null },
-            onChooseFile = { biosPicker.launch(arrayOf("*/*")) }
-        )
-    }
-
-    edenState.Dialogs()
-}
-
-/** One-time prompt for PS2's required BIOS dump, shown in place of ARMSX2's own onboarding
- *  wizard the first time a PS2 game is launched. The picked file is imported into RomRunner's
- *  app-private storage and never asked for again. */
-@Composable
-private fun ImportBiosDialog(onDismiss: () -> Unit, onChooseFile: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Import PS2 BIOS") },
-        text = {
-            Text(
-                "PlayStation 2 emulation needs a BIOS file dumped from your own console. " +
-                    "Choose it once — RomRunner keeps a private copy and won't ask again."
-            )
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onChooseFile) { Text("Choose File") }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }
 
 /**

@@ -1,6 +1,7 @@
 package com.noryan.romrunner.ui.platforms
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.embedded.BuiltInPlatforms
+import com.noryan.romrunner.data.launch.BiosKeysImporter
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
@@ -63,6 +65,9 @@ fun PlatformsContent(
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
 
+    var biosKeysFolderUri by remember { mutableStateOf(repository.getBiosKeysFolderUri()) }
+    LaunchedEffect(Unit) { biosKeysFolderUri = repository.getBiosKeysFolderUri() }
+
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
 
     var appPickerFor by remember { mutableStateOf<Platform?>(null) }
@@ -80,6 +85,33 @@ fun PlatformsContent(
             )
             repository.setRootFolderUri(uri.toString())
             rootFolderUri = uri.toString()
+        }
+    }
+
+    val biosKeysFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            repository.setBiosKeysFolderUri(uri.toString())
+            biosKeysFolderUri = uri.toString()
+            scope.launch {
+                val result = BiosKeysImporter.scanAndImport(context, uri)
+                val found = buildList {
+                    if (result.ps2BiosImported) add("PS2 BIOS")
+                    if (result.switchKeysImported) add("Switch keys")
+                    if (result.switchFirmwareImported) add("Switch firmware")
+                }
+                val message = if (found.isEmpty()) {
+                    "No BIOS/keys/firmware files recognized in that folder."
+                } else {
+                    "Imported: ${found.joinToString(", ")}."
+                }
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -109,6 +141,35 @@ fun PlatformsContent(
                 text = rootFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
                 style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
                 color = romsFolderColor,
+                textAlign = TextAlign.End
+            )
+        }
+
+        val biosKeysFolderInteractionSource = rememberFocusInteractionSource()
+        val biosKeysFolderGlow = biosKeysFolderInteractionSource.glowShadow()
+        val biosKeysFolderColor = biosKeysFolderInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = biosKeysFolderInteractionSource,
+                    indication = null
+                ) {
+                    biosKeysFolderPicker.launch(biosKeysFolderUri?.let { Uri.parse(it) })
+                }
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "BIOS/Keys folder",
+                style = LocalTextStyle.current.copy(shadow = biosKeysFolderGlow),
+                color = biosKeysFolderColor,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = biosKeysFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
+                style = LocalTextStyle.current.copy(shadow = biosKeysFolderGlow),
+                color = biosKeysFolderColor,
                 textAlign = TextAlign.End
             )
         }

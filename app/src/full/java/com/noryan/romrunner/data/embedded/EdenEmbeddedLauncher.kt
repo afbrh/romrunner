@@ -4,9 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import androidx.documentfile.provider.DocumentFile
 import com.noryan.romrunner.data.model.Game
 import java.io.File
 import java.io.FilenameFilter
@@ -37,9 +34,8 @@ import org.yuzu.yuzu_emu.NativeLibrary as EdenNativeLibrary
  * RomRunner-native file picks (triggered from EdenIntegration.rememberState the first time a
  * Switch game is launched), since real prod.keys and firmware dumped from the user's own console
  * are unavoidably required (there is no HLE substitute, the same situation as ARMSX2's BIOS).
- * Before asking for prod.keys specifically, [findKeysCandidates] is tried first — a device scan
- * for a file already named prod.keys, since that's a fixed, predictable filename (unlike
- * firmware's arbitrarily-named zip) worth looking for automatically before bothering the user.
+ * Both are found automatically by [com.noryan.romrunner.data.launch.BiosKeysImporter] scanning
+ * the user's own configured BIOS/Keys folder (Settings), rather than a picker shown per-launch.
  */
 object EdenEmbeddedLauncher {
 
@@ -128,103 +124,6 @@ object EdenEmbeddedLauncher {
             Intent.FLAG_GRANT_READ_URI_PERMISSION
         )
         return EdenNativeLibrary.installKeys(sourceUri.toString(), "keys") == 0
-    }
-
-    /** Same as [importKeys], for a plain absolute filesystem path rather than a picked SAF Uri —
-     *  used for a file [findKeysCandidates] already located on disk. No persistable-permission
-     *  grant needed here: that's a SAF/content:// concept, and a raw path found via
-     *  MANAGE_EXTERNAL_STORAGE or an already-granted SAF tree needs no extra grant to read again. */
-    private fun importKeysFromPath(context: Context, absolutePath: String): Boolean {
-        ensureDirectoryReady(context)
-        return EdenNativeLibrary.installKeys(absolutePath, "keys") == 0
-    }
-
-    /** A located prod.keys file, from either search scope in [findKeysCandidates] — either one
-     *  can be handed straight to [import] without the caller needing to know which. */
-    sealed class KeysCandidate {
-        abstract fun import(context: Context): Boolean
-
-        class FromPath(val path: String) : KeysCandidate() {
-            override fun import(context: Context) = importKeysFromPath(context, path)
-        }
-
-        class FromUri(val uri: Uri) : KeysCandidate() {
-            override fun import(context: Context) = importKeys(context, uri)
-        }
-    }
-
-    /**
-     * Looks for a file literally named "prod.keys" already sitting on the device, so the user
-     * doesn't have to hunt for and manually pick it via the file browser if it's a leftover from a
-     * previous Switch-emulation setup (a common case — keys are dumped once from a real console
-     * and often just left wherever they were first extracted to). Blocking/IO-bound: call this off
-     * the main thread. Two search scopes, tried in order, stopping at the first with any matches:
-     *
-     * 1. The device's own shared storage, every mounted volume — only actually searched if
-     *    RomRunner holds MANAGE_EXTERNAL_STORAGE ("All files access"). Declaring that permission in
-     *    the manifest (inherited from ARMSX2's sideload-capable flavor) doesn't mean the user has
-     *    granted it; this never prompts for it, it just quietly widens the search when it's already
-     *    there.
-     * 2. The user's chosen ROMs folder — the same SAF tree RomScanner already walks, which
-     *    RomRunner always has access to regardless of that special permission. Falling back to
-     *    this (rather than also merging it into scope 1) avoids double-counting the same physical
-     *    file found two different ways as "more than one match".
-     *
-     * The caller auto-imports on exactly one match and falls back to asking the user for the file
-     * otherwise (none found, or genuinely more than one — e.g. an old backup copy lying around).
-     */
-    fun findKeysCandidates(context: Context, romsRootUri: String?): List<KeysCandidate> {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
-            val matches = storageRoots(context).flatMap { findFilesNamed(it, "prod.keys") }
-            if (matches.isNotEmpty()) return matches.map { KeysCandidate.FromPath(it.absolutePath) }
-        }
-        val root = romsRootUri?.let { DocumentFile.fromTreeUri(context, Uri.parse(it)) } ?: return emptyList()
-        val matches = mutableListOf<DocumentFile>()
-        findInSafTree(root, "prod.keys", matches)
-        return matches.map { KeysCandidate.FromUri(it.uri) }
-    }
-
-    /** Every mounted shared-storage volume's root — primary storage plus any SD card, derived from
-     *  the per-app external files dirs Android always exposes one of per volume (there's no direct
-     *  public API for "list storage volume roots" below API 30's less broadly available
-     *  StorageManager APIs, so this is the same climb-up-from-a-known-child trick many Android
-     *  file-manager apps use: <volume>/Android/data/<pkg>/files -> <volume>). */
-    private fun storageRoots(context: Context): List<File> {
-        val roots = linkedSetOf(Environment.getExternalStorageDirectory())
-        for (dir in context.getExternalFilesDirs(null)) {
-            val volumeRoot = dir?.parentFile?.parentFile?.parentFile?.parentFile ?: continue
-            roots += volumeRoot
-        }
-        return roots.toList()
-    }
-
-    /** Recursively finds files named [targetName] (case-insensitive) under [dir], skipping hidden
-     *  directories (caches/thumbnails/etc. — never a sensible place for a keys file, and often
-     *  large) and capping depth as a guard against a pathological symlink loop or similarly deep
-     *  tree rather than actually expecting one. */
-    private fun findFilesNamed(dir: File, targetName: String, depth: Int = 0): List<File> {
-        if (depth > 20) return emptyList()
-        val children = dir.listFiles() ?: return emptyList()
-        val found = mutableListOf<File>()
-        for (child in children) {
-            if (child.isDirectory) {
-                if (!child.isHidden) found += findFilesNamed(child, targetName, depth + 1)
-            } else if (child.name.equals(targetName, ignoreCase = true)) {
-                found += child
-            }
-        }
-        return found
-    }
-
-    /** SAF equivalent of [findFilesNamed], for the ROMs-folder fallback scope. */
-    private fun findInSafTree(dir: DocumentFile, targetName: String, acc: MutableList<DocumentFile>) {
-        for (child in dir.listFiles()) {
-            if (child.isDirectory) {
-                findInSafTree(child, targetName, acc)
-            } else if (child.name?.equals(targetName, ignoreCase = true) == true) {
-                acc += child
-            }
-        }
     }
 
     /** True once firmware has been installed (its NAND "registered" content dir is non-empty). */
