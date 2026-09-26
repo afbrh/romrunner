@@ -12,13 +12,16 @@ import com.noryan.romrunner.ui.controller.ControllerMappingScreen
 import com.noryan.romrunner.ui.controller.PlatformControllerMappingScreen
 import com.noryan.romrunner.ui.library.LibraryScreen
 import com.noryan.romrunner.ui.platforms.PlatformEditScreen
+import com.noryan.romrunner.ui.platforms.PlatformSettingsScreen
 
 object Routes {
     const val LIBRARY = "library"
     const val PLATFORM_EDIT = "platformEdit/{platformId}"
+    const val PLATFORM_SETTINGS = "platformSettings/{platformId}"
     const val CONTROLLER_MAPPING = "controllerMapping"
     const val CONTROLLER_MAPPING_FOR_PLATFORM = "controllerMapping/{platformId}"
     fun platformEdit(id: Long) = "platformEdit/$id"
+    fun platformSettings(id: Long) = "platformSettings/$id"
     fun controllerMappingForPlatform(id: Long) = "controllerMapping/$id"
 }
 
@@ -34,11 +37,8 @@ fun RomRunnerNavHost(repository: LibraryRepository) {
             BackHandler(enabled = true) {}
             LibraryScreen(
                 repository = repository,
-                onEditPlatform = { id -> navController.navigate(Routes.platformEdit(id)) },
                 onOpenControllerMapping = { navController.navigate(Routes.CONTROLLER_MAPPING) },
-                onOpenControllerMappingForPlatform = { id ->
-                    navController.navigate(Routes.controllerMappingForPlatform(id))
-                }
+                onOpenPlatformSettings = { id -> navController.navigate(Routes.platformSettings(id)) }
             )
         }
         composable(
@@ -49,6 +49,19 @@ fun RomRunnerNavHost(repository: LibraryRepository) {
             PlatformEditScreen(
                 repository = repository,
                 platformId = platformId,
+                onDone = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Routes.PLATFORM_SETTINGS,
+            arguments = listOf(navArgument("platformId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val platformId = backStackEntry.arguments?.getLong("platformId") ?: -1L
+            PlatformSettingsScreen(
+                repository = repository,
+                platformId = platformId,
+                onEditDetails = { navController.navigate(Routes.platformEdit(platformId)) },
+                onOpenControllerMapping = { navController.navigate(Routes.controllerMappingForPlatform(platformId)) },
                 onDone = { navController.popBackStack() }
             )
         }

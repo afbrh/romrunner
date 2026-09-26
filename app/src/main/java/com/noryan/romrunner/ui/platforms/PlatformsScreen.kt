@@ -38,10 +38,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.embedded.BuiltInPlatforms
 import com.noryan.romrunner.data.launch.BiosKeysImporter
-import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
-import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
@@ -56,9 +54,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlatformsContent(
     repository: LibraryRepository,
-    onEditPlatform: (Long) -> Unit,
     onOpenControllerMapping: () -> Unit,
-    onOpenControllerMappingForPlatform: (Long) -> Unit
+    onOpenPlatformSettings: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val platforms by repository.observePlatforms().collectAsState(initial = emptyList())
@@ -72,7 +69,6 @@ fun PlatformsContent(
 
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
 
-    var appPickerFor by remember { mutableStateOf<Platform?>(null) }
     var isAddingNew by remember { mutableStateOf(false) }
     var newPlatformName by remember { mutableStateOf("") }
     var systemSettingsExpanded by remember { mutableStateOf(false) }
@@ -236,95 +232,31 @@ fun PlatformsContent(
             if (!systemSettingsExpanded) return@LazyColumn
 
             items(platforms, key = { it.id }) { platform ->
-                val hasBuiltIn = platform.name in BuiltInPlatforms.NAMES
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        val nameInteractionSource = rememberFocusInteractionSource()
-                        Text(
-                            text = platform.name,
-                            style = LocalTextStyle.current.copy(shadow = nameInteractionSource.glowShadow()),
-                            color = nameInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable(
-                                    interactionSource = nameInteractionSource,
-                                    indication = null
-                                ) { onEditPlatform(platform.id) }
-                        )
-                        if (hasBuiltIn && platform.useBuiltIn) {
-                            Text(
-                                text = "Use embedded emulator",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            val appPickerInteractionSource = rememberFocusInteractionSource()
-                            Text(
-                                text = platform.launchPackage.ifBlank { "Choose app" },
-                                style = LocalTextStyle.current.copy(shadow = appPickerInteractionSource.glowShadow()),
-                                color = appPickerInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                                modifier = Modifier
-                                    .clickable(
-                                        interactionSource = appPickerInteractionSource,
-                                        indication = null
-                                    ) { appPickerFor = platform }
-                            )
-                        }
-                        RetroToggle(
-                            checked = hasBuiltIn && platform.useBuiltIn,
-                            onCheckedChange = { checked ->
-                                scope.launch { repository.savePlatform(platform.copy(useBuiltIn = checked)) }
-                            },
-                            enabled = hasBuiltIn
-                        )
-                    }
-
-                    if (hasBuiltIn && platform.useBuiltIn) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = "Use global controller mapping (recommended)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f)
-                            )
-                            RetroToggle(
-                                checked = platform.useGlobalControllerMapping,
-                                onCheckedChange = { checked ->
-                                    scope.launch {
-                                        repository.savePlatform(platform.copy(useGlobalControllerMapping = checked))
-                                    }
-                                }
-                            )
-                        }
-                        if (!platform.useGlobalControllerMapping) {
-                            val mapControllerInteractionSource = rememberFocusInteractionSource()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(
-                                        interactionSource = mapControllerInteractionSource,
-                                        indication = null
-                                    ) { onOpenControllerMappingForPlatform(platform.id) }
-                                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Map Controller",
-                                    style = LocalTextStyle.current.copy(shadow = mapControllerInteractionSource.glowShadow()),
-                                    color = mapControllerInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
+                val platformInteractionSource = rememberFocusInteractionSource()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = platformInteractionSource,
+                            indication = null
+                        ) { onOpenPlatformSettings(platform.id) }
+                        // Extra start padding beyond the header's 20.dp — visually nests each
+                        // system "one tab over" under the System-Specific Settings folder.
+                        .padding(start = 36.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = platform.name,
+                        style = LocalTextStyle.current.copy(shadow = platformInteractionSource.glowShadow()),
+                        color = platformInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        Icons.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = platformInteractionSource.glowColor(MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
                 }
             }
 
@@ -332,7 +264,7 @@ fun PlatformsContent(
                 if (isAddingNew) {
                     val canonicalMatch = BuiltInPlatforms.canonicalNameOrNull(newPlatformName)
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(start = 36.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -346,7 +278,7 @@ fun PlatformsContent(
                         RetroToggle(checked = canonicalMatch != null, onCheckedChange = {}, enabled = canonicalMatch != null)
                     }
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(start = 36.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = {
@@ -379,7 +311,7 @@ fun PlatformsContent(
                                 interactionSource = addSystemInteractionSource,
                                 indication = null
                             ) { isAddingNew = true }
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                            .padding(start = 36.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -393,16 +325,5 @@ fun PlatformsContent(
                 }
             }
         }
-    }
-
-    appPickerFor?.let { platform ->
-        AppPickerDialog(
-            title = "Which app should play ${platform.name} games?",
-            onDismiss = { appPickerFor = null },
-            onPick = { app: InstalledApp ->
-                appPickerFor = null
-                scope.launch { repository.savePlatform(platform.copy(launchPackage = app.packageName)) }
-            }
-        )
     }
 }

@@ -96,9 +96,8 @@ private fun cycleTab(current: HomeTab, delta: Int): HomeTab {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
-    onEditPlatform: (Long) -> Unit,
     onOpenControllerMapping: () -> Unit,
-    onOpenControllerMappingForPlatform: (Long) -> Unit
+    onOpenPlatformSettings: (Long) -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(HomeTab.GAMES) }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
@@ -344,9 +343,8 @@ fun LibraryScreen(
                     }
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
-                        onEditPlatform = onEditPlatform,
                         onOpenControllerMapping = onOpenControllerMapping,
-                        onOpenControllerMappingForPlatform = onOpenControllerMappingForPlatform
+                        onOpenPlatformSettings = onOpenPlatformSettings
                     )
                     HomeTab.APPS -> AppsContent()
                 }
