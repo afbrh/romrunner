@@ -2,6 +2,8 @@ package com.noryan.romrunner.data.repository
 
 import com.noryan.romrunner.data.dao.GameDao
 import com.noryan.romrunner.data.dao.PlatformDao
+import com.noryan.romrunner.data.input.ControllerMapping
+import com.noryan.romrunner.data.input.ControllerMappingSerializer
 import com.noryan.romrunner.data.launch.DefaultPlatforms
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
@@ -155,5 +157,18 @@ class LibraryRepository(
     fun getKillBackgroundAppsOnLaunch(): Boolean = settings.killBackgroundAppsOnLaunch
     fun setKillBackgroundAppsOnLaunch(value: Boolean) {
         settings.killBackgroundAppsOnLaunch = value
+    }
+
+    fun getControllerMapping(): ControllerMapping =
+        settings.controllerMappingJson?.let { json ->
+            runCatching { ControllerMappingSerializer.fromJson(json) }.getOrNull()
+        } ?: ControllerMapping.AYN_THOR_DEFAULT
+
+    fun setControllerMapping(mapping: ControllerMapping) {
+        settings.controllerMappingJson = ControllerMappingSerializer.toJson(mapping)
+    }
+
+    fun resetControllerMappingToDefault() {
+        settings.controllerMappingJson = null
     }
 }

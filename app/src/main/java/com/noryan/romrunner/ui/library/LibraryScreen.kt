@@ -96,7 +96,8 @@ private fun cycleTab(current: HomeTab, delta: Int): HomeTab {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
-    onEditPlatform: (Long) -> Unit
+    onEditPlatform: (Long) -> Unit,
+    onOpenControllerMapping: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(HomeTab.GAMES) }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
@@ -152,7 +153,7 @@ fun LibraryScreen(
 
     // Nintendo Switch (Eden, "full" flavor only — a no-op stub on "lite") — lives behind this seam
     // so this file never references Eden types directly.
-    val edenState = EdenIntegration.rememberState(context, state.romsRootUri, viewModel::markPlayed)
+    val edenState = EdenIntegration.rememberState(context, state.romsRootUri, repository, viewModel::markPlayed)
 
     val platformsById = remember(state.platforms) { state.platforms.associateBy { it.id } }
 
@@ -168,7 +169,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            AzaharEmbeddedLauncher.launch(context, game, romsRootUri)
+            AzaharEmbeddedLauncher.launch(context, game, romsRootUri, repository)
             viewModel.markPlayed(game)
             return
         }
@@ -182,7 +183,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Set your BIOS/Keys folder in Settings first.", Toast.LENGTH_LONG).show()
                 return
             }
-            PS2EmbeddedLauncher.launch(context, game, romsRootUri)
+            PS2EmbeddedLauncher.launch(context, game, romsRootUri, repository)
             viewModel.markPlayed(game)
             return
         }
@@ -202,7 +203,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            PrimeHackEmbeddedLauncher.launch(context, game, romsRootUri)
+            PrimeHackEmbeddedLauncher.launch(context, game, romsRootUri, repository)
             viewModel.markPlayed(game)
             return
         }
@@ -212,7 +213,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            CemuEmbeddedLauncher.launch(context, game, romsRootUri)
+            CemuEmbeddedLauncher.launch(context, game, romsRootUri, repository)
             viewModel.markPlayed(game)
             return
         }
@@ -221,7 +222,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            RetroArchEmbeddedLauncher.launch(context, game, platform.name)
+            RetroArchEmbeddedLauncher.launch(context, game, platform.name, repository)
             viewModel.markPlayed(game)
             return
         }
@@ -340,7 +341,11 @@ fun LibraryScreen(
                             }
                         }
                     }
-                    HomeTab.SETTINGS -> PlatformsContent(repository = repository, onEditPlatform = onEditPlatform)
+                    HomeTab.SETTINGS -> PlatformsContent(
+                        repository = repository,
+                        onEditPlatform = onEditPlatform,
+                        onOpenControllerMapping = onOpenControllerMapping
+                    )
                     HomeTab.APPS -> AppsContent()
                 }
             }

@@ -56,7 +56,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlatformsContent(
     repository: LibraryRepository,
-    onEditPlatform: (Long) -> Unit
+    onEditPlatform: (Long) -> Unit,
+    onOpenControllerMapping: () -> Unit
 ) {
     val context = LocalContext.current
     val platforms by repository.observePlatforms().collectAsState(initial = emptyList())
@@ -179,6 +180,28 @@ fun PlatformsContent(
                     killBackgroundAppsOnLaunch = it
                     repository.setKillBackgroundAppsOnLaunch(it)
                 }
+            )
+        }
+
+        val controllerMappingInteractionSource = rememberFocusInteractionSource()
+        val controllerMappingGlow = controllerMappingInteractionSource.glowShadow()
+        val controllerMappingColor = controllerMappingInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = controllerMappingInteractionSource,
+                    indication = null,
+                    onClick = onOpenControllerMapping
+                )
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Controller Mapping",
+                style = LocalTextStyle.current.copy(shadow = controllerMappingGlow),
+                color = controllerMappingColor,
+                modifier = Modifier.weight(1f)
             )
         }
 

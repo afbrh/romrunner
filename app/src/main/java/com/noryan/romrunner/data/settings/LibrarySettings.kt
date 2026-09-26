@@ -27,11 +27,19 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_KILL_BACKGROUND_APPS_ON_LAUNCH, true)
         set(value) = prefs.edit().putBoolean(KEY_KILL_BACKGROUND_APPS_ON_LAUNCH, value).apply()
 
+    /** The user's customized controller mapping, JSON-encoded — see
+     *  [com.noryan.romrunner.data.input.ControllerMappingSerializer]. `null` means "never
+     *  customized, use the AYN Thor defaults." */
+    var controllerMappingJson: String?
+        get() = prefs.getString(KEY_CONTROLLER_MAPPING_JSON, null)
+        set(value) = prefs.edit().putString(KEY_CONTROLLER_MAPPING_JSON, value).apply()
+
     companion object {
         private const val PREFS_NAME = "romrunner_settings"
         private const val KEY_ROOT_FOLDER_URI = "root_folder_uri"
         private const val KEY_BIOS_KEYS_FOLDER_URI = "bios_keys_folder_uri"
         private const val KEY_BIOS_KEYS_PROMPT_DISMISSED = "bios_keys_prompt_dismissed"
         private const val KEY_KILL_BACKGROUND_APPS_ON_LAUNCH = "kill_background_apps_on_launch"
+        private const val KEY_CONTROLLER_MAPPING_JSON = "controller_mapping_json"
     }
 }

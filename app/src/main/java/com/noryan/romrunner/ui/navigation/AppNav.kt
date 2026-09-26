@@ -8,12 +8,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.noryan.romrunner.data.repository.LibraryRepository
+import com.noryan.romrunner.ui.controller.ControllerMappingScreen
 import com.noryan.romrunner.ui.library.LibraryScreen
 import com.noryan.romrunner.ui.platforms.PlatformEditScreen
 
 object Routes {
     const val LIBRARY = "library"
     const val PLATFORM_EDIT = "platformEdit/{platformId}"
+    const val CONTROLLER_MAPPING = "controllerMapping"
     fun platformEdit(id: Long) = "platformEdit/$id"
 }
 
@@ -29,7 +31,8 @@ fun RomRunnerNavHost(repository: LibraryRepository) {
             BackHandler(enabled = true) {}
             LibraryScreen(
                 repository = repository,
-                onEditPlatform = { id -> navController.navigate(Routes.platformEdit(id)) }
+                onEditPlatform = { id -> navController.navigate(Routes.platformEdit(id)) },
+                onOpenControllerMapping = { navController.navigate(Routes.CONTROLLER_MAPPING) }
             )
         }
         composable(
@@ -42,6 +45,9 @@ fun RomRunnerNavHost(repository: LibraryRepository) {
                 platformId = platformId,
                 onDone = { navController.popBackStack() }
             )
+        }
+        composable(Routes.CONTROLLER_MAPPING) {
+            ControllerMappingScreen(repository = repository, onDone = { navController.popBackStack() })
         }
     }
 }

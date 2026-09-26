@@ -2,7 +2,9 @@ package com.noryan.romrunner.data.embedded
 
 import android.content.Context
 import android.content.Intent
+import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
+import com.noryan.romrunner.data.repository.LibraryRepository
 import java.io.File
 
 /**
@@ -36,10 +38,11 @@ object RetroArchEmbeddedLauncher {
 
     val PLATFORM_NAMES: Set<String> get() = CORE_FOR_PLATFORM.keys
 
-    fun launch(context: Context, game: Game, platformName: String) {
+    fun launch(context: Context, game: Game, platformName: String, repository: LibraryRepository) {
         val coreFileName = CORE_FOR_PLATFORM[platformName] ?: return
         val corePath = ensureCoreInstalled(context, coreFileName)
         val configPath = ensureDefaultConfigInstalled(context)
+        ControllerMappingApplier.applyToRetroArch(File(configPath), repository.getControllerMapping())
 
         val intent = Intent().apply {
             setClassName(context, RETRO_ACTIVITY_FUTURE_CLASS)

@@ -4,10 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.view.KeyEvent
 import com.armsx2.CustomDriver
 import com.armsx2.Main as Armsx2Main
+import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
+import com.noryan.romrunner.data.repository.LibraryRepository
 import java.io.File
 import java.util.zip.ZipInputStream
 import org.json.JSONArray
@@ -80,9 +81,10 @@ object PS2EmbeddedLauncher {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
 
-    fun launch(context: Context, game: Game, romsRootUri: String) {
+    fun launch(context: Context, game: Game, romsRootUri: String, repository: LibraryRepository) {
         seedArmsx2Prefs(context, romsRootUri)
-        applyDefaultControlMappingIfNeeded(context)
+        applyStandingStickPreferencesIfNeeded(context)
+        ControllerMappingApplier.applyToArmsx2(context, repository.getControllerMapping())
         applyDefaultGraphicsSettings(context)
         applyJak3PerGameHacks(context)
         // Must run before startActivity: CustomDriver.applyToNative's doc comment notes the
@@ -101,35 +103,27 @@ object PS2EmbeddedLauncher {
     }
 
     /**
-     * One-time control defaults:
+     * One-time right-stick Y/X invert (ControllerMappings' "pad.rstick.invertX"/"invertY", global
+     * scope — see its KEY_RSTICK_INVX/INVY) — a standing camera-control preference, requested
+     * after testing Jak 3, unrelated to (and deliberately left alone by) the Controller Mapping
+     * feature — see ControllerMappingApplier.applyToArmsx2's own doc comment for why sticks are
+     * out of scope there. The face-button/D-pad/shoulder/trigger/click remap this function used to
+     * also apply here is now handled every launch by ControllerMappingApplier.applyToArmsx2
+     * instead, driven by the user's stored (or default) Controller Mapping.
      *
-     * 1. Face-button remap for the AYN Thor's physical layout: PS2 Cross -> Thor B,
-     *    Triangle -> Thor X, Square -> Thor Y, Circle -> Thor A. ARMSX2's own default binds each
-     *    PS2 button to the Android gamepad button of the SAME NAME (Cross->A, Circle->B,
-     *    Square->X, Triangle->Y — see ControllerMappings.actions' defaultPhysicalKeyCode), which
-     *    this overrides.
-     *
-     * 2. Right-stick Y/X invert (ControllerMappings' "pad.rstick.invertX"/"invertY", global
-     *    scope — see its KEY_RSTICK_INVX/INVY) — a standing camera-control preference, requested
-     *    after testing Jak 3.
-     *
-     * Both are written directly to ARMSX2's "ARMSX2" SharedPreferences file under the same keys
+     * Written directly to ARMSX2's "ARMSX2" SharedPreferences file under the same keys
      * ControllerMappings' own setters would use — not through those setters, since they touch
      * MainActivityRuntime.prefs, uninitialized before ARMSX2's own onCreate runs.
      *
      * Gated on RomRunner's own prefs (not ARMSX2's) so this only ever happens ONCE: after that,
-     * the user is free to change either in ARMSX2's own Controls/Pad tabs without RomRunner
-     * quietly reverting their changes on the next launch.
+     * the user is free to change it in ARMSX2's own Controls/Pad tab without RomRunner quietly
+     * reverting it on the next launch.
      */
-    private fun applyDefaultControlMappingIfNeeded(context: Context) {
+    private fun applyStandingStickPreferencesIfNeeded(context: Context) {
         val launcherPrefs = context.getSharedPreferences(LAUNCHER_PREFS_NAME, Context.MODE_PRIVATE)
         if (launcherPrefs.getBoolean(KEY_CONTROL_DEFAULTS_APPLIED, false)) return
 
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putInt("pad.map.cross", KeyEvent.KEYCODE_BUTTON_B)
-            .putInt("pad.map.triangle", KeyEvent.KEYCODE_BUTTON_X)
-            .putInt("pad.map.square", KeyEvent.KEYCODE_BUTTON_Y)
-            .putInt("pad.map.circle", KeyEvent.KEYCODE_BUTTON_A)
             .putBoolean("pad.rstick.invertX", true)
             .putBoolean("pad.rstick.invertY", true)
             .apply()

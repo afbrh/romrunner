@@ -2,7 +2,9 @@ package com.noryan.romrunner.data.embedded
 
 import android.content.Context
 import android.content.Intent
+import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
+import com.noryan.romrunner.data.repository.LibraryRepository
 import org.dolphinemu.dolphinemu.activities.EmulationActivity
 import org.dolphinemu.dolphinemu.utils.DirectoryInitialization
 import java.io.File
@@ -34,8 +36,9 @@ object PrimeHackEmbeddedLauncher {
     // ran under the old key need to reapply once under the new one.
     private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v2"
 
-    fun launch(context: Context, game: Game, romsRootUri: String) {
+    fun launch(context: Context, game: Game, romsRootUri: String, repository: LibraryRepository) {
         applyDefaultsIfNeeded(context)
+        applyControllerMapping(context, repository)
 
         val intent = Intent(context, EmulationActivity::class.java)
         intent.putExtra(EmulationActivity.EXTRA_SELECTED_GAMES, arrayOf(game.fileUri))
@@ -73,6 +76,16 @@ object PrimeHackEmbeddedLauncher {
         setIniValue(File(configDir, "GFX.ini"), "Settings", "WaitForShadersBeforeStarting", "True")
 
         prefs.edit().putBoolean(KEY_DEFAULTS_APPLIED, true).apply()
+    }
+
+    /** Applies the user's current Controller Mapping to real GameCube-disc titles (GCPadNew.ini's
+     *  [GCPad1] section) on every launch — see ControllerMappingApplier.applyToPrimeHack's own
+     *  doc comment for why Wii titles' WiimoteNew.ini is deliberately left untouched. */
+    private fun applyControllerMapping(context: Context, repository: LibraryRepository) {
+        if (!DirectoryInitialization.areDolphinDirectoriesReady()) return
+        val configDir = File(DirectoryInitialization.getUserDirectory(), "Config")
+        configDir.mkdirs()
+        ControllerMappingApplier.applyToPrimeHack(configDir, repository.getControllerMapping())
     }
 
     /** Replaces (or adds) a whole `[sectionName]` section in [file] with [body] wholesale. */

@@ -5,7 +5,9 @@ package com.noryan.romrunner.data.embedded
 import android.content.Context
 import android.content.Intent
 import android.view.KeyEvent
+import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
+import com.noryan.romrunner.data.repository.LibraryRepository
 import info.cemu.cemu.common.android.inputdevice.listGameControllers
 import info.cemu.cemu.common.android.inputdevice.toControllerInfo
 import info.cemu.cemu.common.customdrivers.getCustomDriversDir
@@ -16,7 +18,6 @@ import info.cemu.cemu.common.settings.HotkeyCombo
 import info.cemu.cemu.emulation.EmulationActivity
 import info.cemu.cemu.nativeinterface.NativeInput
 import info.cemu.cemu.nativeinterface.NativeSettings
-import info.cemu.cemu.settings.input.controller.InputMapper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -52,9 +53,12 @@ object CemuEmbeddedLauncher {
     // ran under an older key need to reapply once under this one.
     private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v7"
 
-    fun launch(context: Context, game: Game, romsRootUri: String) {
+    fun launch(context: Context, game: Game, romsRootUri: String, repository: LibraryRepository) {
         applyDefaultsIfNeeded(context)
         applyDefaultHotkeysIfNeeded(context)
+        listGameControllers().firstOrNull()?.let { device ->
+            ControllerMappingApplier.applyToCemu(device, repository.getControllerMapping())
+        }
 
         val intent = Intent(context, EmulationActivity::class.java)
         intent.putExtra(EmulationActivity.EXTRA_LAUNCH_PATH, game.fileUri)
@@ -79,10 +83,9 @@ object CemuEmbeddedLauncher {
         val controllers = listGameControllers()
         if (controllers.isNotEmpty()) {
             NativeInput.setControllers(controllers.map { it.toControllerInfo() }.toTypedArray())
-            // Auto-maps every VPAD button to this device's standard gamepad buttons/axes — the
-            // same heuristic Cemu's own Settings > Input > "map all" control uses, keyed off
-            // which KEYCODE_BUTTON_*/axes the device actually reports (see InputMapper.kt).
-            InputMapper.mapAllInputs(controllers.first().id, 0)
+            // Explicit per-button mapping now happens every launch via
+            // ControllerMappingApplier.applyToCemu (see launch()), driven by the user's stored
+            // Controller Mapping instead of this one-time "map all" heuristic.
         }
 
         NativeInput.saveInputs()

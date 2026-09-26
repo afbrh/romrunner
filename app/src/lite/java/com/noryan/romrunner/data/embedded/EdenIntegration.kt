@@ -26,8 +26,12 @@ object EdenIntegration {
 
     fun importFirmwareFromUri(context: Context, uri: Uri): Boolean = false
 
-    fun rememberState(context: Context, romsRootUri: String?, markPlayed: (Game) -> Unit): EdenLibraryState =
-        NoOpEdenLibraryState
+    fun rememberState(
+        context: Context,
+        romsRootUri: String?,
+        repository: LibraryRepository,
+        markPlayed: (Game) -> Unit
+    ): EdenLibraryState = NoOpEdenLibraryState
 }
 
 private object NoOpEdenLibraryState : EdenLibraryState {

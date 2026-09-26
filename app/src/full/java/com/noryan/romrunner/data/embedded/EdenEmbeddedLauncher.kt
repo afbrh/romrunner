@@ -4,16 +4,25 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.noryan.romrunner.data.input.ControllerMapping
+import com.noryan.romrunner.data.input.PhysicalBinding
+import com.noryan.romrunner.data.input.StandardInput
+import com.noryan.romrunner.data.input.StickBinding
 import com.noryan.romrunner.data.model.Game
+import com.noryan.romrunner.data.repository.LibraryRepository
 import java.io.File
 import java.io.FilenameFilter
 import org.yuzu.yuzu_emu.YuzuApplication
 import org.yuzu.yuzu_emu.activities.EmulationActivity
+import org.yuzu.yuzu_emu.features.input.NativeInput
+import org.yuzu.yuzu_emu.features.input.model.NativeAnalog
+import org.yuzu.yuzu_emu.features.input.model.NativeButton
 import org.yuzu.yuzu_emu.features.settings.model.BooleanSetting
 import org.yuzu.yuzu_emu.model.Game as EdenGame
 import org.yuzu.yuzu_emu.utils.DirectoryInitialization
 import org.yuzu.yuzu_emu.utils.FileUtil
 import org.yuzu.yuzu_emu.utils.NativeConfig
+import org.yuzu.yuzu_emu.utils.ParamPackage
 import org.yuzu.yuzu_emu.NativeLibrary as EdenNativeLibrary
 
 /**
@@ -168,9 +177,10 @@ object EdenEmbeddedLauncher {
         }
     }
 
-    fun launch(context: Context, game: Game) {
+    fun launch(context: Context, game: Game, repository: LibraryRepository) {
         ensureDirectoryReady(context)
         hideTouchOverlayIfNeeded(context)
+        applyControllerMapping(repository.getControllerMapping())
 
         // EmulationActivity.onCreate() passes intent.extras straight through as the nav graph's
         // start-destination arguments (see eden_emulation_navigation.xml's "game" argument) —
@@ -202,5 +212,76 @@ object EdenEmbeddedLauncher {
         BooleanSetting.SHOW_INPUT_OVERLAY.setBoolean(false)
         NativeConfig.saveGlobalConfig()
         launcherPrefs.edit().putBoolean(KEY_OVERLAY_HIDDEN, true).apply()
+    }
+
+    /**
+     * Applies the user's current Controller Mapping to Eden's own native input-profile system on
+     * every launch, via NativeInput's public ParamPackage-based setters (org.yuzu.yuzu_emu's own
+     * "Input Profiles" settings screen calls these exact same functions). ParamPackage's real
+     * key=value schema (engine/port/guid/button, or engine/port/guid/axis_x/axis_y/offset_x/
+     * offset_y/invert_x/invert_y for a stick, or engine/port/guid/axis/threshold/invert for an
+     * analog-trigger-as-button) is confirmed directly against input_common/drivers/android.cpp's
+     * BuildButtonParamPackageForButton/BuildParamPackageForAnalog/BuildAnalogParamPackageForButton.
+     *
+     * guid/port identify the actual connected device and aren't knowable ahead of time, so they're
+     * read from NativeInput.getInputDevices() (the same device list Eden's own native
+     * Android::GetInputDevices() populates) rather than hardcoded. Skips silently if no device is
+     * reported yet — Eden's own device-registration lifecycle isn't something this launcher
+     * controls, and this only ever runs once a game is actually being launched with a controller
+     * already connected.
+     */
+    private fun applyControllerMapping(mapping: ControllerMapping) {
+        val deviceParams = NativeInput.getInputDevices().firstOrNull()?.let { ParamPackage(it) } ?: return
+        val guid = deviceParams.get("guid", "")
+        if (guid.isEmpty()) return
+        val port = deviceParams.get("port", 0).toString()
+
+        fun buttonParam(keyCode: Int) = ParamPackage(
+            listOf("engine" to "android", "port" to port, "guid" to guid, "button" to keyCode.toString())
+        )
+        fun triggerAxisParam(axis: Int, invert: Boolean) = ParamPackage(
+            listOf(
+                "engine" to "android", "port" to port, "guid" to guid,
+                "axis" to axis.toString(), "threshold" to "0.5", "invert" to if (invert) "-" else "+"
+            )
+        )
+        fun setButton(button: NativeButton, input: StandardInput) {
+            when (val binding = mapping.buttons[input]) {
+                is PhysicalBinding.Key -> NativeInput.setButtonParam(0, button, buttonParam(binding.keyCode))
+                is PhysicalBinding.Axis ->
+                    NativeInput.setButtonParam(0, button, triggerAxisParam(binding.axis, !binding.positiveDirection))
+                null -> {}
+            }
+        }
+
+        setButton(NativeButton.DUp, StandardInput.DPAD_UP)
+        setButton(NativeButton.DDown, StandardInput.DPAD_DOWN)
+        setButton(NativeButton.DLeft, StandardInput.DPAD_LEFT)
+        setButton(NativeButton.DRight, StandardInput.DPAD_RIGHT)
+        // Switch face buttons follow the same Nintendo diamond as 3DS/Wii U: A=right, B=bottom,
+        // X=top, Y=left — matching the AYN Thor default identically.
+        setButton(NativeButton.A, StandardInput.FACE_RIGHT)
+        setButton(NativeButton.B, StandardInput.FACE_BOTTOM)
+        setButton(NativeButton.X, StandardInput.FACE_TOP)
+        setButton(NativeButton.Y, StandardInput.FACE_LEFT)
+        setButton(NativeButton.L, StandardInput.L1)
+        setButton(NativeButton.R, StandardInput.R1)
+        setButton(NativeButton.ZL, StandardInput.L2)
+        setButton(NativeButton.ZR, StandardInput.R2)
+        setButton(NativeButton.LStick, StandardInput.L3)
+        setButton(NativeButton.RStick, StandardInput.R3)
+        setButton(NativeButton.Plus, StandardInput.START)
+        setButton(NativeButton.Minus, StandardInput.SELECT)
+
+        fun stickParam(stick: StickBinding) = ParamPackage(
+            listOf(
+                "engine" to "android", "port" to port, "guid" to guid,
+                "axis_x" to stick.xAxis.toString(), "axis_y" to stick.yAxis.toString(),
+                "offset_x" to "0", "offset_y" to "0",
+                "invert_x" to if (stick.invertX) "-" else "+", "invert_y" to if (stick.invertY) "-" else "+"
+            )
+        )
+        NativeInput.setStickParam(0, NativeAnalog.LStick, stickParam(mapping.leftStick))
+        NativeInput.setStickParam(0, NativeAnalog.RStick, stickParam(mapping.rightStick))
     }
 }

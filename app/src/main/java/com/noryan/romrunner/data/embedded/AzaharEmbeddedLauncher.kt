@@ -4,11 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
+import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.data.scanner.SafPathUtils
 import java.io.File
 import org.citra.citra_emu.activities.EmulationActivity
-import org.citra.citra_emu.features.settings.model.view.InputBindingSetting
 import org.citra.citra_emu.utils.DirectoryInitialization
 import org.citra.citra_emu.utils.EmulationMenuSettings
 import org.citra.citra_emu.utils.PermissionsHandler
@@ -62,13 +63,6 @@ object AzaharEmbeddedLauncher {
 
         EmulationMenuSettings.showOverlay = false
 
-        // AYN Thor's physical controls: Nintendo face-button layout (A=east), discrete D-pad
-        // buttons rather than an analog hat. (There's no way to query this without an actual
-        // keypress — Azahar's own auto-map dialog works the same way — so it's hardcoded here
-        // for this specific device rather than detected.)
-        InputBindingSetting.clearAllBindings()
-        InputBindingSetting.applyAutoMapBindings(isNintendoLayout = true, useAxisDpad = false)
-
         prefs.edit().putBoolean(KEY_DEFAULTS_APPLIED, true).apply()
     }
 
@@ -96,9 +90,10 @@ object AzaharEmbeddedLauncher {
         DirectoryInitialization.start()
     }
 
-    fun launch(context: Context, game: Game, romsRootUri: String) {
+    fun launch(context: Context, game: Game, romsRootUri: String, repository: LibraryRepository) {
         ensureDirectoryReady(romsRootUri)
         applyDefaultSettingsIfNeeded(context, romsRootUri)
+        ControllerMappingApplier.applyToAzahar(context, repository.getControllerMapping())
 
         // Azahar's native loader opens files with plain C++ file I/O, which can't read a
         // content:// Uri directly — it needs a real filesystem path. Only resolvable for folders

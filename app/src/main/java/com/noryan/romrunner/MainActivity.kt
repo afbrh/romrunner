@@ -1,6 +1,8 @@
 package com.noryan.romrunner
 
 import android.os.Bundle
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,6 +11,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.noryan.romrunner.data.input.InputCaptureController
 import com.noryan.romrunner.ui.navigation.RomRunnerNavHost
 import com.noryan.romrunner.ui.theme.RomRunnerTheme
 
@@ -49,6 +52,20 @@ class MainActivity : ComponentActivity() {
         // Re-apply when focus returns (e.g. after a transient swipe-reveal, or coming back from
         // another activity/app-switcher) since the system can leave the bar shown otherwise.
         if (hasFocus) hideStatusBar()
+    }
+
+    // Pre-empts normal dispatch (Compose's own onKeyEvent modifiers, including LibraryScreen's
+    // hardcoded L1/R1 tab-cycle handler) only while the Controller Mapping screen has a capture in
+    // progress — see InputCaptureController's own doc comment. Returns false immediately with zero
+    // side effects whenever nothing is pending, so this is a no-op the rest of the time.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (InputCaptureController.onKeyEvent(event)) return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (InputCaptureController.onGenericMotionEvent(event)) return true
+        return super.dispatchGenericMotionEvent(event)
     }
 
     // Both the physical D-pad and the analog thumbstick on the AYN Thor already arrive as real

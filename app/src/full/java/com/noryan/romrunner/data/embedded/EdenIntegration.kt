@@ -37,7 +37,12 @@ object EdenIntegration {
     /** Used by BiosKeysImporter when it finds a firmware zip in the user's BIOS/Keys folder. */
     fun importFirmwareFromUri(context: Context, uri: Uri): Boolean = EdenEmbeddedLauncher.importFirmware(context, uri)
 
-    fun rememberState(context: Context, romsRootUri: String?, markPlayed: (Game) -> Unit): EdenLibraryState =
+    fun rememberState(
+        context: Context,
+        romsRootUri: String?,
+        repository: LibraryRepository,
+        markPlayed: (Game) -> Unit
+    ): EdenLibraryState =
         object : EdenLibraryState {
             override fun attemptLaunch(platform: Platform, game: Game): Boolean {
                 if (platform.name != EdenEmbeddedLauncher.PLATFORM_NAME || !platform.useBuiltIn) return false
@@ -49,7 +54,7 @@ object EdenIntegration {
                     ).show()
                     return true
                 }
-                EdenEmbeddedLauncher.launch(context, game)
+                EdenEmbeddedLauncher.launch(context, game, repository)
                 markPlayed(game)
                 return true
             }
