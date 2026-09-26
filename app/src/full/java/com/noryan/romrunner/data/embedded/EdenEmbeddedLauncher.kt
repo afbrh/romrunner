@@ -116,13 +116,16 @@ object EdenEmbeddedLauncher {
      * Imports the user-picked prod.keys file via Eden's own native installer (which reads
      * directly from the content:// Uri — no manual copy needed here, unlike ARMSX2's BIOS import).
      * Returns false if the native installer reports anything other than success.
+     *
+     * Deliberately does NOT call takePersistableUriPermission on [sourceUri] — it's a child
+     * document reached by walking an already-persisted BIOS/Keys folder tree (see
+     * BiosKeysImporter), not a Uri returned directly from a picker Activity result, and the
+     * system throws a SecurityException ("No persistable permission grants found") if you try to
+     * persist a grant on it. The tree-level grant already covers reading it right now, which is
+     * all this needs — nothing here holds onto sourceUri past this call.
      */
     fun importKeys(context: Context, sourceUri: Uri): Boolean {
         ensureDirectoryReady(context)
-        context.contentResolver.takePersistableUriPermission(
-            sourceUri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
         return EdenNativeLibrary.installKeys(sourceUri.toString(), "keys") == 0
     }
 
@@ -142,10 +145,7 @@ object EdenEmbeddedLauncher {
      */
     fun importFirmware(context: Context, sourceUri: Uri): Boolean {
         ensureDirectoryReady(context)
-        context.contentResolver.takePersistableUriPermission(
-            sourceUri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
+        // See importKeys' doc comment — no takePersistableUriPermission here either, same reason.
         val filterNca = FilenameFilter { _, name -> name.endsWith(".nca") }
         val firmwareDir = File(NativeConfig.getNandDir() + "/system/Contents/registered/")
         val cacheFirmwareDir = File("${context.cacheDir.path}/registered/")
