@@ -18,6 +18,10 @@
         android:maxSdkVersion="29"
         tools:replace="android:maxSdkVersion" />
 
+    <!-- Normal protection level (auto-granted, no runtime prompt) — lets BackgroundAppCleaner ask
+         Android to free other apps' cached/background processes before launching a game. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
     <!-- The embedded Azahar/ARMSX2/PrimeHack library modules each declare their own <application
          android:name>, android:allowBackup, and android:theme (ARMSX2's Theme.ARMSX2); RomRunner's
          own values win here (and RomRunnerApp.kt explicitly calls into Azahar's CitraApplication

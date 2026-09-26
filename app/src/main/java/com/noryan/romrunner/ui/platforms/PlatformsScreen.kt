@@ -63,6 +63,8 @@ fun PlatformsContent(
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
 
+    var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
+
     var appPickerFor by remember { mutableStateOf<Platform?>(null) }
     var isAddingNew by remember { mutableStateOf(false) }
     var newPlatformName by remember { mutableStateOf("") }
@@ -108,6 +110,24 @@ fun PlatformsContent(
                 style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
                 color = romsFolderColor,
                 textAlign = TextAlign.End
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Close background apps before launching",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f)
+            )
+            RetroToggle(
+                checked = killBackgroundAppsOnLaunch,
+                onCheckedChange = {
+                    killBackgroundAppsOnLaunch = it
+                    repository.setKillBackgroundAppsOnLaunch(it)
+                }
             )
         }
 

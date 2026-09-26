@@ -62,6 +62,7 @@ import com.noryan.romrunner.data.embedded.DuskLightEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.EdenIntegration
 import com.noryan.romrunner.data.embedded.PrimeHackEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.RetroArchEmbeddedLauncher
+import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.model.Game
@@ -152,6 +153,11 @@ fun LibraryScreen(
     val platformsById = remember(state.platforms) { state.platforms.associateBy { it.id } }
 
     fun attemptLaunch(platform: Platform, game: Game) {
+        // Best-effort memory reclaim before any launch path below — see BackgroundAppCleaner's
+        // own doc comment for exactly what this can and can't do.
+        if (repository.getKillBackgroundAppsOnLaunch()) {
+            BackgroundAppCleaner.killNonEssentialApps(context)
+        }
         if (platform.name == AzaharEmbeddedLauncher.PLATFORM_NAME && platform.useBuiltIn) {
             val romsRootUri = state.romsRootUri
             if (romsRootUri == null) {

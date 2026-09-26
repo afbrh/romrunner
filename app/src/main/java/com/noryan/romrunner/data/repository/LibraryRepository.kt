@@ -141,4 +141,9 @@ class LibraryRepository(
     fun setRootFolderUri(uri: String?) {
         settings.rootFolderUri = uri
     }
+
+    fun getKillBackgroundAppsOnLaunch(): Boolean = settings.killBackgroundAppsOnLaunch
+    fun setKillBackgroundAppsOnLaunch(value: Boolean) {
+        settings.killBackgroundAppsOnLaunch = value
+    }
 }
