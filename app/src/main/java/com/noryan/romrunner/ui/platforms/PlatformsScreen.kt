@@ -38,8 +38,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.embedded.BuiltInPlatforms
 import com.noryan.romrunner.data.launch.BiosKeysImporter
+import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
+import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
@@ -54,8 +56,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlatformsContent(
     repository: LibraryRepository,
+    onEditPlatform: (Long) -> Unit,
     onOpenControllerMapping: () -> Unit,
-    onOpenPlatformSettings: (Long) -> Unit
+    onOpenControllerMappingForPlatform: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val platforms by repository.observePlatforms().collectAsState(initial = emptyList())
@@ -69,9 +72,11 @@ fun PlatformsContent(
 
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
 
+    var appPickerFor by remember { mutableStateOf<Platform?>(null) }
     var isAddingNew by remember { mutableStateOf(false) }
     var newPlatformName by remember { mutableStateOf("") }
     var systemSettingsExpanded by remember { mutableStateOf(false) }
+    var expandedPlatformIds by remember { mutableStateOf(setOf<Long>()) }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -232,30 +237,98 @@ fun PlatformsContent(
             if (!systemSettingsExpanded) return@LazyColumn
 
             items(platforms, key = { it.id }) { platform ->
-                val platformInteractionSource = rememberFocusInteractionSource()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = platformInteractionSource,
-                            indication = null
-                        ) { onOpenPlatformSettings(platform.id) }
-                        // Extra start padding beyond the header's 20.dp — visually nests each
-                        // system "one tab over" under the System-Specific Settings folder.
-                        .padding(start = 36.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = platform.name,
-                        style = LocalTextStyle.current.copy(shadow = platformInteractionSource.glowShadow()),
-                        color = platformInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        Icons.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = platformInteractionSource.glowColor(MaterialTheme.colorScheme.onSurfaceVariant)
+                val hasBuiltIn = platform.name in BuiltInPlatforms.NAMES
+                val expanded = platform.id in expandedPlatformIds
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    val platformInteractionSource = rememberFocusInteractionSource()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = platformInteractionSource,
+                                indication = null
+                            ) {
+                                expandedPlatformIds = if (expanded) {
+                                    expandedPlatformIds - platform.id
+                                } else {
+                                    expandedPlatformIds + platform.id
+                                }
+                            }
+                            // Extra start padding beyond the header's 20.dp — visually nests each
+                            // system "one tab over" under the System-Specific Settings folder.
+                            .padding(start = 36.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            if (expanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = platformInteractionSource.glowColor(MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                        Text(
+                            text = platform.name,
+                            style = LocalTextStyle.current.copy(shadow = platformInteractionSource.glowShadow()),
+                            color = platformInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    if (!expanded) return@items
+
+                    // A further-nested "two tabs over" look for this platform's own settings,
+                    // matching the same unfold pattern System-Specific Settings itself uses.
+                    if (hasBuiltIn) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Use Embedded Emulator",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            RetroToggle(
+                                checked = platform.useBuiltIn,
+                                onCheckedChange = { checked ->
+                                    scope.launch { repository.savePlatform(platform.copy(useBuiltIn = checked)) }
+                                }
+                            )
+                        }
+                        if (platform.useBuiltIn) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Use Global Controller Mapping (recommended)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                RetroToggle(
+                                    checked = platform.useGlobalControllerMapping,
+                                    onCheckedChange = { checked ->
+                                        scope.launch {
+                                            repository.savePlatform(platform.copy(useGlobalControllerMapping = checked))
+                                        }
+                                    }
+                                )
+                            }
+                            if (!platform.useGlobalControllerMapping) {
+                                PlatformSubRow(
+                                    label = "Map Controller",
+                                    onClick = { onOpenControllerMappingForPlatform(platform.id) }
+                                )
+                            }
+                        } else {
+                            PlatformAppChoiceRow(platform, onClick = { appPickerFor = platform })
+                        }
+                    } else {
+                        PlatformAppChoiceRow(platform, onClick = { appPickerFor = platform })
+                    }
+
+                    PlatformSubRow(
+                        label = "Edit Extensions & Launch Settings",
+                        onClick = { onEditPlatform(platform.id) }
                     )
                 }
             }
@@ -325,5 +398,54 @@ fun PlatformsContent(
                 }
             }
         }
+    }
+
+    appPickerFor?.let { platform ->
+        AppPickerDialog(
+            title = "Which app should play ${platform.name} games?",
+            onDismiss = { appPickerFor = null },
+            onPick = { app: InstalledApp ->
+                appPickerFor = null
+                scope.launch { repository.savePlatform(platform.copy(launchPackage = app.packageName)) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PlatformSubRow(label: String, onClick: () -> Unit) {
+    val interactionSource = rememberFocusInteractionSource()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = LocalTextStyle.current.copy(shadow = interactionSource.glowShadow()),
+            color = interactionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun PlatformAppChoiceRow(platform: Platform, onClick: () -> Unit) {
+    val interactionSource = rememberFocusInteractionSource()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("App", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(
+            text = platform.launchPackage.ifBlank { "Choose app" },
+            style = LocalTextStyle.current.copy(shadow = interactionSource.glowShadow()),
+            color = interactionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+        )
     }
 }
