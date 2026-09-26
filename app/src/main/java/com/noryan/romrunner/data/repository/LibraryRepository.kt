@@ -147,6 +147,11 @@ class LibraryRepository(
         settings.biosKeysFolderUri = uri
     }
 
+    fun getBiosKeysPromptDismissed(): Boolean = settings.biosKeysPromptDismissed
+    fun setBiosKeysPromptDismissed(value: Boolean) {
+        settings.biosKeysPromptDismissed = value
+    }
+
     fun getKillBackgroundAppsOnLaunch(): Boolean = settings.killBackgroundAppsOnLaunch
     fun setKillBackgroundAppsOnLaunch(value: Boolean) {
         settings.killBackgroundAppsOnLaunch = value

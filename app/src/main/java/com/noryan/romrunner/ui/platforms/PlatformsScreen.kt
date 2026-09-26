@@ -99,17 +99,7 @@ fun PlatformsContent(
             repository.setBiosKeysFolderUri(uri.toString())
             biosKeysFolderUri = uri.toString()
             scope.launch {
-                val result = BiosKeysImporter.scanAndImport(context, uri)
-                val found = buildList {
-                    if (result.ps2BiosImported) add("PS2 BIOS")
-                    if (result.switchKeysImported) add("Switch keys")
-                    if (result.switchFirmwareImported) add("Switch firmware")
-                }
-                val message = if (found.isEmpty()) {
-                    "No BIOS/keys/firmware files recognized in that folder."
-                } else {
-                    "Imported: ${found.joinToString(", ")}."
-                }
+                val message = BiosKeysImporter.scanImportAndDescribe(context, uri)
                 Toast.makeText(context, message, Toast.LENGTH_LONG).show()
             }
         }

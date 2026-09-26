@@ -15,6 +15,12 @@ class LibrarySettings(context: Context) {
         get() = prefs.getString(KEY_BIOS_KEYS_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_BIOS_KEYS_FOLDER_URI, value).apply()
 
+    /** Whether the user tapped "Skip for now" on the first-run BIOS/Keys folder prompt — keeps it
+     *  from nagging on every launch for someone with no Switch/PS2 games. */
+    var biosKeysPromptDismissed: Boolean
+        get() = prefs.getBoolean(KEY_BIOS_KEYS_PROMPT_DISMISSED, false)
+        set(value) = prefs.edit().putBoolean(KEY_BIOS_KEYS_PROMPT_DISMISSED, value).apply()
+
     /** Whether to ask Android to kill other apps' background processes right before launching a
      *  game, freeing memory for it. Default on — see [com.noryan.romrunner.data.launch.BackgroundAppCleaner]. */
     var killBackgroundAppsOnLaunch: Boolean
@@ -25,6 +31,7 @@ class LibrarySettings(context: Context) {
         private const val PREFS_NAME = "romrunner_settings"
         private const val KEY_ROOT_FOLDER_URI = "root_folder_uri"
         private const val KEY_BIOS_KEYS_FOLDER_URI = "bios_keys_folder_uri"
+        private const val KEY_BIOS_KEYS_PROMPT_DISMISSED = "bios_keys_prompt_dismissed"
         private const val KEY_KILL_BACKGROUND_APPS_ON_LAUNCH = "kill_background_apps_on_launch"
     }
 }

@@ -56,6 +56,21 @@ object BiosKeysImporter {
             BiosKeysImportResult(ps2Bios, switchKeys, switchFirmware)
         }
 
+    /** [scanAndImport] plus a user-facing summary of what it found, for a result Toast. */
+    suspend fun scanImportAndDescribe(context: Context, folderUri: Uri): String {
+        val result = scanAndImport(context, folderUri)
+        val found = buildList {
+            if (result.ps2BiosImported) add("PS2 BIOS")
+            if (result.switchKeysImported) add("Switch keys")
+            if (result.switchFirmwareImported) add("Switch firmware")
+        }
+        return if (found.isEmpty()) {
+            "No BIOS/keys/firmware files recognized in that folder."
+        } else {
+            "Imported: ${found.joinToString(", ")}."
+        }
+    }
+
     private fun walk(dir: DocumentFile, onFile: (DocumentFile) -> Unit) {
         for (child in dir.listFiles()) {
             if (child.isDirectory) {

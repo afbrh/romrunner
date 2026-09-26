@@ -63,6 +63,7 @@ import com.noryan.romrunner.data.embedded.EdenIntegration
 import com.noryan.romrunner.data.embedded.PrimeHackEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.RetroArchEmbeddedLauncher
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
+import com.noryan.romrunner.data.launch.BiosKeysImporter
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.model.Game
@@ -119,6 +120,27 @@ fun LibraryScreen(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         if (uri != null) viewModel.setRootFolder(context, uri)
+    }
+
+    // First-run onboarding, step 2 — shown once the ROMs folder is set, until either a BIOS/Keys
+    // folder is chosen or the user explicitly skips it (see ChooseBiosKeysFolderPrompt below).
+    var biosKeysFolderUri by remember { mutableStateOf(repository.getBiosKeysFolderUri()) }
+    var biosKeysPromptDismissed by remember { mutableStateOf(repository.getBiosKeysPromptDismissed()) }
+    val biosKeysFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            repository.setBiosKeysFolderUri(uri.toString())
+            biosKeysFolderUri = uri.toString()
+            scope.launch {
+                val message = BiosKeysImporter.scanImportAndDescribe(context, uri)
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     LaunchedEffect(state.message) {
@@ -289,6 +311,13 @@ fun LibraryScreen(
                     ) {
                         when {
                             state.romsRootUri == null -> ChooseFolderPrompt(onChooseFolder = { folderPicker.launch(null) })
+                            biosKeysFolderUri == null && !biosKeysPromptDismissed -> ChooseBiosKeysFolderPrompt(
+                                onChooseFolder = { biosKeysFolderPicker.launch(null) },
+                                onSkip = {
+                                    repository.setBiosKeysPromptDismissed(true)
+                                    biosKeysPromptDismissed = true
+                                }
+                            )
                             state.games.isEmpty() -> {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text("No games found yet. Pull down to refresh, or check Settings for supported file types.")
@@ -483,5 +512,39 @@ private fun ChooseFolderPrompt(onChooseFolder: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onChooseFolder) { Text("Choose folder") }
+    }
+}
+
+@Composable
+private fun ChooseBiosKeysFolderPrompt(onChooseFolder: () -> Unit, onSkip: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = Color.Unspecified
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Point RomRunner at your BIOS/Keys folder", style = MaterialTheme.typography.titleLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Pick a folder holding your Switch prod.keys, Switch firmware zip, and/or PS2 BIOS file " +
+                "and RomRunner will find and import them automatically. Skip this if you don't play " +
+                "Switch or PS2 games.",
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onChooseFolder) { Text("Choose folder") }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Skip for now",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clickable(onClick = onSkip).padding(8.dp)
+        )
     }
 }
