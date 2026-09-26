@@ -46,6 +46,8 @@ object EdenEmbeddedLauncher {
     const val PLATFORM_NAME = "Nintendo Switch"
     private const val LAUNCHER_PREFS_NAME = "eden_embedded_launcher"
     private const val KEY_OVERLAY_HIDDEN = "overlay_hidden"
+    private const val KEY_BUNDLED_MODS_INSTALLED = "bundled_mods_installed"
+    private const val BUNDLED_MODS_ASSET_DIR = "eden_mods"
 
     /**
      * Eden's own Application class (YuzuApplication) never gets its onCreate() called — RomRunner's
@@ -62,6 +64,49 @@ object EdenEmbeddedLauncher {
     private fun ensureDirectoryReady(context: Context) {
         if (DirectoryInitialization.areDirectoriesReady) return
         YuzuApplication.initializeForEmbedding(context.applicationContext as Application)
+        ensureBundledModsInstalled(context)
+    }
+
+    /**
+     * One-time copy of RomRunner-bundled per-title mods/cheats (assets/eden_mods/<title_id>/...)
+     * into Eden's own mod-load directory (<userDirectory>/load/<title_id>/...), matching the exact
+     * "<mod dir>/<folder>/cheats/<build id>.txt" and "<mod dir>/<folder>/romfs/..." layouts Eden's
+     * own PatchManager expects (core/file_sys/patch_manager.cpp) — same "any addon folder under
+     * load/<title_id>/" mechanism Eden's own mod system already reads, just pre-populated by
+     * RomRunner instead of requiring the user to install mods by hand. Currently bundles a
+     * depth-of-field removal fix for two titles: a verified Atmosphere-format cheat code for
+     * Echoes of Wisdom (source: community cheat database), and a shader replacement mod for
+     * Link's Awakening (source: GameBanana's "No DOF Blur" mod, CC BY-NC-ND 4.0). Never overwrites
+     * a file the user (or another mod) already placed there, and only ever runs once per install
+     * (tracked via [KEY_BUNDLED_MODS_INSTALLED]) so a user who deliberately removes a bundled mod
+     * afterward doesn't have it silently reappear on the next launch.
+     */
+    private fun ensureBundledModsInstalled(context: Context) {
+        val prefs = context.getSharedPreferences(LAUNCHER_PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_BUNDLED_MODS_INSTALLED, false)) return
+        val loadDir = File(DirectoryInitialization.userDirectory, "load")
+        copyAssetTreeIfAbsent(context, BUNDLED_MODS_ASSET_DIR, loadDir)
+        prefs.edit().putBoolean(KEY_BUNDLED_MODS_INSTALLED, true).apply()
+    }
+
+    /** Recursively copies [assetPath] (a directory in this module's assets) into [destination],
+     *  skipping any file that already exists there. AssetManager has no native "copy directory"
+     *  API and no way to ask "is this a file or a directory" directly — [android.content.res.AssetManager.list]
+     *  returns a non-empty array for a directory and an empty array for a plain file, which is
+     *  what distinguishes the two cases below. */
+    private fun copyAssetTreeIfAbsent(context: Context, assetPath: String, destination: File) {
+        val children = context.assets.list(assetPath) ?: emptyArray()
+        if (children.isEmpty()) {
+            if (destination.exists()) return
+            destination.parentFile?.mkdirs()
+            context.assets.open(assetPath).use { input ->
+                destination.outputStream().use { output -> input.copyTo(output) }
+            }
+            return
+        }
+        for (child in children) {
+            copyAssetTreeIfAbsent(context, "$assetPath/$child", File(destination, child))
+        }
     }
 
     /** True once prod.keys has been imported and is still present on disk. */
