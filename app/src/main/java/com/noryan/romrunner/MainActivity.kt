@@ -5,6 +5,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -13,6 +14,9 @@ import com.noryan.romrunner.ui.theme.RomRunnerTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Must come before super.onCreate() — it applies Theme.RomRunner.Splash's brand splash,
+        // then hands off to postSplashScreenTheme (Theme.RomRunner) once the first frame draws.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         hideStatusBar()

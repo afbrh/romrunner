@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -51,6 +49,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import com.noryan.romrunner.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -508,11 +508,13 @@ private fun ChooseFolderPrompt(onChooseFolder: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // The RomRunner mark itself (see branding/mark.svg) — tint = Unspecified keeps its own
+        // brand orange rather than being recolored to the app's own amber/indigo UI palette.
         Icon(
-            Icons.Filled.Folder,
+            painterResource(R.drawable.ic_launcher_foreground),
             contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.primary
+            modifier = Modifier.size(64.dp),
+            tint = Color.Unspecified
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text("Point RomRunner at your ROMs folder", style = MaterialTheme.typography.titleLarge)

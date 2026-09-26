@@ -165,6 +165,10 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.13.1")
+    // Consistent branded cold-start splash (RomRunner's mark on its navy brand background) across
+    // minSdk 30 up — API 31+ has this built into the OS already, but only if a splash theme is
+    // declared; below 31 this library draws the same look itself.
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")

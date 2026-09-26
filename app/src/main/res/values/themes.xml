@@ -2,4 +2,12 @@
     <style name="Theme.RomRunner" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
+
+    <!-- Branded cold-start splash (see MainActivity.onCreate's installSplashScreen() call) — the
+         mark on its navy brand background, then handing off to the real theme above. -->
+    <style name="Theme.RomRunner.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_navy</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.RomRunner</item>
+    </style>
 </resources>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0E0A22"/><svg x="16" y="8" width="480" height="480" viewBox="0 0 512 512"><defs><mask id="cuta" maskUnits="userSpaceOnUse" x="-100" y="0" width="700" height="512">
+  <rect x="-100" width="700" height="512" fill="#fff"/>
+  <g fill="#000"><rect x="222" y="124" width="16" height="44" rx="6"/><rect x="252" y="124" width="16" height="44" rx="6"/>
+  <rect x="282" y="124" width="16" height="44" rx="6"/><rect x="312" y="124" width="16" height="44" rx="6"/></g>
+  <path d="M262 246 L340 296 L262 346 Z" fill="#000" stroke="#000" stroke-width="18" stroke-linejoin="round"/>
+</mask></defs>
+<g transform="translate(50 0) skewX(-10)" fill="#FF6B4A">
+  <path mask="url(#cuta)" d="M214 96 H340 L390 146 V392 Q390 416 366 416 H214 Q190 416 190 392 V120 Q190 96 214 96 Z"/>
+  <rect x="70" y="214" width="92" height="26" rx="13"/>
+  <rect x="112" y="283" width="50" height="26" rx="13"/>
+  <rect x="44" y="352" width="118" height="26" rx="13"/>
+</g></svg></svg>
