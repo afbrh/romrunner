@@ -273,63 +273,71 @@ fun PlatformsContent(
                         )
                     }
 
-                    if (!expanded) return@items
-
-                    // A further-nested "two tabs over" look for this platform's own settings,
-                    // matching the same unfold pattern System-Specific Settings itself uses.
-                    if (hasBuiltIn) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Use Embedded Emulator",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            RetroToggle(
-                                checked = platform.useBuiltIn,
-                                onCheckedChange = { checked ->
-                                    scope.launch { repository.savePlatform(platform.copy(useBuiltIn = checked)) }
-                                }
-                            )
-                        }
-                        if (platform.useBuiltIn) {
+                    // A non-local `return@items` here (skipping the rest of this Column when
+                    // collapsed) crashes Compose's LazyLayout prefetch with a slot-table
+                    // corruption (ArrayIndexOutOfBoundsException in IntStack.peek2/GapComposer,
+                    // and separately IllegalArgumentException in endReuseFromRoot) once it tries
+                    // to precompose/reuse this off-screen item — confirmed on-device, and matches
+                    // a known Compose runtime bug class ("early return statements throw internal
+                    // Compose error"). Wrapping the conditional content in a plain `if` block
+                    // instead avoids the non-local return entirely.
+                    if (expanded) {
+                        // A further-nested "two tabs over" look for this platform's own settings,
+                        // matching the same unfold pattern System-Specific Settings itself uses.
+                        if (hasBuiltIn) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "Use Global Controller Mapping (recommended)",
+                                    "Use Embedded Emulator",
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.weight(1f)
                                 )
                                 RetroToggle(
-                                    checked = platform.useGlobalControllerMapping,
+                                    checked = platform.useBuiltIn,
                                     onCheckedChange = { checked ->
-                                        scope.launch {
-                                            repository.savePlatform(platform.copy(useGlobalControllerMapping = checked))
-                                        }
+                                        scope.launch { repository.savePlatform(platform.copy(useBuiltIn = checked)) }
                                     }
                                 )
                             }
-                            if (!platform.useGlobalControllerMapping) {
-                                PlatformSubRow(
-                                    label = "Map Controller",
-                                    onClick = { onOpenControllerMappingForPlatform(platform.id) }
-                                )
+                            if (platform.useBuiltIn) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Use Global Controller Mapping (recommended)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    RetroToggle(
+                                        checked = platform.useGlobalControllerMapping,
+                                        onCheckedChange = { checked ->
+                                            scope.launch {
+                                                repository.savePlatform(platform.copy(useGlobalControllerMapping = checked))
+                                            }
+                                        }
+                                    )
+                                }
+                                if (!platform.useGlobalControllerMapping) {
+                                    PlatformSubRow(
+                                        label = "Map Controller",
+                                        onClick = { onOpenControllerMappingForPlatform(platform.id) }
+                                    )
+                                }
+                            } else {
+                                PlatformAppChoiceRow(platform, onClick = { appPickerFor = platform })
                             }
                         } else {
                             PlatformAppChoiceRow(platform, onClick = { appPickerFor = platform })
                         }
-                    } else {
-                        PlatformAppChoiceRow(platform, onClick = { appPickerFor = platform })
-                    }
 
-                    PlatformSubRow(
-                        label = "Edit Extensions & Launch Settings",
-                        onClick = { onEditPlatform(platform.id) }
-                    )
+                        PlatformSubRow(
+                            label = "Edit Extensions & Launch Settings",
+                            onClick = { onEditPlatform(platform.id) }
+                        )
+                    }
                 }
             }
 

@@ -26,6 +26,7 @@ class RomRunnerApp : CitraApplication() {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
+        disablePausableCompositionInPrefetch()
         super.onCreate()
         // RomRunner integration: PrimeHack (embedded GameCube/Wii core) is a THIRD embedded
         // Application-subclassing library, but Kotlin single inheritance means RomRunnerApp can
@@ -72,6 +73,35 @@ class RomRunnerApp : CitraApplication() {
             // Same story for Nintendo Switch ("full" flavor only) — routed to the embedded Eden
             // core instead of an external dev.eden.eden_emulator install. No-op on "lite".
             EdenIntegration.applyLaunchRoutingDefaults(repository)
+        }
+    }
+
+    /**
+     * Our own declared compose-bom (2024.09.02, Foundation 1.7.2) gets overridden project-wide by
+     * a much newer one (2026.06.01, Foundation 1.11.4 — confirmed via
+     * `./gradlew :app:dependencyInsight --dependency androidx.compose.foundation:foundation-android`)
+     * pulled in transitively through one of the embedded emulator cores' own dependency graphs;
+     * Gradle's default conflict resolution takes the highest version across the whole app. That
+     * newer Foundation's "pausable composition in prefetch" optimization crashes
+     * (IllegalArgumentException: "Cannot disable reuse from root if it was caused by other
+     * groups", in GapComposer/PausedCompositionImpl) when LazyColumn prefetches an off-screen row
+     * whose content shape changes conditionally, e.g. PlatformsScreen's per-platform
+     * expand/collapse. Disabling this flag is the officially-provided escape hatch for exactly
+     * this kind of regression — cheaper and lower-risk than pinning one Foundation version across
+     * every embedded core's own independent build.
+     *
+     * Reflection (rather than a direct `ComposeFoundationFlags.isPausableCompositionInPrefetchEnabled
+     * = false` call) because our own module's *compile* classpath still resolves the older 1.7.2,
+     * which doesn't have this class at all — only the newer version actually merged into the
+     * final app at runtime does.
+     */
+    private fun disablePausableCompositionInPrefetch() {
+        try {
+            val flags = Class.forName("androidx.compose.foundation.ComposeFoundationFlags")
+            flags.getField("isPausableCompositionInPrefetchEnabled").setBoolean(null, false)
+        } catch (e: ReflectiveOperationException) {
+            // The resolved Foundation version no longer has this flag (renamed/removed) or never
+            // had it (older than expected) — nothing to disable either way.
         }
     }
 }
