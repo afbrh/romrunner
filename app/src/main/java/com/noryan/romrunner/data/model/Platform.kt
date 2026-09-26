@@ -21,7 +21,16 @@ data class Platform(
     val passAsIntentData: Boolean = true,
     val extrasRaw: String = "",
     val sortOrder: Int = 0,
-    val useBuiltIn: Boolean = true
+    val useBuiltIn: Boolean = true,
+    /** Whether this platform's embedded emulator uses RomRunner's global Controller Mapping
+     *  (see [com.noryan.romrunner.data.input.ControllerMapping]) or its own [controllerMappingJson]
+     *  override. Only meaningful when [useBuiltIn] is true. */
+    val useGlobalControllerMapping: Boolean = true,
+    /** This platform's own Controller Mapping override, JSON-encoded — see
+     *  [com.noryan.romrunner.data.input.ControllerMappingSerializer]. Only read when
+     *  [useGlobalControllerMapping] is false; `null` means "not customized yet," which falls back
+     *  to the current global mapping as a starting point. */
+    val controllerMappingJson: String? = null
 ) {
     val extensions: List<String>
         get() = extensionsCsv.split(",")

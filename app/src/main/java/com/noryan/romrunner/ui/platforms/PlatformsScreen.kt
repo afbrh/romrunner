@@ -57,7 +57,8 @@ import kotlinx.coroutines.launch
 fun PlatformsContent(
     repository: LibraryRepository,
     onEditPlatform: (Long) -> Unit,
-    onOpenControllerMapping: () -> Unit
+    onOpenControllerMapping: () -> Unit,
+    onOpenControllerMappingForPlatform: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val platforms by repository.observePlatforms().collectAsState(initial = emptyList())
@@ -236,49 +237,94 @@ fun PlatformsContent(
 
             items(platforms, key = { it.id }) { platform ->
                 val hasBuiltIn = platform.name in BuiltInPlatforms.NAMES
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    val nameInteractionSource = rememberFocusInteractionSource()
-                    Text(
-                        text = platform.name,
-                        style = LocalTextStyle.current.copy(shadow = nameInteractionSource.glowShadow()),
-                        color = nameInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable(
-                                interactionSource = nameInteractionSource,
-                                indication = null
-                            ) { onEditPlatform(platform.id) }
-                    )
-                    if (hasBuiltIn && platform.useBuiltIn) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val nameInteractionSource = rememberFocusInteractionSource()
                         Text(
-                            text = "Use embedded emulator",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        val appPickerInteractionSource = rememberFocusInteractionSource()
-                        Text(
-                            text = platform.launchPackage.ifBlank { "Choose app" },
-                            style = LocalTextStyle.current.copy(shadow = appPickerInteractionSource.glowShadow()),
-                            color = appPickerInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+                            text = platform.name,
+                            style = LocalTextStyle.current.copy(shadow = nameInteractionSource.glowShadow()),
+                            color = nameInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
                             modifier = Modifier
+                                .weight(1f)
                                 .clickable(
-                                    interactionSource = appPickerInteractionSource,
+                                    interactionSource = nameInteractionSource,
                                     indication = null
-                                ) { appPickerFor = platform }
+                                ) { onEditPlatform(platform.id) }
+                        )
+                        if (hasBuiltIn && platform.useBuiltIn) {
+                            Text(
+                                text = "Use embedded emulator",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            val appPickerInteractionSource = rememberFocusInteractionSource()
+                            Text(
+                                text = platform.launchPackage.ifBlank { "Choose app" },
+                                style = LocalTextStyle.current.copy(shadow = appPickerInteractionSource.glowShadow()),
+                                color = appPickerInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+                                modifier = Modifier
+                                    .clickable(
+                                        interactionSource = appPickerInteractionSource,
+                                        indication = null
+                                    ) { appPickerFor = platform }
+                            )
+                        }
+                        RetroToggle(
+                            checked = hasBuiltIn && platform.useBuiltIn,
+                            onCheckedChange = { checked ->
+                                scope.launch { repository.savePlatform(platform.copy(useBuiltIn = checked)) }
+                            },
+                            enabled = hasBuiltIn
                         )
                     }
-                    RetroToggle(
-                        checked = hasBuiltIn && platform.useBuiltIn,
-                        onCheckedChange = { checked ->
-                            scope.launch { repository.savePlatform(platform.copy(useBuiltIn = checked)) }
-                        },
-                        enabled = hasBuiltIn
-                    )
+
+                    if (hasBuiltIn && platform.useBuiltIn) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Use global controller mapping (recommended)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            RetroToggle(
+                                checked = platform.useGlobalControllerMapping,
+                                onCheckedChange = { checked ->
+                                    scope.launch {
+                                        repository.savePlatform(platform.copy(useGlobalControllerMapping = checked))
+                                    }
+                                }
+                            )
+                        }
+                        if (!platform.useGlobalControllerMapping) {
+                            val mapControllerInteractionSource = rememberFocusInteractionSource()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        interactionSource = mapControllerInteractionSource,
+                                        indication = null
+                                    ) { onOpenControllerMappingForPlatform(platform.id) }
+                                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Map Controller",
+                                    style = LocalTextStyle.current.copy(shadow = mapControllerInteractionSource.glowShadow()),
+                                    color = mapControllerInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

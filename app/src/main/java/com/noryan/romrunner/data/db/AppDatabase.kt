@@ -9,7 +9,7 @@ import com.noryan.romrunner.data.dao.PlatformDao
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 
-@Database(entities = [Platform::class, Game::class], version = 3, exportSchema = false)
+@Database(entities = [Platform::class, Game::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun platformDao(): PlatformDao
     abstract fun gameDao(): GameDao

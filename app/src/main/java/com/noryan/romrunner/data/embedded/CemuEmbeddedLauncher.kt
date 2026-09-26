@@ -5,9 +5,9 @@ package com.noryan.romrunner.data.embedded
 import android.content.Context
 import android.content.Intent
 import android.view.KeyEvent
+import com.noryan.romrunner.data.input.ControllerMapping
 import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
-import com.noryan.romrunner.data.repository.LibraryRepository
 import info.cemu.cemu.common.android.inputdevice.listGameControllers
 import info.cemu.cemu.common.android.inputdevice.toControllerInfo
 import info.cemu.cemu.common.customdrivers.getCustomDriversDir
@@ -53,11 +53,11 @@ object CemuEmbeddedLauncher {
     // ran under an older key need to reapply once under this one.
     private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v7"
 
-    fun launch(context: Context, game: Game, romsRootUri: String, repository: LibraryRepository) {
+    fun launch(context: Context, game: Game, romsRootUri: String, controllerMapping: ControllerMapping) {
         applyDefaultsIfNeeded(context)
         applyDefaultHotkeysIfNeeded(context)
         listGameControllers().firstOrNull()?.let { device ->
-            ControllerMappingApplier.applyToCemu(device, repository.getControllerMapping())
+            ControllerMappingApplier.applyToCemu(device, controllerMapping)
         }
 
         val intent = Intent(context, EmulationActivity::class.java)

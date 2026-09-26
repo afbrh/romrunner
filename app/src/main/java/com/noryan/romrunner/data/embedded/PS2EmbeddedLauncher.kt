@@ -6,9 +6,9 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.armsx2.CustomDriver
 import com.armsx2.Main as Armsx2Main
+import com.noryan.romrunner.data.input.ControllerMapping
 import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
-import com.noryan.romrunner.data.repository.LibraryRepository
 import java.io.File
 import java.util.zip.ZipInputStream
 import org.json.JSONArray
@@ -81,10 +81,10 @@ object PS2EmbeddedLauncher {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
 
-    fun launch(context: Context, game: Game, romsRootUri: String, repository: LibraryRepository) {
+    fun launch(context: Context, game: Game, romsRootUri: String, controllerMapping: ControllerMapping) {
         seedArmsx2Prefs(context, romsRootUri)
         applyStandingStickPreferencesIfNeeded(context)
-        ControllerMappingApplier.applyToArmsx2(context, repository.getControllerMapping())
+        ControllerMappingApplier.applyToArmsx2(context, controllerMapping)
         applyDefaultGraphicsSettings(context)
         applyJak3PerGameHacks(context)
         // Must run before startActivity: CustomDriver.applyToNative's doc comment notes the

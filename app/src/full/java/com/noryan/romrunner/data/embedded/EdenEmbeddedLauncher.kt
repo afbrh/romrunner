@@ -9,7 +9,6 @@ import com.noryan.romrunner.data.input.PhysicalBinding
 import com.noryan.romrunner.data.input.StandardInput
 import com.noryan.romrunner.data.input.StickBinding
 import com.noryan.romrunner.data.model.Game
-import com.noryan.romrunner.data.repository.LibraryRepository
 import java.io.File
 import java.io.FilenameFilter
 import org.yuzu.yuzu_emu.YuzuApplication
@@ -177,10 +176,10 @@ object EdenEmbeddedLauncher {
         }
     }
 
-    fun launch(context: Context, game: Game, repository: LibraryRepository) {
+    fun launch(context: Context, game: Game, controllerMapping: ControllerMapping) {
         ensureDirectoryReady(context)
         hideTouchOverlayIfNeeded(context)
-        applyControllerMapping(repository.getControllerMapping())
+        applyControllerMapping(controllerMapping)
 
         // EmulationActivity.onCreate() passes intent.extras straight through as the nav graph's
         // start-destination arguments (see eden_emulation_navigation.xml's "game" argument) —

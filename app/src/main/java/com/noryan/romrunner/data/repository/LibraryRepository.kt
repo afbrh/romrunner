@@ -171,4 +171,18 @@ class LibraryRepository(
     fun resetControllerMappingToDefault() {
         settings.controllerMappingJson = null
     }
+
+    /**
+     * The mapping a launch of [platform] should actually apply: the global mapping when
+     * [Platform.useGlobalControllerMapping] is true (the default), otherwise this platform's own
+     * override — falling back to the current global mapping if that override hasn't been
+     * customized yet, so opening "Map Controller" for the first time starts from sensible values
+     * rather than a blank slate.
+     */
+    fun getEffectiveControllerMapping(platform: Platform): ControllerMapping {
+        if (platform.useGlobalControllerMapping) return getControllerMapping()
+        return platform.controllerMappingJson?.let { json ->
+            runCatching { ControllerMappingSerializer.fromJson(json) }.getOrNull()
+        } ?: getControllerMapping()
+    }
 }

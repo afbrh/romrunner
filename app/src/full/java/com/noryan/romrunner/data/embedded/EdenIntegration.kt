@@ -54,7 +54,7 @@ object EdenIntegration {
                     ).show()
                     return true
                 }
-                EdenEmbeddedLauncher.launch(context, game, repository)
+                EdenEmbeddedLauncher.launch(context, game, repository.getEffectiveControllerMapping(platform))
                 markPlayed(game)
                 return true
             }

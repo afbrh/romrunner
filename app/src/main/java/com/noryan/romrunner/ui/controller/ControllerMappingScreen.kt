@@ -45,21 +45,34 @@ import com.noryan.romrunner.data.input.InputGroup
 import com.noryan.romrunner.data.input.PhysicalBinding
 import com.noryan.romrunner.data.input.StandardInput
 import com.noryan.romrunner.data.input.StickBinding
-import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 
 /**
  * Lets the user remap any of the 18 standard console inputs to a physical button/axis on their
- * controller, pre-populated with [ControllerMapping.AYN_THOR_DEFAULT]. Capture ("press the input
- * now") is driven by [InputCaptureController], fed from MainActivity's dispatchKeyEvent/
- * dispatchGenericMotionEvent overrides — this screen never reads raw input itself.
+ * controller. Capture ("press the input now") is driven by [InputCaptureController], fed from
+ * MainActivity's dispatchKeyEvent/dispatchGenericMotionEvent overrides — this screen never reads
+ * raw input itself.
+ *
+ * Reused for both RomRunner's single global mapping (Settings' own "Controller Mapping" row) and
+ * a single platform's override (the "Map Controller" row shown under a platform's own "Use global
+ * controller mapping" toggle when it's off) — [initialMapping]/[onSave] parameterize which one
+ * this instance reads and writes; the screen itself has no opinion on that. "Reset to AYN Thor
+ * Defaults" goes through the same [onSave] path as any other edit (not a separate callback), so it
+ * always writes the literal default values rather than, for a platform override, ambiguously
+ * deferring back to whatever the global mapping happens to be.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ControllerMappingScreen(repository: LibraryRepository, onDone: () -> Unit) {
-    var mapping by remember { mutableStateOf(repository.getControllerMapping()) }
+fun ControllerMappingScreen(
+    title: String,
+    initialMapping: ControllerMapping,
+    onSave: (ControllerMapping) -> Unit,
+    onDone: () -> Unit,
+    showDuskLightNote: Boolean = true
+) {
+    var mapping by remember(initialMapping) { mutableStateOf(initialMapping) }
     var capturingSlot by remember { mutableStateOf<StandardInput?>(null) }
 
     fun startCapture(slot: StandardInput) {
@@ -80,7 +93,7 @@ fun ControllerMappingScreen(repository: LibraryRepository, onDone: () -> Unit) {
         InputCaptureController.keyResult.collect { key ->
             val slot = capturingSlot ?: return@collect
             mapping = mapping.copy(buttons = mapping.buttons + (slot to key))
-            repository.setControllerMapping(mapping)
+            onSave(mapping)
             capturingSlot = null
         }
     }
@@ -88,7 +101,7 @@ fun ControllerMappingScreen(repository: LibraryRepository, onDone: () -> Unit) {
         InputCaptureController.axisResult.collect { axis ->
             val slot = capturingSlot ?: return@collect
             mapping = mapping.copy(buttons = mapping.buttons + (slot to axis))
-            repository.setControllerMapping(mapping)
+            onSave(mapping)
             capturingSlot = null
         }
     }
@@ -99,7 +112,7 @@ fun ControllerMappingScreen(repository: LibraryRepository, onDone: () -> Unit) {
                 StandardInput.RIGHT_STICK -> mapping = mapping.copy(rightStick = stick)
                 else -> return@collect
             }
-            repository.setControllerMapping(mapping)
+            onSave(mapping)
             capturingSlot = null
         }
     }
@@ -109,7 +122,7 @@ fun ControllerMappingScreen(repository: LibraryRepository, onDone: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Controller Mapping") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onDone) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 }
@@ -128,12 +141,14 @@ fun ControllerMappingScreen(repository: LibraryRepository, onDone: () -> Unit) {
                         )
                     }
                 }
-                item {
-                    SectionHeader("Twilight Princess")
-                    DisabledRow(
-                        label = "Twilight Princess (DuskLight)",
-                        note = "Not yet supported — uses default controls"
-                    )
+                if (showDuskLightNote) {
+                    item {
+                        SectionHeader("Twilight Princess")
+                        DisabledRow(
+                            label = "Twilight Princess (DuskLight)",
+                            note = "Not yet supported — uses default controls"
+                        )
+                    }
                 }
                 item {
                     Row(
@@ -142,7 +157,7 @@ fun ControllerMappingScreen(repository: LibraryRepository, onDone: () -> Unit) {
                     ) {
                         TextButton(onClick = {
                             mapping = ControllerMapping.AYN_THOR_DEFAULT
-                            repository.resetControllerMappingToDefault()
+                            onSave(mapping)
                         }) { Text("Reset to AYN Thor Defaults") }
                     }
                 }

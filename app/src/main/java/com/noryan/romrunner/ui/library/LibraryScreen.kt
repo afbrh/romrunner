@@ -97,7 +97,8 @@ private fun cycleTab(current: HomeTab, delta: Int): HomeTab {
 fun LibraryScreen(
     repository: LibraryRepository,
     onEditPlatform: (Long) -> Unit,
-    onOpenControllerMapping: () -> Unit
+    onOpenControllerMapping: () -> Unit,
+    onOpenControllerMappingForPlatform: (Long) -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(HomeTab.GAMES) }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
@@ -169,7 +170,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            AzaharEmbeddedLauncher.launch(context, game, romsRootUri, repository)
+            AzaharEmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
             viewModel.markPlayed(game)
             return
         }
@@ -183,7 +184,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Set your BIOS/Keys folder in Settings first.", Toast.LENGTH_LONG).show()
                 return
             }
-            PS2EmbeddedLauncher.launch(context, game, romsRootUri, repository)
+            PS2EmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
             viewModel.markPlayed(game)
             return
         }
@@ -203,7 +204,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            PrimeHackEmbeddedLauncher.launch(context, game, romsRootUri, repository)
+            PrimeHackEmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
             viewModel.markPlayed(game)
             return
         }
@@ -213,7 +214,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            CemuEmbeddedLauncher.launch(context, game, romsRootUri, repository)
+            CemuEmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
             viewModel.markPlayed(game)
             return
         }
@@ -222,7 +223,7 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            RetroArchEmbeddedLauncher.launch(context, game, platform.name, repository)
+            RetroArchEmbeddedLauncher.launch(context, game, platform.name, repository.getEffectiveControllerMapping(platform))
             viewModel.markPlayed(game)
             return
         }
@@ -344,7 +345,8 @@ fun LibraryScreen(
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
                         onEditPlatform = onEditPlatform,
-                        onOpenControllerMapping = onOpenControllerMapping
+                        onOpenControllerMapping = onOpenControllerMapping,
+                        onOpenControllerMappingForPlatform = onOpenControllerMappingForPlatform
                     )
                     HomeTab.APPS -> AppsContent()
                 }

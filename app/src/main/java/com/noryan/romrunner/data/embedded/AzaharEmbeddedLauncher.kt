@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import com.noryan.romrunner.data.input.ControllerMapping
 import com.noryan.romrunner.data.input.ControllerMappingApplier
 import com.noryan.romrunner.data.model.Game
-import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.data.scanner.SafPathUtils
 import java.io.File
 import org.citra.citra_emu.activities.EmulationActivity
@@ -90,10 +90,10 @@ object AzaharEmbeddedLauncher {
         DirectoryInitialization.start()
     }
 
-    fun launch(context: Context, game: Game, romsRootUri: String, repository: LibraryRepository) {
+    fun launch(context: Context, game: Game, romsRootUri: String, controllerMapping: ControllerMapping) {
         ensureDirectoryReady(romsRootUri)
         applyDefaultSettingsIfNeeded(context, romsRootUri)
-        ControllerMappingApplier.applyToAzahar(context, repository.getControllerMapping())
+        ControllerMappingApplier.applyToAzahar(context, controllerMapping)
 
         // Azahar's native loader opens files with plain C++ file I/O, which can't read a
         // content:// Uri directly — it needs a real filesystem path. Only resolvable for folders
