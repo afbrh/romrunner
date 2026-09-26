@@ -9,17 +9,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.noryan.romrunner.ui.theme.BrandOrange
 
 @Composable
 fun rememberFocusInteractionSource(): MutableInteractionSource = remember { MutableInteractionSource() }
 
 /**
- * The accent used for D-pad/joystick focus feedback — a saturated amber rather than white,
- * because a white glow on top of this theme's already near-white text was too subtle to see on
- * the actual handheld screen (it only showed up zoomed into a screenshot on a monitor). Amber
- * reads clearly against both light text and this theme's OLED-black background.
+ * The accent used for D-pad/joystick focus feedback — the app's own brand orange (see
+ * branding/mark.svg) rather than white, because a white glow on top of this theme's already
+ * near-white text was too subtle to see on the actual handheld screen (it only showed up zoomed
+ * into a screenshot on a monitor). This reads clearly against both light text and this theme's
+ * OLED-black background, and doubles as the app's one unified highlight color alongside
+ * MaterialTheme.colorScheme.primary (see Theme.kt), which is set to the same color.
  */
-val FocusGlowColor = Color(0xFFFFB300)
+val FocusGlowColor = BrandOrange
 
 /**
  * A colored bloom to apply to a [androidx.compose.ui.text.TextStyle]'s `shadow` while whatever's
