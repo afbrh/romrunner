@@ -228,8 +228,17 @@ object EdenEmbeddedLauncher {
         ensureDirectoryReady(context)
         hideTouchOverlayIfNeeded(context)
 
+        // EmulationActivity.onCreate() passes intent.extras straight through as the nav graph's
+        // start-destination arguments (see eden_emulation_navigation.xml's "game" argument) —
+        // EmulationFragment reads it via the Safe-Args-generated `args.game` property, checked
+        // BEFORE its intent.data/GameMetadata-backed fallback (which needs the file to already be
+        // registered in Eden's own native metadata cache from its own folder scan — not the case
+        // for a ROM RomRunner found on its own). So the key must be exactly "game", matching the
+        // nav argument's android:name — NOT EmulationActivity.EXTRA_SELECTED_GAME ("SelectedGame"),
+        // which is only consulted by that class's own launch() companion helper, not by the
+        // fragment's actual argument lookup.
         val intent = Intent(context, EmulationActivity::class.java).apply {
-            putExtra(EmulationActivity.EXTRA_SELECTED_GAME, EdenGame(title = game.title, path = game.fileUri))
+            putExtra("game", EdenGame(title = game.title, path = game.fileUri))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }

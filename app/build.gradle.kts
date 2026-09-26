@@ -133,6 +133,20 @@ androidComponents {
     }
 }
 
+// Eden declares com.google.android.material:material:1.12.0, but some other transitive
+// dependency elsewhere in the composite build floors it higher (1.14.0 resolves by default) —
+// Material apparently dropped its own R.attr.colorPrimary field somewhere after 1.12.0 (relying on
+// the platform/appcompat's copy instead), which crashes Eden's EmulationFragment
+// (NoSuchFieldError) since its compiled bytecode references Material's own copy directly. Forcing
+// the version it was actually built against, project-wide, matches the same class of fix already
+// used for shared native libs (SPIRV-Tools, libc++_shared, adrenotools) — same "multiple cores
+// bundle a shared third-party dependency" collision, at the Gradle dependency level instead.
+configurations.all {
+    resolutionStrategy {
+        force("com.google.android.material:material:1.12.0")
+    }
+}
+
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
