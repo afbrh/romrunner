@@ -31,10 +31,9 @@ object PrimeHackEmbeddedLauncher {
     const val PLATFORM_NAME = "GameCube / Wii"
 
     private const val PREFS_NAME = "primehack_embedded_launcher"
-    // Bumped from "defaults_applied": the settings this gate covers changed (odin.ini as the
-    // controls source, hide overlay, compile shaders before starting), so installs that already
-    // ran under the old key need to reapply once under the new one.
-    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v2"
+    // Bumped from "defaults_applied_v2": added ShaderCompilationMode = AsynchronousUberShaders,
+    // so installs that already ran under the old key need to reapply once under the new one.
+    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v3"
 
     fun launch(context: Context, game: Game, romsRootUri: String, controllerMapping: ControllerMapping) {
         applyDefaultsIfNeeded(context)
@@ -72,8 +71,15 @@ object PrimeHackEmbeddedLauncher {
         setIniValue(File(configDir, "Dolphin.ini"), "Android", "ShowInputOverlay", "False")
 
         // Compile shaders before starting a game, instead of stuttering mid-gameplay while
-        // shaders JIT-compile on first use.
+        // shaders JIT-compile on first use. This only covers shaders already in the on-disk
+        // cache from a previous session, though — a title's first-ever visit to some area/effect
+        // (e.g. Metroid Prime's morph ball transition) still compiles cold. ShaderCompilationMode
+        // = 2 (AsynchronousUberShaders) covers that case too: a generic fallback shader renders
+        // immediately while the real one compiles on a background thread, instead of blocking
+        // synchronously — this is what actually stopped a real device-observed crash, where that
+        // cold-compile burst spiked memory/CPU hard enough to get the whole process OOM-killed.
         setIniValue(File(configDir, "GFX.ini"), "Settings", "WaitForShadersBeforeStarting", "True")
+        setIniValue(File(configDir, "GFX.ini"), "Settings", "ShaderCompilationMode", "2")
 
         prefs.edit().putBoolean(KEY_DEFAULTS_APPLIED, true).apply()
     }
