@@ -448,6 +448,8 @@ private fun displayPlatformName(platform: Platform?, game: Game): String {
         "PlayStation" -> "PS1"
         "Nintendo 3DS" -> "3DS"
         "Nintendo Switch" -> "Switch"
+        "Nintendo DS" -> "DS"
+        "GameBoy (Color + Advance)" -> "GameBoy"
         else -> platform.name
     }
 }
