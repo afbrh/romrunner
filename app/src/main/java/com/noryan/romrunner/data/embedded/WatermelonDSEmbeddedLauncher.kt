@@ -24,7 +24,11 @@ import me.magnum.melonds.ui.emulator.EmulatorActivity
 object WatermelonDSEmbeddedLauncher {
     const val PLATFORM_NAME = "Nintendo DS"
 
+    private const val PREFS_NAME = "watermelonds_embedded_launcher"
+    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v1"
+
     fun launch(context: Context, game: Game, controllerMapping: ControllerMapping) {
+        applyDefaultsIfNeeded(context)
         ControllerMappingApplier.applyToWatermelonDS(context, controllerMapping)
 
         val intent = Intent(context, EmulatorActivity::class.java).apply {
@@ -33,5 +37,30 @@ object WatermelonDSEmbeddedLauncher {
             addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
         context.startActivity(intent)
+    }
+
+    /**
+     * One-time defaults for two of WatermelonDS's own settings, backed by its default
+     * SharedPreferences (see SharedPreferencesSettingsRepository's "soft_input_behaviour"/
+     * "video_internal_resolution" keys) — same file-naming trick as
+     * ControllerMappingApplier.applyToAzahar, since androidx.preference isn't on this module's own
+     * classpath: hides the on-screen touch overlay entirely (a physical controller is expected,
+     * same rationale as PrimeHackEmbeddedLauncher's ShowInputOverlay=False) and bumps the internal
+     * render resolution to 5x (DS's native 256x192 is very low-res upscaled to a modern handheld's
+     * screen otherwise). Applied once, not on every launch — like PrimeHack's overlay/shader
+     * defaults, not the remappable ControllerMapping slots — so a later change from WatermelonDS's
+     * own Settings screen sticks.
+     */
+    private fun applyDefaultsIfNeeded(context: Context) {
+        val launcherPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (launcherPrefs.getBoolean(KEY_DEFAULTS_APPLIED, false)) return
+
+        val prefs = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("soft_input_behaviour", "always_invisible")
+            .putString("video_internal_resolution", "5")
+            .apply()
+
+        launcherPrefs.edit().putBoolean(KEY_DEFAULTS_APPLIED, true).apply()
     }
 }
