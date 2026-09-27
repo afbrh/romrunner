@@ -32,6 +32,8 @@ object DefaultPlatforms {
         Platform(name = "SNES", extensionsCsv = "sfc,smc"),
         // No launchPackage: embedded via RetroArch's Mupen64Plus-Next core.
         Platform(name = "Nintendo 64", extensionsCsv = "n64,z64"),
+        // No launchPackage: embedded via the WatermelonDS core (see
+        // data/embedded/WatermelonDSEmbeddedLauncher.kt).
         Platform(name = "Nintendo DS", extensionsCsv = "nds"),
         // No launchPackage: 3DS emulation is embedded directly in RomRunner (see
         // data/embedded/AzaharEmbeddedLauncher.kt) rather than launched as an external app.

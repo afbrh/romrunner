@@ -1,9 +1,15 @@
 package com.noryan.romrunner
 
+import android.app.Application
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 import com.noryan.romrunner.data.db.AppDatabase
 import com.noryan.romrunner.data.embedded.EdenIntegration
+import com.noryan.romrunner.data.embedded.WatermelonDSApplication
 import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.data.settings.LibrarySettings
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,13 +19,21 @@ import org.citra.citra_emu.CitraApplication
 import org.dolphinemu.dolphinemu.DolphinApplication
 
 /**
- * Extends the embedded Azahar library's own Application class (rather than plain
- * android.app.Application) so its required startup init (native lib logging, directory setup,
- * notification channels, play-time tracking) still runs via super.onCreate() — only one
- * Application class can be registered per process, and RomRunner's manifest wins that slot
- * (see AndroidManifest.xml's tools:replace="android:name").
+ * A plain Application (not one of the embedded cores' own Application subclasses) so it can be
+ * @HiltAndroidApp — required by the embedded WatermelonDS core, whose Activities/ViewModels are
+ * Hilt @AndroidEntryPoints. Hilt's Gradle-plugin bytecode transform requires the annotated class
+ * to extend android.app.Application directly, and only one @HiltAndroidApp root is allowed per
+ * compiled app, so none of the embedded cores' own Application classes (Azahar's CitraApplication,
+ * PrimeHack's DolphinApplication, Cemu's CemuApplication) can be the base here anymore — each now
+ * runs its startup logic via its own static initializeForEmbedding(this) call below instead of
+ * real inheritance. RomRunner's manifest still wins the single registered-Application slot (see
+ * AndroidManifest.xml's tools:replace="android:name") — Hilt's transform only swaps this class's
+ * superclass, it doesn't rename it, so that mechanism is unaffected.
  */
-class RomRunnerApp : CitraApplication() {
+@HiltAndroidApp
+class RomRunnerApp : Application(), Configuration.Provider {
+    @Inject lateinit var hiltWorkerFactory: HiltWorkerFactory
+
     lateinit var repository: LibraryRepository
         private set
 
@@ -28,19 +42,31 @@ class RomRunnerApp : CitraApplication() {
     override fun onCreate() {
         disablePausableCompositionInPrefetch()
         super.onCreate()
-        // RomRunner integration: PrimeHack (embedded GameCube/Wii core) is a THIRD embedded
-        // Application-subclassing library, but Kotlin single inheritance means RomRunnerApp can
-        // only ever extend one of them (Azahar's, above). PrimeHack's own DolphinApplication.
-        // onCreate() — which loads its native lib, sets up its directory structure, and
-        // registers its activity tracker — would otherwise never run at all. initializeForEmbedding
-        // runs that same logic explicitly instead; see DolphinApplication.kt for the full story.
+        // RomRunner integration: Azahar (embedded 3DS core) — used to be this class's own base
+        // class (CitraApplication); now just one more initializeForEmbedding(this) call, same
+        // shape as the other three. See CitraApplication.kt for the full story.
+        CitraApplication.initializeForEmbedding(this)
+        // PrimeHack (embedded GameCube/Wii core) — its own DolphinApplication.onCreate(), which
+        // loads its native lib, sets up its directory structure, and registers its activity
+        // tracker, would otherwise never run at all. initializeForEmbedding runs that same logic
+        // explicitly instead; see DolphinApplication.kt for the full story.
         DolphinApplication.initializeForEmbedding(this)
-        // Same story again for Cemu (embedded Wii U core) — a FOURTH embedded
-        // Application-subclassing library; see CemuApplication.kt.
+        // Same story again for Cemu (embedded Wii U core); see CemuApplication.kt.
         CemuApplication.initializeForEmbedding(this)
         // Eden (embedded Nintendo Switch core, "full" flavor only) is a no-op here — its own
         // directory/native init happens lazily on first touch instead; see EdenIntegration.kt.
         EdenIntegration.initialize(this)
+        // WatermelonDS (embedded Nintendo DS/DSi core). loadNativeLib() was originally called from
+        // attachBaseContext (matching where standalone MelonDSApplication loads it) — moved here
+        // instead, in the same relative position as every other core's own native-lib load, after
+        // a crash loop (SIGABRT immediately after PrimeHack's DirectoryInitialization log lines)
+        // that only appeared once WatermelonDS's native lib was added to the startup sequence: with
+        // 8 cores' native libraries now sharing one process, loading one uniquely early — before
+        // any other core's own native init — is the most likely trigger for a symbol/ODR
+        // collision. initializeForEmbedding() itself still needs to run after super.onCreate()
+        // (the live Hilt component), unlike the three cores above.
+        WatermelonDSApplication.loadNativeLib()
+        WatermelonDSApplication.initializeForEmbedding(this)
         val db = AppDatabase.getInstance(this)
         val settings = LibrarySettings(this)
         repository = LibraryRepository(db.platformDao(), db.gameDao(), settings)
@@ -70,11 +96,31 @@ class RomRunnerApp : CitraApplication() {
             // Same story for Wii U — routed to the embedded Cemu core (see CemuEmbeddedLauncher)
             // instead of an external info.cemu.cemu install.
             repository.clearLaunchPackage("Wii U")
+            // Same story for Nintendo DS — routed to the embedded WatermelonDS core (see
+            // WatermelonDSEmbeddedLauncher) instead of an external me.magnum.melondualds install.
+            repository.clearLaunchPackage("Nintendo DS")
             // Same story for Nintendo Switch ("full" flavor only) — routed to the embedded Eden
             // core instead of an external dev.eden.eden_emulator install. No-op on "lite".
             EdenIntegration.applyLaunchRoutingDefaults(repository)
         }
     }
+
+    // RomRunner integration: WatermelonDS's own manifest disables WorkManager's default
+    // auto-init (since MelonDSApplication normally supplies its own HiltWorkerFactory via this
+    // same Configuration.Provider mechanism) — once merged, that removal applies app-wide. Without
+    // this override, Azahar's own CIA-install background worker (MainActivity.kt's
+    // WorkManager.getInstance(applicationContext) call, which relied until now on WorkManager's
+    // default auto-init since RomRunner never disabled it before) would crash with "WorkManager is
+    // not initialized properly." Supplying a HiltWorkerFactory-backed Configuration here restores
+    // on-demand init for every caller — HiltWorkerFactory falls back to reflection-based
+    // instantiation for workers that aren't Hilt-aware, so Azahar's plain (non-@HiltWorker) worker
+    // needs no changes of its own.
+    // Explicit function override (not `override val ... : Configuration`) — Configuration.Provider
+    // is a plain Java interface (`getWorkManagerConfiguration(): Configuration`), and Kotlin's
+    // JavaBean-property-override inference didn't recognize the property form here, failing with
+    // "overrides nothing." Implementing the method directly by name sidesteps that.
+    override fun getWorkManagerConfiguration(): Configuration =
+        Configuration.Builder().setWorkerFactory(hiltWorkerFactory).build()
 
     /**
      * Our own declared compose-bom (2024.09.02, Foundation 1.7.2) gets overridden project-wide by

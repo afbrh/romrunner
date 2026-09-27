@@ -99,3 +99,16 @@ if (switchEmbedded) {
         }
     }
 }
+
+// Embedded Nintendo DS/DSi emulation: our local build of WatermelonDS (a melonDS-android fork),
+// consumed as a library module the same way. Unlike the other single-module cores, WatermelonDS's
+// own settings.gradle.kts is itself multi-module (:app, :common, :masterswitch, :rcheevos-api) —
+// substituting just :app is sufficient since :app already depends on the other three as its own
+// project dependencies, which transit onto RomRunner's classpath the same way any project(":x")
+// dependency's own dependencies do.
+includeBuild("../watermelonds-src") {
+    name = "watermelonds"
+    dependencySubstitution {
+        substitute(module("me.magnum:app")).using(project(":app"))
+    }
+}

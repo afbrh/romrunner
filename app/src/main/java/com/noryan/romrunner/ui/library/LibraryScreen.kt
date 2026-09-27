@@ -62,6 +62,7 @@ import com.noryan.romrunner.data.embedded.DuskLightEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.EdenIntegration
 import com.noryan.romrunner.data.embedded.PrimeHackEmbeddedLauncher
 import com.noryan.romrunner.data.embedded.RetroArchEmbeddedLauncher
+import com.noryan.romrunner.data.embedded.WatermelonDSEmbeddedLauncher
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.BiosKeysImporter
 import com.noryan.romrunner.data.launch.EmulatorLauncher
@@ -186,6 +187,18 @@ fun LibraryScreen(
                 return
             }
             PS2EmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
+            viewModel.markPlayed(game)
+            return
+        }
+        if (platform.name == WatermelonDSEmbeddedLauncher.PLATFORM_NAME && platform.useBuiltIn) {
+            // romsRootUri isn't actually consumed by the launcher (WatermelonDS needs no BIOS
+            // import to boot — it defaults to melonDS's own built-in HLE BIOS) — kept only for UX
+            // consistency with every other built-in core's "choose a folder first" gate.
+            if (state.romsRootUri == null) {
+                Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
+                return
+            }
+            WatermelonDSEmbeddedLauncher.launch(context, game, repository.getEffectiveControllerMapping(platform))
             viewModel.markPlayed(game)
             return
         }

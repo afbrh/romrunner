@@ -6,6 +6,8 @@ plugins {
     // separate `kotlin { compilerOptions {} }` block. See https://kotl.in/gradle/agp-built-in-kotlin.
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    // Required for the embedded WatermelonDS core — see RomRunnerApp.kt's @HiltAndroidApp.
+    id("com.google.dagger.hilt.android")
 }
 
 // Embedded Nintendo Switch emulation (Eden, a Yuzu fork) is gated behind this property rather
@@ -41,7 +43,12 @@ android {
 
         // The embedded Azahar library has a "version" flavor dimension (vanilla/googlePlay) that
         // RomRunner doesn't declare itself; pick "vanilla" (the non-Play-Store-restricted variant).
-        missingDimensionStrategy("version", "vanilla")
+        // The embedded WatermelonDS library happens to ALSO name its own, unrelated flavor
+        // dimension "version" (playStore/gitHub, gitHub enabling adrenotools) — missingDimensionStrategy
+        // tries each requested value in order per producer, so "gitHub" here is WatermelonDS's own
+        // fallback (Azahar has no "gitHub" value, so it always resolves to "vanilla" first; the
+        // reverse holds for WatermelonDS).
+        missingDimensionStrategy("version", "vanilla", "gitHub")
         // Same idea for the embedded ARMSX2 library's "store" dimension (github/play) — pick
         // "github", the sideload-capable variant with MANAGE_EXTERNAL_STORAGE, since RomRunner
         // isn't a Play Store build either.
@@ -51,6 +58,10 @@ android {
         // project's arm64-v8a-only ABI targeting elsewhere and avoiding the Play Store flavors'
         // extra Play Feature/Asset Delivery dependencies RomRunner doesn't want.
         missingDimensionStrategy("variant", "aarch64")
+        // Same idea again for the embedded WatermelonDS library's own "build" dimension
+        // (prod/nightly) — pick "prod", the stable channel (nightly is WatermelonDS's own
+        // pre-release channel, not relevant to RomRunner).
+        missingDimensionStrategy("build", "prod")
         // Same idea again for the embedded Eden library's "edenVersion" dimension
         // (chromeOS/genshinSpoof/legacy/mainline) — pick "legacy", the standard build (the other
         // three are Eden's own special-purpose variants, not relevant to RomRunner).
@@ -145,6 +156,13 @@ configurations.all {
     resolutionStrategy {
         force("com.google.android.material:material:1.12.0")
     }
+    // WatermelonDS pulls org.commonmark:commonmark:0.22.0 (post-rename coordinate), while some
+    // other transitive dependency elsewhere in the composite build still pulls the old, deprecated
+    // com.atlassian.commonmark:commonmark:0.13.0 (pre-rename coordinate) — same Java packages
+    // under both group IDs, so both land in the merged dex as literal duplicate classes. Excluding
+    // the old coordinate keeps the one library whichever dependency actually needs (identical
+    // classes either way) without needing to track down which core still declares it.
+    exclude(group = "com.atlassian.commonmark", module = "commonmark")
 }
 
 dependencies {
@@ -217,4 +235,25 @@ dependencies {
     if (switchEmbedded) {
         "fullImplementation"("dev.eden_emu:app:embedded")
     }
+
+    // Embedded Nintendo DS/DSi emulation — our local library build of WatermelonDS (see
+    // ../watermelonds-src and settings.gradle.kts for the composite-build wiring).
+    implementation("me.magnum:app:embedded")
+    // Needed to touch WatermelonDS's own ControllerConfigurationDto/InputConfigDto (kotlinx.serialization
+    // Json{} encode) from ControllerMappingApplier.kt — watermelonds-src declares this as
+    // `implementation`, not visible to a consuming module, so it's re-declared here at the same
+    // version (kotlinxSerialization = "1.11.0" in watermelonds-src's libs.versions.toml). Same
+    // pattern as the androidx.datastore re-declaration above for Cemu.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+
+    // Hilt — required once RomRunnerApp becomes @HiltAndroidApp so WatermelonDS's own
+    // @AndroidEntryPoint Activities/ViewModels resolve their @Inject dependencies (see
+    // RomRunnerApp.kt). Versions pinned to match watermelonds-src/gradle/libs.versions.toml exactly
+    // (2.60.1 — see the root build.gradle.kts comment for why not 2.59.2).
+    implementation("com.google.dagger:hilt-android:2.60.1")
+    ksp("com.google.dagger:hilt-android-compiler:2.60.1")
+    // Backs RomRunnerApp's own HiltWorkerFactory/Configuration.Provider (see Phase 6's WorkManager
+    // fix in RomRunnerApp.kt).
+    implementation("androidx.hilt:hilt-work:1.3.0")
+    ksp("androidx.hilt:hilt-compiler:1.3.0")
 }

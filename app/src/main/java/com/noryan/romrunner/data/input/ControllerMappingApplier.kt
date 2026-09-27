@@ -6,6 +6,10 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import info.cemu.cemu.nativeinterface.NativeInput
 import java.io.File
+import kotlinx.serialization.json.Json
+import me.magnum.melonds.domain.model.Input
+import me.magnum.melonds.impl.dtos.input.ControllerConfigurationDto
+import me.magnum.melonds.impl.dtos.input.InputConfigDto
 import org.citra.citra_emu.NativeLibrary
 import org.citra.citra_emu.features.settings.model.Settings
 import org.citra.citra_emu.features.settings.model.view.InputBindingSetting
@@ -375,5 +379,54 @@ object ControllerMappingApplier {
         } else {
             cfgText.trimEnd('\n') + "\n$newLine\n"
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // WatermelonDS (Nintendo DS/DSi)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Writes controller_config.json directly (kotlinx.serialization-backed — the only core here
+     * that isn't SharedPreferences/an .ini/.cfg file, confirmed against
+     * SharedPreferencesSettingsRepository.kt's own controllerConfiguration lazy-load, which reads
+     * this exact file/shape on next access) using the real InputConfigDto/ControllerConfigurationDto
+     * schema and Json{ignoreUnknownKeys=true; explicitNulls=false} config (both read directly from
+     * source, not guessed).
+     *
+     * DS has no analog sticks and no L2/R2/L3/R3 — only D-pad, the 4 face buttons, L/R, and
+     * Select/Start are written, same scope-limiting pattern already used for 3DS's missing L3/R3 in
+     * [applyToAzahar]. DS's own diamond position convention (confirmed against
+     * DefaultControllerConfigurationFactory.kt's own default assignment) matches the Nintendo
+     * layout used everywhere else in this file: A=right, B=bottom, X=top, Y=left.
+     */
+    fun applyToWatermelonDS(context: Context, mapping: ControllerMapping) {
+        val b = mapping.buttons
+
+        fun key(input: Input, standardInput: StandardInput): InputConfigDto? {
+            val binding = b[standardInput] as? PhysicalBinding.Key ?: return null
+            return InputConfigDto(
+                input = input,
+                assignment = InputConfigDto.AssignmentDto.Key(deviceId = null, keyCode = binding.keyCode),
+            )
+        }
+
+        val entries = listOfNotNull(
+            key(Input.UP, StandardInput.DPAD_UP),
+            key(Input.DOWN, StandardInput.DPAD_DOWN),
+            key(Input.LEFT, StandardInput.DPAD_LEFT),
+            key(Input.RIGHT, StandardInput.DPAD_RIGHT),
+            key(Input.A, StandardInput.FACE_RIGHT),
+            key(Input.B, StandardInput.FACE_BOTTOM),
+            key(Input.X, StandardInput.FACE_TOP),
+            key(Input.Y, StandardInput.FACE_LEFT),
+            key(Input.L, StandardInput.L1),
+            key(Input.R, StandardInput.R1),
+            key(Input.SELECT, StandardInput.SELECT),
+            key(Input.START, StandardInput.START),
+        )
+
+        val dto = ControllerConfigurationDto(inputMapper = entries)
+        val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+        File(context.filesDir, "controller_config.json").writeText(json.encodeToString(dto))
     }
 }
