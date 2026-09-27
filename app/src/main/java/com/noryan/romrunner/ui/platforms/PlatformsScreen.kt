@@ -108,133 +108,140 @@ fun PlatformsContent(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        val romsFolderInteractionSource = rememberFocusInteractionSource()
-        val romsFolderGlow = romsFolderInteractionSource.glowShadow()
-        val romsFolderColor = romsFolderInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = romsFolderInteractionSource,
-                    indication = null
-                ) {
-                    folderPicker.launch(rootFolderUri?.let { Uri.parse(it) })
-                }
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "ROMs folder",
-                style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
-                color = romsFolderColor,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = rootFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
-                style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
-                color = romsFolderColor,
-                textAlign = TextAlign.End
-            )
-        }
-
-        val biosKeysFolderInteractionSource = rememberFocusInteractionSource()
-        val biosKeysFolderGlow = biosKeysFolderInteractionSource.glowShadow()
-        val biosKeysFolderColor = biosKeysFolderInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = biosKeysFolderInteractionSource,
-                    indication = null
-                ) {
-                    biosKeysFolderPicker.launch(biosKeysFolderUri?.let { Uri.parse(it) })
-                }
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "BIOS/Keys folder",
-                style = LocalTextStyle.current.copy(shadow = biosKeysFolderGlow),
-                color = biosKeysFolderColor,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = biosKeysFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
-                style = LocalTextStyle.current.copy(shadow = biosKeysFolderGlow),
-                color = biosKeysFolderColor,
-                textAlign = TextAlign.End
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Close background apps before launching",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f)
-            )
-            RetroToggle(
-                checked = killBackgroundAppsOnLaunch,
-                onCheckedChange = {
-                    killBackgroundAppsOnLaunch = it
-                    repository.setKillBackgroundAppsOnLaunch(it)
-                }
-            )
-        }
-
-        val controllerMappingInteractionSource = rememberFocusInteractionSource()
-        val controllerMappingGlow = controllerMappingInteractionSource.glowShadow()
-        val controllerMappingColor = controllerMappingInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = controllerMappingInteractionSource,
-                    indication = null,
-                    onClick = onOpenControllerMapping
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item {
+            val romsFolderInteractionSource = rememberFocusInteractionSource()
+            val romsFolderGlow = romsFolderInteractionSource.glowShadow()
+            val romsFolderColor = romsFolderInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = romsFolderInteractionSource,
+                        indication = null
+                    ) {
+                        folderPicker.launch(rootFolderUri?.let { Uri.parse(it) })
+                    }
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "ROMs folder",
+                    style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
+                    color = romsFolderColor,
+                    modifier = Modifier.weight(1f)
                 )
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Controller Mapping",
-                style = LocalTextStyle.current.copy(shadow = controllerMappingGlow),
-                color = controllerMappingColor,
-                modifier = Modifier.weight(1f)
-            )
+                Text(
+                    text = rootFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
+                    style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
+                    color = romsFolderColor,
+                    textAlign = TextAlign.End
+                )
+            }
         }
 
-        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            item {
-                val headerInteractionSource = rememberFocusInteractionSource()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = headerInteractionSource,
-                            indication = null
-                        ) { systemSettingsExpanded = !systemSettingsExpanded }
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        if (systemSettingsExpanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowRight,
-                        contentDescription = null
-                    )
-                    Text(
-                        "System-Specific Settings",
-                        style = LocalTextStyle.current.copy(shadow = headerInteractionSource.glowShadow()),
-                        color = headerInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+        item {
+            val biosKeysFolderInteractionSource = rememberFocusInteractionSource()
+            val biosKeysFolderGlow = biosKeysFolderInteractionSource.glowShadow()
+            val biosKeysFolderColor = biosKeysFolderInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = biosKeysFolderInteractionSource,
+                        indication = null
+                    ) {
+                        biosKeysFolderPicker.launch(biosKeysFolderUri?.let { Uri.parse(it) })
+                    }
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "BIOS/Keys folder",
+                    style = LocalTextStyle.current.copy(shadow = biosKeysFolderGlow),
+                    color = biosKeysFolderColor,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = biosKeysFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
+                    style = LocalTextStyle.current.copy(shadow = biosKeysFolderGlow),
+                    color = biosKeysFolderColor,
+                    textAlign = TextAlign.End
+                )
             }
+        }
 
-            if (!systemSettingsExpanded) return@LazyColumn
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Close background apps before launching",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                RetroToggle(
+                    checked = killBackgroundAppsOnLaunch,
+                    onCheckedChange = {
+                        killBackgroundAppsOnLaunch = it
+                        repository.setKillBackgroundAppsOnLaunch(it)
+                    }
+                )
+            }
+        }
+
+        item {
+            val controllerMappingInteractionSource = rememberFocusInteractionSource()
+            val controllerMappingGlow = controllerMappingInteractionSource.glowShadow()
+            val controllerMappingColor = controllerMappingInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = controllerMappingInteractionSource,
+                        indication = null,
+                        onClick = onOpenControllerMapping
+                    )
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Controller Mapping",
+                    style = LocalTextStyle.current.copy(shadow = controllerMappingGlow),
+                    color = controllerMappingColor,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        item {
+            val headerInteractionSource = rememberFocusInteractionSource()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = headerInteractionSource,
+                        indication = null
+                    ) { systemSettingsExpanded = !systemSettingsExpanded }
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    if (systemSettingsExpanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null
+                )
+                Text(
+                    "System-Specific Settings",
+                    style = LocalTextStyle.current.copy(shadow = headerInteractionSource.glowShadow()),
+                    color = headerInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        if (!systemSettingsExpanded) return@LazyColumn
 
             items(platforms, key = { it.id }) { platform ->
                 val hasBuiltIn = platform.name in BuiltInPlatforms.NAMES
@@ -406,7 +413,6 @@ fun PlatformsContent(
                 }
             }
         }
-    }
 
     appPickerFor?.let { platform ->
         AppPickerDialog(
