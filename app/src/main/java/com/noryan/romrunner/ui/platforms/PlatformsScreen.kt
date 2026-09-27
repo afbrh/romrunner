@@ -58,7 +58,8 @@ fun PlatformsContent(
     repository: LibraryRepository,
     onEditPlatform: (Long) -> Unit,
     onOpenControllerMapping: () -> Unit,
-    onOpenControllerMappingForPlatform: (Long) -> Unit
+    onOpenControllerMappingForPlatform: (Long) -> Unit,
+    onDualScreenSupportChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val platforms by repository.observePlatforms().collectAsState(initial = emptyList())
@@ -71,6 +72,7 @@ fun PlatformsContent(
     LaunchedEffect(Unit) { biosKeysFolderUri = repository.getBiosKeysFolderUri() }
 
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
+    var dualScreenSupportEnabled by remember { mutableStateOf(repository.getDualScreenSupportEnabled()) }
 
     var appPickerFor by remember { mutableStateOf<Platform?>(null) }
     var isAddingNew by remember { mutableStateOf(false) }
@@ -186,6 +188,27 @@ fun PlatformsContent(
                     onCheckedChange = {
                         killBackgroundAppsOnLaunch = it
                         repository.setKillBackgroundAppsOnLaunch(it)
+                    }
+                )
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Dual-Screen Support",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                RetroToggle(
+                    checked = dualScreenSupportEnabled,
+                    onCheckedChange = {
+                        dualScreenSupportEnabled = it
+                        repository.setDualScreenSupportEnabled(it)
+                        onDualScreenSupportChanged()
                     }
                 )
             }

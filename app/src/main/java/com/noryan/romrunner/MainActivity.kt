@@ -13,9 +13,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.noryan.romrunner.data.input.InputCaptureController
 import com.noryan.romrunner.ui.navigation.RomRunnerNavHost
+import com.noryan.romrunner.ui.secondscreen.DualScreenController
 import com.noryan.romrunner.ui.theme.RomRunnerTheme
 
 class MainActivity : ComponentActivity() {
+    private lateinit var dualScreenController: DualScreenController
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Must come before super.onCreate() — it applies Theme.RomRunner.Splash's brand splash,
         // then hands off to postSplashScreenTheme (Theme.RomRunner) once the first frame draws.
@@ -29,11 +32,22 @@ class MainActivity : ComponentActivity() {
         // ever reaches the app, which looks exactly like "the controller stopped working."
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val repository = (application as RomRunnerApp).repository
+        dualScreenController = DualScreenController(this) { repository.getDualScreenSupportEnabled() }
         setContent {
             RomRunnerTheme {
-                RomRunnerNavHost(repository = repository)
+                RomRunnerNavHost(repository = repository, onDualScreenSupportChanged = dualScreenController::refresh)
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dualScreenController.attach()
+    }
+
+    override fun onStop() {
+        dualScreenController.detach()
+        super.onStop()
     }
 
     // Keeps the status bar hidden for RomRunner's own library/settings UI. Swipe-to-reveal

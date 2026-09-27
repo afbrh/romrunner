@@ -98,7 +98,8 @@ fun LibraryScreen(
     repository: LibraryRepository,
     onEditPlatform: (Long) -> Unit,
     onOpenControllerMapping: () -> Unit,
-    onOpenControllerMappingForPlatform: (Long) -> Unit
+    onOpenControllerMappingForPlatform: (Long) -> Unit,
+    onDualScreenSupportChanged: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(HomeTab.GAMES) }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
@@ -346,7 +347,8 @@ fun LibraryScreen(
                         repository = repository,
                         onEditPlatform = onEditPlatform,
                         onOpenControllerMapping = onOpenControllerMapping,
-                        onOpenControllerMappingForPlatform = onOpenControllerMappingForPlatform
+                        onOpenControllerMappingForPlatform = onOpenControllerMappingForPlatform,
+                        onDualScreenSupportChanged = onDualScreenSupportChanged
                     )
                     HomeTab.APPS -> AppsContent()
                 }

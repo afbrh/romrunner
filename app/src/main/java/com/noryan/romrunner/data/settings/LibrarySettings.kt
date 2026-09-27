@@ -34,6 +34,13 @@ class LibrarySettings(context: Context) {
         get() = prefs.getString(KEY_CONTROLLER_MAPPING_JSON, null)
         set(value) = prefs.edit().putString(KEY_CONTROLLER_MAPPING_JSON, value).apply()
 
+    /** Whether to claim a connected second display (e.g. the AYN Thor's own second screen) and
+     *  fill it with RomRunner's own logo — see [com.noryan.romrunner.ui.secondscreen.DualScreenController].
+     *  Default on. */
+    var dualScreenSupportEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DUAL_SCREEN_SUPPORT_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_DUAL_SCREEN_SUPPORT_ENABLED, value).apply()
+
     companion object {
         private const val PREFS_NAME = "romrunner_settings"
         private const val KEY_ROOT_FOLDER_URI = "root_folder_uri"
@@ -41,5 +48,6 @@ class LibrarySettings(context: Context) {
         private const val KEY_BIOS_KEYS_PROMPT_DISMISSED = "bios_keys_prompt_dismissed"
         private const val KEY_KILL_BACKGROUND_APPS_ON_LAUNCH = "kill_background_apps_on_launch"
         private const val KEY_CONTROLLER_MAPPING_JSON = "controller_mapping_json"
+        private const val KEY_DUAL_SCREEN_SUPPORT_ENABLED = "dual_screen_support_enabled"
     }
 }

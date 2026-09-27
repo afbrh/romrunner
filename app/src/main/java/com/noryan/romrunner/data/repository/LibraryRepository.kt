@@ -159,6 +159,11 @@ class LibraryRepository(
         settings.killBackgroundAppsOnLaunch = value
     }
 
+    fun getDualScreenSupportEnabled(): Boolean = settings.dualScreenSupportEnabled
+    fun setDualScreenSupportEnabled(value: Boolean) {
+        settings.dualScreenSupportEnabled = value
+    }
+
     fun getControllerMapping(): ControllerMapping =
         settings.controllerMappingJson?.let { json ->
             runCatching { ControllerMappingSerializer.fromJson(json) }.getOrNull()

@@ -23,7 +23,7 @@ object Routes {
 }
 
 @Composable
-fun RomRunnerNavHost(repository: LibraryRepository) {
+fun RomRunnerNavHost(repository: LibraryRepository, onDualScreenSupportChanged: () -> Unit) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Routes.LIBRARY) {
         composable(Routes.LIBRARY) {
@@ -38,7 +38,8 @@ fun RomRunnerNavHost(repository: LibraryRepository) {
                 onOpenControllerMapping = { navController.navigate(Routes.CONTROLLER_MAPPING) },
                 onOpenControllerMappingForPlatform = { id ->
                     navController.navigate(Routes.controllerMappingForPlatform(id))
-                }
+                },
+                onDualScreenSupportChanged = onDualScreenSupportChanged
             )
         }
         composable(
