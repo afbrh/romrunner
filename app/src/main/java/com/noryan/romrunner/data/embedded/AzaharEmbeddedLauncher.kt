@@ -26,9 +26,13 @@ object AzaharEmbeddedLauncher {
     const val PLATFORM_NAME = "Nintendo 3DS"
 
     private const val PREFS_NAME = "azahar_embedded_launcher"
-    // Bumped from "defaults_applied": now also fixes a bad frame-limiter default in config.ini —
-    // installs that already ran under the old key need to reapply once under the new one.
-    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v2"
+    // Bumped from "defaults_applied_v2": the EmulationMenuSettings.showOverlay = false line below
+    // was added under the v2 key, so any install that already ran once under v2 (before that line
+    // existed) had its flag set to true without ever actually writing showOverlay=false, and would
+    // never retry — confirmed on-device via the on-screen touch controls still showing despite a
+    // physical controller. Installs that already ran under an old key need to reapply once under
+    // the new one, same reasoning as the v1->v2 bump above.
+    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v3"
 
     /**
      * One-time preferred defaults for this launcher's setup: OpenGL over Vulkan, 4x internal
