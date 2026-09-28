@@ -50,6 +50,7 @@ object EdenEmbeddedLauncher {
     const val PLATFORM_NAME = "Nintendo Switch"
     private const val LAUNCHER_PREFS_NAME = "eden_embedded_launcher"
     private const val KEY_OVERLAY_HIDDEN = "overlay_hidden"
+    private const val KEY_PERF_OVERLAY_HIDDEN = "perf_overlay_hidden"
     private const val KEY_BUNDLED_MODS_INSTALLED = "bundled_mods_installed"
     private const val BUNDLED_MODS_ASSET_DIR = "eden_mods"
 
@@ -179,6 +180,7 @@ object EdenEmbeddedLauncher {
     fun launch(context: Context, game: Game, controllerMapping: ControllerMapping) {
         ensureDirectoryReady(context)
         hideTouchOverlayIfNeeded(context)
+        hidePerformanceOverlayIfNeeded(context)
         applyControllerMapping(controllerMapping)
 
         // EmulationActivity.onCreate() passes intent.extras straight through as the nav graph's
@@ -211,6 +213,21 @@ object EdenEmbeddedLauncher {
         BooleanSetting.SHOW_INPUT_OVERLAY.setBoolean(false)
         NativeConfig.saveGlobalConfig()
         launcherPrefs.edit().putBoolean(KEY_OVERLAY_HIDDEN, true).apply()
+    }
+
+    /**
+     * One-time default for the new "Show FPS/Performance Overlay" quick-menu toggle (see
+     * eden_menu_in_game.xml/updateFpsOverlayMenuEntry): off by default, per the user's request.
+     * Uses its own key rather than reusing KEY_OVERLAY_HIDDEN — an install that already ran that
+     * gate once (before this setting existed) would otherwise never retry, which is exactly the
+     * stale-flag bug already found and fixed for Azahar's own showOverlay default.
+     */
+    private fun hidePerformanceOverlayIfNeeded(context: Context) {
+        val launcherPrefs = context.getSharedPreferences(LAUNCHER_PREFS_NAME, Context.MODE_PRIVATE)
+        if (launcherPrefs.getBoolean(KEY_PERF_OVERLAY_HIDDEN, false)) return
+        BooleanSetting.SHOW_PERFORMANCE_OVERLAY.setBoolean(false)
+        NativeConfig.saveGlobalConfig()
+        launcherPrefs.edit().putBoolean(KEY_PERF_OVERLAY_HIDDEN, true).apply()
     }
 
     /**

@@ -3,7 +3,8 @@
   Overrides the embedded Eden library's in-game drawer menu (same res path = same-path resource
   override wins over the library's version entirely, not merged item-by-item — see the matching
   note in eden_fragment_emulation.xml and in menu_in_game.xml, which does the same thing for
-  Azahar). Per the user's request, the Switch in-game menu shows only Settings and Close Game.
+  Azahar). Per the user's request, the Switch in-game menu shows a "Show FPS/Performance Overlay"
+  toggle, Settings, and Close Game.
 
   Every other stock Eden entry is kept present but invisible rather than removed outright:
   menu_lock_drawer is set via a non-null-safe `findItem(...).apply {}` in EmulationFragment.kt's
@@ -63,6 +64,16 @@
         android:id="@+id/menu_lock_drawer"
         android:title="@string/emulation_input_overlay"
         android:visible="false" />
+
+    <!-- RomRunner integration: a new item, not part of stock Eden's menu — a plain toggle for
+         the FPS/performance debug overlay (BooleanSetting.SHOW_PERFORMANCE_OVERLAY), defaulted
+         off (see EdenEmbeddedLauncher.hidePerformanceOverlayIfNeeded). Its title's ON/OFF suffix
+         is set/updated entirely in code (EmulationFragment.kt's updateFpsOverlayMenuEntry) since
+         this NavigationView has no separate label/value column the way the Compose cores'
+         MenuToggleRow does. -->
+    <item
+        android:id="@+id/menu_toggle_fps_overlay"
+        android:title="@string/romrunner_show_fps_overlay" />
 
     <item
         android:id="@+id/menu_settings"

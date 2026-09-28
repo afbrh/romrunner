@@ -3,4 +3,10 @@
 
     <!-- Used by the embedded Azahar in-game menu override (res/menu/menu_in_game.xml). -->
     <string name="romrunner_display_options">Display Options</string>
+
+    <!-- Used by the embedded Eden in-game menu override (res/menu/eden_menu_in_game.xml). The
+         on/off state is shown by dimming this label (see EmulationFragment.kt's
+         updateFpsOverlayMenuEntry), not by appending text — the 300dp-wide menu has no room left
+         over for an ": On"/": Off" suffix, or even the full "Show FPS/Performance Overlay". -->
+    <string name="romrunner_show_fps_overlay">FPS/Performance Overlay</string>
 </resources>
