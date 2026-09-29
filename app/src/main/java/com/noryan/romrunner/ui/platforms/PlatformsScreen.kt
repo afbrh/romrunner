@@ -315,13 +315,27 @@ fun PlatformsContent(
                         // A further-nested "two tabs over" look for this platform's own settings,
                         // matching the same unfold pattern System-Specific Settings itself uses.
                         if (hasBuiltIn) {
+                            val useBuiltInInteractionSource = rememberFocusInteractionSource()
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        interactionSource = useBuiltInInteractionSource,
+                                        indication = null
+                                    ) {
+                                        scope.launch {
+                                            repository.savePlatform(platform.copy(useBuiltIn = !platform.useBuiltIn))
+                                        }
+                                    }
+                                    .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     "Use Embedded Emulator",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        shadow = useBuiltInInteractionSource.glowShadow()
+                                    ),
+                                    color = useBuiltInInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
                                     modifier = Modifier.weight(1f)
                                 )
                                 RetroToggle(
@@ -332,13 +346,29 @@ fun PlatformsContent(
                                 )
                             }
                             if (platform.useBuiltIn) {
+                                val useGlobalMappingInteractionSource = rememberFocusInteractionSource()
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            interactionSource = useGlobalMappingInteractionSource,
+                                            indication = null
+                                        ) {
+                                            scope.launch {
+                                                repository.savePlatform(
+                                                    platform.copy(useGlobalControllerMapping = !platform.useGlobalControllerMapping)
+                                                )
+                                            }
+                                        }
+                                        .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         "Use Global Controller Mapping (recommended)",
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            shadow = useGlobalMappingInteractionSource.glowShadow()
+                                        ),
+                                        color = useGlobalMappingInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
                                         modifier = Modifier.weight(1f)
                                     )
                                     RetroToggle(
