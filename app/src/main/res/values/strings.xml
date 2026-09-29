@@ -8,5 +8,5 @@
          on/off state is shown by dimming this label (see EmulationFragment.kt's
          updateFpsOverlayMenuEntry), not by appending text — the 300dp-wide menu has no room left
          over for an ": On"/": Off" suffix, or even the full "Show FPS/Performance Overlay". -->
-    <string name="romrunner_show_fps_overlay">FPS/Performance Overlay</string>
+    <string name="romrunner_show_fps_overlay">FPS/Stats</string>
 </resources>
