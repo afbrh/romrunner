@@ -26,13 +26,17 @@ object AzaharEmbeddedLauncher {
     const val PLATFORM_NAME = "Nintendo 3DS"
 
     private const val PREFS_NAME = "azahar_embedded_launcher"
-    // Bumped from "defaults_applied_v2": the EmulationMenuSettings.showOverlay = false line below
-    // was added under the v2 key, so any install that already ran once under v2 (before that line
-    // existed) had its flag set to true without ever actually writing showOverlay=false, and would
-    // never retry — confirmed on-device via the on-screen touch controls still showing despite a
-    // physical controller. Installs that already ran under an old key need to reapply once under
-    // the new one, same reasoning as the v1->v2 bump above.
-    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v3"
+    // Bumped from "defaults_applied_v3": EmulationMenuSettings_ShowOverlay lives in the same
+    // default SharedPreferences file Eden and WatermelonDS also use (PreferenceManager.
+    // getDefaultSharedPreferences() is keyed only by applicationId, and all three cores share
+    // this one app's applicationId) — Eden's own legacy-preference migration
+    // (DirectoryInitialization.migrateSettings(), now disabled — see the RomRunner integration
+    // comment at its call site) used to read this exact key the first time Eden ran in a session
+    // and then delete it, silently reverting Azahar's overlay back to visible. That deletion path
+    // is now fixed, but any install that already had its key deleted by it needs one more
+    // reapplication now that the underlying cause is actually gone, same reasoning as the v1->v2
+    // and v2->v3 bumps above.
+    private const val KEY_DEFAULTS_APPLIED = "defaults_applied_v4"
 
     /**
      * One-time preferred defaults for this launcher's setup: OpenGL over Vulkan, 4x internal
