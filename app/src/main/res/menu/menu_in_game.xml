@@ -15,13 +15,22 @@
   - menu_display_options is new: a single entry that opens a small chooser between "Screen Layout"
     and "Secondary Display" (see showDisplayOptionsChooser() in EmulationFragment.kt), each of
     which reuses the existing, unmodified show*Menu() functions for those two features.
+  - menu_emulation_savestates ("Save States", which opened a submenu with Save State/Load State)
+    is removed outright, replaced by menu_emulation_save_state/menu_emulation_load_state as their
+    own top-level rows — each jumps straight to its own slot picker (see showStateSubmenu() in
+    EmulationFragment.kt). Both share menu_emulation_savestates' old visibility condition.
   - No android:icon on any item, per request.
 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
-        android:id="@+id/menu_emulation_savestates"
-        android:title="@string/savestates"
+        android:id="@+id/menu_emulation_save_state"
+        android:title="@string/emulation_save_state"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/menu_emulation_load_state"
+        android:title="@string/emulation_load_state"
         android:visible="false" />
 
     <item
