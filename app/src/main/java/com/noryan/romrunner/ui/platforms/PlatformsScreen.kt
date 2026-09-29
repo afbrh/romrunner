@@ -327,7 +327,11 @@ fun PlatformsContent(
                                             repository.savePlatform(platform.copy(useBuiltIn = !platform.useBuiltIn))
                                         }
                                     }
-                                    .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                                    // Aligned with the platform row's own text (36.dp icon start +
+                                    // 24.dp icon + 8.dp spacing = 68.dp), not just its icon, so
+                                    // these read as clearly nested under that platform's label
+                                    // rather than under the "System-Specific Settings" folder.
+                                    .padding(start = 68.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -360,7 +364,7 @@ fun PlatformsContent(
                                                 )
                                             }
                                         }
-                                        .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                                        .padding(start = 68.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
@@ -486,7 +490,9 @@ private fun PlatformSubRow(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+            // Aligned with the platform row's own text — see the matching comment on the
+            // "Use Embedded Emulator" row above.
+            .padding(start = 68.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -505,7 +511,9 @@ private fun PlatformAppChoiceRow(platform: Platform, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(start = 52.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+            // Aligned with the platform row's own text — see the matching comment on the
+            // "Use Embedded Emulator" row above.
+            .padding(start = 68.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("App", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
