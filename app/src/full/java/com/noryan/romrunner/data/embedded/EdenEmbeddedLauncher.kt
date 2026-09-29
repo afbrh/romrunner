@@ -50,7 +50,11 @@ object EdenEmbeddedLauncher {
     const val PLATFORM_NAME = "Nintendo Switch"
     private const val LAUNCHER_PREFS_NAME = "eden_embedded_launcher"
     private const val KEY_OVERLAY_HIDDEN = "overlay_hidden"
-    private const val KEY_PERF_OVERLAY_HIDDEN = "perf_overlay_hidden"
+    // Bumped from "perf_overlay_hidden": that key only ever set SHOW_PERFORMANCE_OVERLAY=false;
+    // this default now also covers SHOW_SOC_OVERLAY (the device-info half of the on-screen debug
+    // text), so any install that already ran the old key needs to reapply once under the new one
+    // — same stale-flag reasoning as Azahar's own showOverlay default-key bumps.
+    private const val KEY_PERF_OVERLAY_HIDDEN = "perf_overlay_hidden_v2"
     private const val KEY_BUNDLED_MODS_INSTALLED = "bundled_mods_installed"
     private const val BUNDLED_MODS_ASSET_DIR = "eden_mods"
 
@@ -216,16 +220,20 @@ object EdenEmbeddedLauncher {
     }
 
     /**
-     * One-time default for the new "Show FPS/Performance Overlay" quick-menu toggle (see
+     * One-time default for the "FPS/Stats" quick-menu toggle (see
      * eden_menu_in_game.xml/updateFpsOverlayMenuEntry): off by default, per the user's request.
-     * Uses its own key rather than reusing KEY_OVERLAY_HIDDEN — an install that already ran that
-     * gate once (before this setting existed) would otherwise never retry, which is exactly the
-     * stale-flag bug already found and fixed for Azahar's own showOverlay default.
+     * Covers both halves of the on-screen debug text — performance/FPS stats and SOC/device
+     * info are separate BooleanSettings/TextViews that just happen to render as one line — since
+     * the user wants no non-game text visible until they explicitly turn it on. Uses its own key
+     * rather than reusing KEY_OVERLAY_HIDDEN — an install that already ran that gate once (before
+     * this setting existed) would otherwise never retry, which is exactly the stale-flag bug
+     * already found and fixed for Azahar's own showOverlay default.
      */
     private fun hidePerformanceOverlayIfNeeded(context: Context) {
         val launcherPrefs = context.getSharedPreferences(LAUNCHER_PREFS_NAME, Context.MODE_PRIVATE)
         if (launcherPrefs.getBoolean(KEY_PERF_OVERLAY_HIDDEN, false)) return
         BooleanSetting.SHOW_PERFORMANCE_OVERLAY.setBoolean(false)
+        BooleanSetting.SHOW_SOC_OVERLAY.setBoolean(false)
         NativeConfig.saveGlobalConfig()
         launcherPrefs.edit().putBoolean(KEY_PERF_OVERLAY_HIDDEN, true).apply()
     }
