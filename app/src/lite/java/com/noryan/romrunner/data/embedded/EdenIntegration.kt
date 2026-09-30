@@ -6,6 +6,7 @@ import android.net.Uri
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * "lite" flavor: Eden is not on this build's classpath at all (see romrunner.switchEmbedded in
@@ -30,7 +31,8 @@ object EdenIntegration {
         context: Context,
         romsRootUri: String?,
         repository: LibraryRepository,
-        markPlayed: (Game) -> Unit
+        markPlayed: (Game) -> Unit,
+        scope: CoroutineScope
     ): EdenLibraryState = NoOpEdenLibraryState
 }
 

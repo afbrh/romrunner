@@ -81,6 +81,7 @@ import com.noryan.romrunner.ui.components.HomeStatusInfo
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 import com.noryan.romrunner.ui.apps.AppsContent
 import com.noryan.romrunner.ui.platforms.PlatformsContent
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 private data class MissingAppRequest(val platform: Platform, val game: Game, val target: EmulatorLauncher.Target)
@@ -156,10 +157,18 @@ fun LibraryScreen(
 
     // Nintendo Switch (Eden, "full" flavor only — a no-op stub on "lite") — lives behind this seam
     // so this file never references Eden types directly.
-    val edenState = EdenIntegration.rememberState(context, state.romsRootUri, repository, viewModel::markPlayed)
+    val edenState = EdenIntegration.rememberState(context, state.romsRootUri, repository, viewModel::markPlayed, scope)
 
     val platformsById = remember(state.platforms) { state.platforms.associateBy { it.id } }
 
+    // RomRunner integration: each embedded core's own launch() does blocking file I/O (reading/
+    // writing its config ini files, and on first run per core, unzipping/copying bundled assets)
+    // before starting its Activity — confirmed synchronous, with no internal dispatcher switch.
+    // Called directly from this onClick-driven function, that I/O used to run on the calling
+    // (main/UI) thread, producing a visible stall right when the user taps a game and expects an
+    // immediate response. Dispatching the call itself to Dispatchers.IO moves that work off the
+    // main thread; calling Context.startActivity() from a background thread is safe (it's just a
+    // Binder IPC to ActivityManagerService, same as any other system-service call).
     fun attemptLaunch(platform: Platform, game: Game) {
         // Best-effort memory reclaim before any launch path below — see BackgroundAppCleaner's
         // own doc comment for exactly what this can and can't do.
@@ -172,7 +181,8 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            AzaharEmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
+            val mapping = repository.getEffectiveControllerMapping(platform)
+            scope.launch(Dispatchers.IO) { AzaharEmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
             viewModel.markPlayed(game)
             return
         }
@@ -186,7 +196,8 @@ fun LibraryScreen(
                 Toast.makeText(context, "Set your BIOS/Keys folder in Settings first.", Toast.LENGTH_LONG).show()
                 return
             }
-            PS2EmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
+            val mapping = repository.getEffectiveControllerMapping(platform)
+            scope.launch(Dispatchers.IO) { PS2EmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
             viewModel.markPlayed(game)
             return
         }
@@ -198,7 +209,8 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            WatermelonDSEmbeddedLauncher.launch(context, game, repository.getEffectiveControllerMapping(platform))
+            val mapping = repository.getEffectiveControllerMapping(platform)
+            scope.launch(Dispatchers.IO) { WatermelonDSEmbeddedLauncher.launch(context, game, mapping) }
             viewModel.markPlayed(game)
             return
         }
@@ -208,7 +220,7 @@ fun LibraryScreen(
         // isn't a platform-level toggle, it's a per-title override, same as GameLaunchOverrides
         // used to be for this exact title before DuskLight was embedded — see that file).
         if (DuskLightEmbeddedLauncher.matches(game.title)) {
-            DuskLightEmbeddedLauncher.launch(context, game)
+            scope.launch(Dispatchers.IO) { DuskLightEmbeddedLauncher.launch(context, game) }
             viewModel.markPlayed(game)
             return
         }
@@ -218,7 +230,8 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            PrimeHackEmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
+            val mapping = repository.getEffectiveControllerMapping(platform)
+            scope.launch(Dispatchers.IO) { PrimeHackEmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
             viewModel.markPlayed(game)
             return
         }
@@ -228,7 +241,8 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            CemuEmbeddedLauncher.launch(context, game, romsRootUri, repository.getEffectiveControllerMapping(platform))
+            val mapping = repository.getEffectiveControllerMapping(platform)
+            scope.launch(Dispatchers.IO) { CemuEmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
             viewModel.markPlayed(game)
             return
         }
@@ -237,7 +251,8 @@ fun LibraryScreen(
                 Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
                 return
             }
-            RetroArchEmbeddedLauncher.launch(context, game, platform.name, repository.getEffectiveControllerMapping(platform))
+            val mapping = repository.getEffectiveControllerMapping(platform)
+            scope.launch(Dispatchers.IO) { RetroArchEmbeddedLauncher.launch(context, game, platform.name, mapping) }
             viewModel.markPlayed(game)
             return
         }

@@ -7,6 +7,9 @@ import android.widget.Toast
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * "full" flavor: the real Eden integration. See EdenEmbeddedLauncher.kt for the core launch/
@@ -41,7 +44,8 @@ object EdenIntegration {
         context: Context,
         romsRootUri: String?,
         repository: LibraryRepository,
-        markPlayed: (Game) -> Unit
+        markPlayed: (Game) -> Unit,
+        scope: CoroutineScope
     ): EdenLibraryState =
         object : EdenLibraryState {
             override fun attemptLaunch(platform: Platform, game: Game): Boolean {
@@ -54,7 +58,12 @@ object EdenIntegration {
                     ).show()
                     return true
                 }
-                EdenEmbeddedLauncher.launch(context, game, repository.getEffectiveControllerMapping(platform))
+                // RomRunner integration: EdenEmbeddedLauncher.launch does blocking file I/O
+                // (directory/asset setup, config writes) before starting its Activity — same
+                // main-thread-stall concern as every other embedded core's launch(), and fixed
+                // the same way: dispatched off the calling (click-handler) thread.
+                val mapping = repository.getEffectiveControllerMapping(platform)
+                scope.launch(Dispatchers.IO) { EdenEmbeddedLauncher.launch(context, game, mapping) }
                 markPlayed(game)
                 return true
             }
