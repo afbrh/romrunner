@@ -192,6 +192,11 @@ object ControllerMappingApplier {
             updates[key] = "`$name`"
         }
 
+        fun resolvedButtonName(input: StandardInput): String? {
+            val binding = b[input] as? PhysicalBinding.Key ?: return null
+            return dolphinButtonName(binding.keyCode)
+        }
+
         // GameCube's own diamond doesn't map 1:1 onto a generic Xbox-style pad (it has a Z button
         // and no Select), so this is a best-effort position mapping, consistent with how every
         // other core here treats FACE_TOP/BOTTOM/LEFT/RIGHT as physical positions, not letters.
@@ -202,10 +207,21 @@ object ControllerMappingApplier {
         buttonLine("Buttons/X", StandardInput.FACE_LEFT)
         buttonLine("Buttons/Y", StandardInput.FACE_TOP)
         buttonLine("Buttons/Start", StandardInput.START)
-        // GameCube has one combined analog+digital trigger per side, not a separate L1/L2 — L1/R1
-        // drive the digital click; L2/R2 have no natural GameCube equivalent and are skipped.
-        buttonLine("Triggers/L", StandardInput.L1)
-        buttonLine("Triggers/R", StandardInput.R1)
+        // RomRunner integration: per explicit request, GC's L/R triggers are driven by the
+        // physical shoulder TRIGGERS (L2/R2), not the bumpers (L1/R1) — they're meant to feel
+        // like squeeze-triggers, matching the real GameCube controller, not click-bumpers.
+        buttonLine("Triggers/L", StandardInput.L2)
+        buttonLine("Triggers/R", StandardInput.R2)
+        // GC's Z button has no natural equivalent on a generic pad. Per explicit request, it's
+        // bound to EITHER bumper (L1 or R1 — now freed up since the triggers above moved to
+        // L2/R2), combined via ciface's `|` (OR) operator so it's reachable from both shoulders.
+        val zSources = listOfNotNull(
+            resolvedButtonName(StandardInput.L1)?.let { "`$it`" },
+            resolvedButtonName(StandardInput.R1)?.let { "`$it`" }
+        )
+        if (zSources.isNotEmpty()) {
+            updates["Buttons/Z"] = zSources.joinToString(" | ")
+        }
         buttonLine("D-Pad/Up", StandardInput.DPAD_UP)
         buttonLine("D-Pad/Down", StandardInput.DPAD_DOWN)
         buttonLine("D-Pad/Left", StandardInput.DPAD_LEFT)
