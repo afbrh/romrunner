@@ -38,6 +38,7 @@ object PrimeHackEmbeddedLauncher {
     fun launch(context: Context, game: Game, romsRootUri: String, controllerMapping: ControllerMapping) {
         applyDefaultsIfNeeded(context)
         applyControllerMapping(context, controllerMapping)
+        applyPerGameCheatDefaults(context, game)
 
         val intent = Intent(context, EmulationActivity::class.java)
         intent.putExtra(EmulationActivity.EXTRA_SELECTED_GAMES, arrayOf(game.fileUri))
@@ -92,6 +93,58 @@ object PrimeHackEmbeddedLauncher {
         val configDir = File(DirectoryInitialization.getUserDirectory(), "Config")
         configDir.mkdirs()
         ControllerMappingApplier.applyToPrimeHack(configDir, controllerMapping)
+    }
+
+    /**
+     * Enables specific bundled Gecko codes by default for one specific title, by title-keyword
+     * match — same pattern GameLaunchOverrides.kt already uses elsewhere in this project. Writes
+     * a user-level `Config/GameSettings/<gameId>.ini` override containing just a `[Gecko_Enabled]`
+     * listing; Dolphin's own GeckoCodeConfig::LoadCodes reads the `[Gecko]` code catalog from the
+     * bundled `Sys/GameSettings/<gameId>.ini` and this override together (global ini first, then
+     * local), matching enabled-list entries against whichever codes were already catalogued — so
+     * this file doesn't need to repeat the actual code content, just the two names to enable
+     * (confirmed against GMSE01's bundled ini: `$Widescreen [gamemasterplc]` and
+     * `$60FPS [gamemasterplc]`, matched here by the part before `[` per
+     * CheatCodes.h's ReadEnabledOrDisabled, i.e. without the "[gamemasterplc]" suffix).
+     */
+    private fun applyPerGameCheatDefaults(context: Context, game: Game) {
+        if (!DirectoryInitialization.areDolphinDirectoriesReady()) return
+        if (!game.title.lowercase().contains("super mario sunshine")) return
+
+        val gameSettingsDir = File(DirectoryInitialization.getUserDirectory(), "Config/GameSettings")
+        gameSettingsDir.mkdirs()
+        enableGeckoCodes(File(gameSettingsDir, "GMSE01.ini"), listOf("Widescreen", "60FPS"))
+    }
+
+    /** Adds `$name` lines to `[Gecko_Enabled]` in [file] for each of [codeNames], creating the
+     *  file/section as needed. Idempotent — a name already listed is left as-is, not duplicated. */
+    private fun enableGeckoCodes(file: File, codeNames: List<String>) {
+        val lines = (if (file.exists()) file.readText() else "").lines().toMutableList()
+        val sectionHeader = "[Gecko_Enabled]"
+        var sectionStart = lines.indexOfFirst { it.trim() == sectionHeader }
+        if (sectionStart == -1) {
+            if (lines.isNotEmpty() && lines.last().isNotBlank()) lines.add("")
+            lines.add(sectionHeader)
+            sectionStart = lines.size - 1
+        }
+        var sectionEnd = lines.size
+        for (i in sectionStart + 1 until lines.size) {
+            if (lines[i].trim().startsWith("[")) {
+                sectionEnd = i
+                break
+            }
+        }
+        val existingNames = (sectionStart + 1 until sectionEnd).mapNotNull { i ->
+            lines[i].trim().removePrefix("$").takeIf { lines[i].trim().startsWith("$") }
+        }
+        var insertAt = sectionEnd
+        for (name in codeNames) {
+            if (name !in existingNames) {
+                lines.add(insertAt, "$$name")
+                insertAt++
+            }
+        }
+        file.writeText(lines.joinToString("\n"))
     }
 
     /** Replaces (or adds) a whole `[sectionName]` section in [file] with [body] wholesale. */
