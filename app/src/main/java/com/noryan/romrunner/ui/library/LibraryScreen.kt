@@ -355,16 +355,28 @@ fun LibraryScreen(
                                 }
                             }
                             else -> {
+                                // RomRunner integration: GameRow.onClick/onLongClick previously
+                                // allocated a fresh closure per row on every recomposition of this
+                                // LazyColumn, defeating Compose's skip-recomposition check for
+                                // every visible row whenever anything else in this screen changed.
+                                // Hoisting one stable (Game) -> Unit lambda per callback, reused
+                                // across all rows, fixes that — GameRow takes the game as a
+                                // parameter instead of the row pre-binding it into a no-arg lambda.
+                                val onGameClick = remember(platformsById) {
+                                    { game: Game ->
+                                        val platform = platformsById[game.platformId]
+                                        if (platform != null) attemptLaunch(platform, game)
+                                    }
+                                }
+                                val onGameLongClick = remember { { game: Game -> actionGame = game } }
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(state.games, key = { it.id }) { game ->
                                         val platform = platformsById[game.platformId]
                                         GameRow(
                                             game = game,
                                             platformName = displayPlatformName(platform, game),
-                                            onClick = {
-                                                platform?.let { attemptLaunch(it, game) }
-                                            },
-                                            onLongClick = { actionGame = game }
+                                            onClick = onGameClick,
+                                            onLongClick = onGameLongClick
                                         )
                                     }
                                 }

@@ -23,8 +23,8 @@ import com.noryan.romrunner.data.model.Game
 fun GameRow(
     game: Game,
     platformName: String,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onClick: (Game) -> Unit,
+    onLongClick: (Game) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = rememberFocusInteractionSource()
@@ -37,8 +37,8 @@ fun GameRow(
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick,
-                onLongClick = onLongClick
+                onClick = { onClick(game) },
+                onLongClick = { onLongClick(game) }
             )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
