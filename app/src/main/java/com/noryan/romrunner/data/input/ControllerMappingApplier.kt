@@ -175,12 +175,21 @@ object ControllerMappingApplier {
      */
     fun applyToPrimeHack(configDir: File, mapping: ControllerMapping) {
         val b = mapping.buttons
-        val lines = mutableListOf<String>()
+        val updates = LinkedHashMap<String, String>()
+
+        // RomRunner integration: explicitly (re-)sets Device, matching the exact value Dolphin's
+        // own native device-detection already writes for GCPad2/3/4 on this device (the AYN
+        // Thor's physical controller reports as "Odin Controller" — this project's one supported
+        // device). Needed both going forward and to repair any install where an earlier
+        // wholesale-replace of this section (see the mergeIniSection comment below) already
+        // dropped it — without a Device line, ciface has no physical controller to bind any of
+        // these expressions to, which is why GameCube games were totally unresponsive.
+        updates["Device"] = "Android/1/Odin Controller"
 
         fun buttonLine(key: String, input: StandardInput) {
             val binding = b[input] as? PhysicalBinding.Key ?: return
             val name = dolphinButtonName(binding.keyCode) ?: return
-            lines += "$key = `$name`"
+            updates[key] = "`$name`"
         }
 
         // GameCube's own diamond doesn't map 1:1 onto a generic Xbox-style pad (it has a Z button
@@ -201,15 +210,23 @@ object ControllerMappingApplier {
         buttonLine("D-Pad/Right", StandardInput.DPAD_RIGHT)
 
         fun stickLines(prefix: String, stick: StickBinding) {
-            lines += "$prefix/Up = ${axisExpr(stick.yAxis, positive = stick.invertY)}"
-            lines += "$prefix/Down = ${axisExpr(stick.yAxis, positive = !stick.invertY)}"
-            lines += "$prefix/Left = ${axisExpr(stick.xAxis, positive = stick.invertX)}"
-            lines += "$prefix/Right = ${axisExpr(stick.xAxis, positive = !stick.invertX)}"
+            updates["$prefix/Up"] = axisExpr(stick.yAxis, positive = stick.invertY)
+            updates["$prefix/Down"] = axisExpr(stick.yAxis, positive = !stick.invertY)
+            updates["$prefix/Left"] = axisExpr(stick.xAxis, positive = stick.invertX)
+            updates["$prefix/Right"] = axisExpr(stick.xAxis, positive = !stick.invertX)
         }
         stickLines("Main Stick", mapping.leftStick)
         stickLines("C-Stick", mapping.rightStick)
 
-        replaceIniSection(File(configDir, "GCPadNew.ini"), "GCPad1", lines.joinToString("\n"))
+        // RomRunner integration: merges these keys into [GCPad1] instead of replacing the whole
+        // section (as this used to, via replaceIniSection) — Dolphin's own native device-detection
+        // pre-populates this section with `Device = Android/1/Odin Controller` and
+        // `PrimeHack/Mode = 1` the first time the app runs (confirmed on-device: GCPad2/3/4 carry
+        // the exact same two lines), and wholesale-replacing the section silently discarded them
+        // on every launch. Without a Device line, ciface has no physical controller to bind these
+        // button/axis expressions to at all — confirmed on-device as the actual cause of GameCube
+        // games being completely unresponsive to the real controller (Super Mario Sunshine).
+        mergeIniSection(File(configDir, "GCPadNew.ini"), "GCPad1", updates)
     }
 
     private fun dolphinButtonName(keyCode: Int): String? = when (keyCode) {
@@ -236,13 +253,40 @@ object ControllerMappingApplier {
 
     private fun axisExpr(axis: Int, positive: Boolean): String = "`Axis $axis${if (positive) "+" else "-"}`"
 
-    /** Replaces (or adds) a whole `[sectionName]` section in [file] with [body] wholesale — same
-     *  helper shape as PrimeHackEmbeddedLauncher's own replaceSection, duplicated here since that
-     *  one is private to that file. */
-    private fun replaceIniSection(file: File, sectionName: String, body: String) {
-        val existing = if (file.exists()) file.readText() else ""
-        val withoutSection = existing.replace(Regex("""\[$sectionName\][^\[]*"""), "")
-        file.writeText(withoutSection.trimEnd() + "\n\n[$sectionName]\n$body\n")
+    /** Merges `key = value` pairs from [updates] into `[sectionName]` of [file], creating the
+     *  section if needed — every other key already in that section (e.g. a native-init-written
+     *  `Device`/`PrimeHack/Mode` line) is left untouched, same merge semantics as
+     *  PrimeHackEmbeddedLauncher's own single-key setIniValue, just for several keys at once. */
+    private fun mergeIniSection(file: File, sectionName: String, updates: Map<String, String>) {
+        val lines = (if (file.exists()) file.readText() else "").lines().toMutableList()
+        val sectionHeader = "[$sectionName]"
+        var sectionStart = lines.indexOfFirst { it.trim() == sectionHeader }
+        if (sectionStart == -1) {
+            if (lines.isNotEmpty() && lines.last().isNotBlank()) lines.add("")
+            lines.add(sectionHeader)
+            sectionStart = lines.size - 1
+        }
+        var sectionEnd = lines.size
+        for (i in sectionStart + 1 until lines.size) {
+            if (lines[i].trim().startsWith("[")) {
+                sectionEnd = i
+                break
+            }
+        }
+        val remaining = LinkedHashMap(updates)
+        for (i in sectionStart + 1 until sectionEnd) {
+            val trimmed = lines[i].trim()
+            val matchedKey = remaining.keys.firstOrNull { trimmed.startsWith("$it ") || trimmed.startsWith("$it=") }
+            if (matchedKey != null) {
+                lines[i] = "$matchedKey = ${remaining.remove(matchedKey)}"
+            }
+        }
+        var insertAt = sectionEnd
+        for ((key, value) in remaining) {
+            lines.add(insertAt, "$key = $value")
+            insertAt++
+        }
+        file.writeText(lines.joinToString("\n"))
     }
 
     // ---------------------------------------------------------------------------------------
