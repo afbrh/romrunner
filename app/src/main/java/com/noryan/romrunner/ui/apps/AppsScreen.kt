@@ -11,16 +11,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.InstalledApps
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * The Apps tab's content on RomRunner's home screen (see LibraryScreen) — every launchable
@@ -33,9 +37,15 @@ import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 @Composable
 fun AppsContent() {
     val context = LocalContext.current
-    val apps = remember {
-        InstalledApps.listLaunchable(context).filter {
-            it.packageName != context.packageName && "launcher" !in it.label.lowercase()
+    // RomRunner integration: PackageManager.queryIntentActivities enumerates every installed
+    // package's manifest and was running synchronously on the composing (main) thread via
+    // remember{} — a real stall opening this tab on a device with many apps installed. Moved off
+    // the main thread; the list is empty for one frame while it loads.
+    val apps by produceState(initialValue = emptyList<InstalledApp>(), context) {
+        value = withContext(Dispatchers.Default) {
+            InstalledApps.listLaunchable(context).filter {
+                it.packageName != context.packageName && "launcher" !in it.label.lowercase()
+            }
         }
     }
 

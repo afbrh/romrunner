@@ -10,12 +10,15 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.InstalledApps
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AppPickerDialog(
@@ -24,7 +27,11 @@ fun AppPickerDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val apps = remember { InstalledApps.listLaunchable(context) }
+    // RomRunner integration: see AppsScreen.kt's matching comment — this was a synchronous
+    // PackageManager query on the main thread via remember{}, moved off it the same way.
+    val apps by produceState(initialValue = emptyList<InstalledApp>(), context) {
+        value = withContext(Dispatchers.Default) { InstalledApps.listLaunchable(context) }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
