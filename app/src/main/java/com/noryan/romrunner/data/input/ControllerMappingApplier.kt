@@ -195,8 +195,10 @@ object ControllerMappingApplier {
         // GameCube's own diamond doesn't map 1:1 onto a generic Xbox-style pad (it has a Z button
         // and no Select), so this is a best-effort position mapping, consistent with how every
         // other core here treats FACE_TOP/BOTTOM/LEFT/RIGHT as physical positions, not letters.
-        buttonLine("Buttons/A", StandardInput.FACE_BOTTOM)
-        buttonLine("Buttons/B", StandardInput.FACE_RIGHT)
+        // RomRunner integration: confirmed on-device with the real controller that A/B landed on
+        // the wrong physical buttons with FACE_BOTTOM/FACE_RIGHT swapped from what's below.
+        buttonLine("Buttons/A", StandardInput.FACE_RIGHT)
+        buttonLine("Buttons/B", StandardInput.FACE_BOTTOM)
         buttonLine("Buttons/X", StandardInput.FACE_LEFT)
         buttonLine("Buttons/Y", StandardInput.FACE_TOP)
         buttonLine("Buttons/Start", StandardInput.START)
