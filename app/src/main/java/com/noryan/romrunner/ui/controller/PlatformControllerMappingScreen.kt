@@ -32,7 +32,7 @@ fun PlatformControllerMappingScreen(repository: LibraryRepository, platformId: L
     val current = platform ?: return
     ControllerMappingScreen(
         title = "Controller Mapping — ${current.name}",
-        initialMapping = repository.getEffectiveControllerMapping(current),
+        initialMapping = remember(current.id) { repository.getEffectiveControllerMapping(current) },
         onSave = { mapping ->
             val json = ControllerMappingSerializer.toJson(mapping)
             scope.launch {

@@ -133,7 +133,7 @@ fun ControllerMappingScreen(
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 InputGroup.entries.forEach { group ->
                     item { SectionHeader(group.heading) }
-                    items(StandardInput.entries.filter { it.group == group }) { slot ->
+                    items(StandardInput.entries.filter { it.group == group }, key = { it.name }) { slot ->
                         MappingRow(
                             label = slot.label,
                             valueLabel = labelFor(slot, mapping),

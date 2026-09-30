@@ -25,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noryan.romrunner.data.embedded.BuiltInPlatforms
 import com.noryan.romrunner.data.launch.BiosKeysImporter
 import com.noryan.romrunner.data.launch.InstalledApp
@@ -62,7 +62,7 @@ fun PlatformsContent(
     onDualScreenSupportChanged: () -> Unit
 ) {
     val context = LocalContext.current
-    val platforms by repository.observePlatforms().collectAsState(initial = emptyList())
+    val platforms by repository.observePlatforms().collectAsStateWithLifecycle(initialValue = emptyList())
     val scope = rememberCoroutineScope()
 
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }

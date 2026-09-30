@@ -2,6 +2,7 @@ package com.noryan.romrunner.ui.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -56,7 +57,7 @@ fun RomRunnerNavHost(repository: LibraryRepository, onDualScreenSupportChanged: 
         composable(Routes.CONTROLLER_MAPPING) {
             ControllerMappingScreen(
                 title = "Controller Mapping",
-                initialMapping = repository.getControllerMapping(),
+                initialMapping = remember { repository.getControllerMapping() },
                 onSave = { mapping -> repository.setControllerMapping(mapping) },
                 onDone = { navController.popBackStack() }
             )
