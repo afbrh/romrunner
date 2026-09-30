@@ -5,17 +5,26 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Recursively walks the user's single ROMs root folder, matching files against every configured platform's extensions. */
 object RomScanner {
 
+    // RomRunner integration: this was already `suspend`, but never actually switched dispatcher —
+    // every call site (LibraryViewModel.rescanAll's viewModelScope, PlatformEditScreen's
+    // rememberCoroutineScope) defaults to Dispatchers.Main.immediate, so the whole recursive SAF
+    // walk below ran on the main thread. DocumentFile.listFiles() is a synchronous Binder IPC per
+    // directory (plus a query() per child), so a real ROM collection could stall the UI for a
+    // visible stretch on first folder pick, every pull-to-refresh, and every platform-extensions
+    // edit. withContext(Dispatchers.IO) here fixes every call site at once.
     suspend fun scanRoot(
         context: Context,
         rootUri: Uri,
         platforms: List<Platform>,
         existingUris: Set<String>
-    ): List<Game> {
-        val root = DocumentFile.fromTreeUri(context, rootUri) ?: return emptyList()
+    ): List<Game> = withContext(Dispatchers.IO) {
+        val root = DocumentFile.fromTreeUri(context, rootUri) ?: return@withContext emptyList()
 
         val extensionToPlatformId = LinkedHashMap<String, Long>()
         for (platform in platforms) {
@@ -23,11 +32,11 @@ object RomScanner {
                 extensionToPlatformId.putIfAbsent(ext, platform.id)
             }
         }
-        if (extensionToPlatformId.isEmpty()) return emptyList()
+        if (extensionToPlatformId.isEmpty()) return@withContext emptyList()
 
         val found = mutableListOf<Game>()
         walk(root, extensionToPlatformId, existingUris, found)
-        return found
+        found
     }
 
     private fun walk(
