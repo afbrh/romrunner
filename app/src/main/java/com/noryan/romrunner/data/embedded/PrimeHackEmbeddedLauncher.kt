@@ -114,14 +114,36 @@ object PrimeHackEmbeddedLauncher {
      * PCSX2's own per-game inis). An earlier version of this function wrote to
      * `Config/GameSettings/` instead, which Dolphin never reads — this didn't actually enable
      * anything.
+     *
+     * Also sets the global `EnableCheats` switch (`Dolphin.ini`'s `[Core]` section) to `True` —
+     * confirmed against Config/MainSettings.cpp (`MAIN_ENABLE_CHEATS` defaults to `false`) and
+     * GeckoCode.cpp (every actual code-application path is gated on `Config::AreCheatsEnabled()`
+     * first). Without this, a per-game `[Gecko_Enabled]` listing is silently inert regardless of
+     * being correctly configured — confirmed on-device as the reason neither code took effect
+     * even after the path fix above.
+     *
+     * The Widescreen Gecko code only patches the game's own internal camera/HUD projection math
+     * for a 16:9 view — it doesn't change what shape buffer Dolphin actually renders into, which
+     * is a separate video setting. Without also forcing that, the output stays letterboxed at
+     * 4:3 regardless of the code being active (confirmed on-device: still boxed after the two
+     * fixes above). `[Video_Settings] AspectRatio = 1` in this same per-game ini sets it
+     * (confirmed against ConfigLoaders/GameConfigLoader.cpp's section-name mapping — `Video_Settings`
+     * in a per-game ini maps to GFX.ini's own `[Settings]`, matching GFX_ASPECT_RATIO's key — and
+     * VideoConfig.h's AspectMode enum, where `1` = ForceWide).
      */
     private fun applyPerGameCheatDefaults(context: Context, game: Game) {
         if (!DirectoryInitialization.areDolphinDirectoriesReady()) return
         if (!game.title.lowercase().contains("super mario sunshine")) return
 
+        val configDir = File(DirectoryInitialization.getUserDirectory(), "Config")
+        configDir.mkdirs()
+        setIniValue(File(configDir, "Dolphin.ini"), "Core", "EnableCheats", "True")
+
         val gameSettingsDir = File(DirectoryInitialization.getUserDirectory(), "GameSettings")
         gameSettingsDir.mkdirs()
-        enableGeckoCodes(File(gameSettingsDir, "GMSE01.ini"), listOf("Widescreen", "60FPS"))
+        val gameIni = File(gameSettingsDir, "GMSE01.ini")
+        enableGeckoCodes(gameIni, listOf("Widescreen", "60FPS"))
+        setIniValue(gameIni, "Video_Settings", "AspectRatio", "1")
     }
 
     /** Adds `$name` lines to `[Gecko_Enabled]` in [file] for each of [codeNames], creating the
