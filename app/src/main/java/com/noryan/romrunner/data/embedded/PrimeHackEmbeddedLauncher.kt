@@ -130,6 +130,17 @@ object PrimeHackEmbeddedLauncher {
      * (confirmed against ConfigLoaders/GameConfigLoader.cpp's section-name mapping — `Video_Settings`
      * in a per-game ini maps to GFX.ini's own `[Settings]`, matching GFX_ASPECT_RATIO's key — and
      * VideoConfig.h's AspectMode enum, where `1` = ForceWide).
+     *
+     * AspectRatio = ForceWide alone isn't enough, and produces a horizontally-stretched image
+     * rather than a properly widened one — confirmed on-device. Traced to
+     * VideoCommon/Widescreen.cpp's `GetWidescreenOverride()`: with `wideScreenHack` off (the
+     * default), forcing `aspect_mode` to ForceWide makes Dolphin just *assume* the game's own 3D
+     * content is already anamorphic 16:9 and never corrects it — a real fix depends entirely on
+     * the Widescreen Gecko code's camera-math patch actually taking hold at runtime, which isn't
+     * guaranteed. Setting `wideScreenHack = True` (same `[Video_Settings]` section — confirmed
+     * against Config/GraphicsSettings.cpp's `GFX_WIDESCREEN_HACK` key) instead engages Dolphin's
+     * own per-frame vertex-geometry correction, which works whether or not the Gecko code
+     * succeeded, so this is additive with it rather than a replacement for it.
      */
     private fun applyPerGameCheatDefaults(context: Context, game: Game) {
         if (!DirectoryInitialization.areDolphinDirectoriesReady()) return
@@ -144,6 +155,7 @@ object PrimeHackEmbeddedLauncher {
         val gameIni = File(gameSettingsDir, "GMSE01.ini")
         enableGeckoCodes(gameIni, listOf("Widescreen", "60FPS"))
         setIniValue(gameIni, "Video_Settings", "AspectRatio", "1")
+        setIniValue(gameIni, "Video_Settings", "wideScreenHack", "True")
     }
 
     /** Adds `$name` lines to `[Gecko_Enabled]` in [file] for each of [codeNames], creating the
