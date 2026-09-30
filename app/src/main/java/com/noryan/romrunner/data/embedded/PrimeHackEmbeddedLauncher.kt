@@ -98,7 +98,7 @@ object PrimeHackEmbeddedLauncher {
     /**
      * Enables specific bundled Gecko codes by default for one specific title, by title-keyword
      * match — same pattern GameLaunchOverrides.kt already uses elsewhere in this project. Writes
-     * a user-level `Config/GameSettings/<gameId>.ini` override containing just a `[Gecko_Enabled]`
+     * a user-level `GameSettings/<gameId>.ini` override containing just a `[Gecko_Enabled]`
      * listing; Dolphin's own GeckoCodeConfig::LoadCodes reads the `[Gecko]` code catalog from the
      * bundled `Sys/GameSettings/<gameId>.ini` and this override together (global ini first, then
      * local), matching enabled-list entries against whichever codes were already catalogued — so
@@ -106,12 +106,20 @@ object PrimeHackEmbeddedLauncher {
      * (confirmed against GMSE01's bundled ini: `$Widescreen [gamemasterplc]` and
      * `$60FPS [gamemasterplc]`, matched here by the part before `[` per
      * CheatCodes.h's ReadEnabledOrDisabled, i.e. without the "[gamemasterplc]" suffix).
+     *
+     * `GameSettings` is a sibling of `Config` directly under Dolphin's user directory, NOT nested
+     * inside `Config` — confirmed against ConfigManager.cpp's SConfig::LoadLocalGameIni(), which
+     * reads from `File::GetUserPath(D_GAMESETTINGS_IDX)` (== `<UserDir>/GameSettings/`), and
+     * against the real on-device layout (a `GameSettings/` folder already exists there, holding
+     * PCSX2's own per-game inis). An earlier version of this function wrote to
+     * `Config/GameSettings/` instead, which Dolphin never reads — this didn't actually enable
+     * anything.
      */
     private fun applyPerGameCheatDefaults(context: Context, game: Game) {
         if (!DirectoryInitialization.areDolphinDirectoriesReady()) return
         if (!game.title.lowercase().contains("super mario sunshine")) return
 
-        val gameSettingsDir = File(DirectoryInitialization.getUserDirectory(), "Config/GameSettings")
+        val gameSettingsDir = File(DirectoryInitialization.getUserDirectory(), "GameSettings")
         gameSettingsDir.mkdirs()
         enableGeckoCodes(File(gameSettingsDir, "GMSE01.ini"), listOf("Widescreen", "60FPS"))
     }
