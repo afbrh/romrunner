@@ -207,30 +207,31 @@ object ControllerMappingApplier {
         buttonLine("Buttons/X", StandardInput.FACE_LEFT)
         buttonLine("Buttons/Y", StandardInput.FACE_TOP)
         buttonLine("Buttons/Start", StandardInput.START)
-        // RomRunner integration: per explicit request, GC's L/R triggers are driven ONLY by the
-        // physical shoulder triggers' ANALOG pressure (Triggers/L-Analog and /R-Analog), not a
-        // plain digital press (Triggers/L / /R, left unbound here) — some titles (e.g. Mario
-        // Sunshine) need a half-pull to register as a distinct, sustained analog value (hover
-        // nozzle) from a full pull (a different action), which a digital on/off binding can't
-        // represent at all. Dolphin's own MixedTriggers input group (see Core/HW/GCPadEmu.cpp)
-        // derives a "fully pressed" digital click automatically once the analog value crosses its
-        // own internal threshold, so the digital keys don't need their own binding for a full
-        // press to still work.
+        // RomRunner integration: GC's L/R triggers need BOTH the digital click (Triggers/L//R)
+        // AND the analog pressure (Triggers/L-Analog//R-Analog) bound together — confirmed against
+        // ControllerEmu::MixedTriggers::GetState() (InputCommon/ControllerEmu/ControlGroup/
+        // MixedTriggers.cpp), which is NOT a simple "pick one" choice the way it first looked:
+        // the ANALOG value alone drives partial presses (smooth, e.g. Mario Sunshine's hover
+        // nozzle), but the DIGITAL input is what the same function uses to *force* that value to
+        // exactly 1.0 once the trigger's real physical click-switch (BTN_TL2/BTN_TR2 — confirmed
+        // present on this device via `adb shell getevent -pl`) engages at the bottom of travel.
+        // Binding analog only (an earlier version of this code) removes that guarantee entirely —
+        // confirmed on-device as the actual cause of a "trigger doesn't reach full power even
+        // pulled all the way" regression, since MixedTriggers has no other mechanism to compensate
+        // for the raw analog axis not quite reaching 1.0 on its own. A light touch doesn't
+        // misfire the digital binding either, since BTN_TL2/BTN_TR2 is a real mechanical switch
+        // that only closes near full travel, not a soft threshold on the analog signal itself.
         //
-        // The AYN Thor's physical L2/R2 triggers report as raw Android axes 22/23
-        // (AXIS_GAS/AXIS_BRAKE) rather than the more common AXIS_LTRIGGER/AXIS_RTRIGGER —
+        // The AYN Thor's physical L2/R2 triggers report their analog pressure as raw Android axes
+        // 22/23 (AXIS_GAS/AXIS_BRAKE) rather than the more common AXIS_LTRIGGER/AXIS_RTRIGGER —
         // confirmed against odin.ini's own established use of these same two axis numbers for
         // this exact device (see this function's own doc comment above). Axis 22/23 is confirmed;
-        // which of the two is physically left vs. right is a best-effort guess (L=23, R=22) not
-        // yet verified against the real hardware — swap them here if trigger feel comes out
-        // reversed on-device.
+        // which of the two is physically left vs. right was a best-effort guess (L=23, R=22),
+        // confirmed correct on-device (L/R feel matched, not swapped).
+        buttonLine("Triggers/L", StandardInput.L2)
+        buttonLine("Triggers/R", StandardInput.R2)
         updates["Triggers/L-Analog"] = "`Axis 23+`"
         updates["Triggers/R-Analog"] = "`Axis 22+`"
-        // Explicitly clears any digital Triggers/L or /R binding a previous version of this
-        // function wrote (`Button L2`/`Button R2`) — a leftover digital binding would still fire
-        // on any partial pull, defeating the point of switching to analog-only above.
-        updates["Triggers/L"] = ""
-        updates["Triggers/R"] = ""
         // GC's Z button has no natural equivalent on a generic pad. Per explicit request, it's
         // bound to EITHER bumper (L1 or R1 — now freed up since the triggers above moved to
         // L2/R2), combined via ciface's `|` (OR) operator so it's reachable from both shoulders.
