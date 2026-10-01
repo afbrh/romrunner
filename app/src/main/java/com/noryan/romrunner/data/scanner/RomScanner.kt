@@ -12,12 +12,11 @@ import kotlinx.coroutines.withContext
 object RomScanner {
 
     // RomRunner integration: this was already `suspend`, but never actually switched dispatcher —
-    // every call site (LibraryViewModel.rescanAll's viewModelScope, PlatformEditScreen's
-    // rememberCoroutineScope) defaults to Dispatchers.Main.immediate, so the whole recursive SAF
-    // walk below ran on the main thread. DocumentFile.listFiles() is a synchronous Binder IPC per
-    // directory (plus a query() per child), so a real ROM collection could stall the UI for a
-    // visible stretch on first folder pick, every pull-to-refresh, and every platform-extensions
-    // edit. withContext(Dispatchers.IO) here fixes every call site at once.
+    // its call site (LibraryViewModel.rescanAll's viewModelScope) defaults to
+    // Dispatchers.Main.immediate, so the whole recursive SAF walk below ran on the main thread.
+    // DocumentFile.listFiles() is a synchronous Binder IPC per directory (plus a query() per
+    // child), so a real ROM collection could stall the UI for a visible stretch on first folder
+    // pick and every pull-to-refresh. withContext(Dispatchers.IO) here fixes that.
     suspend fun scanRoot(
         context: Context,
         rootUri: Uri,

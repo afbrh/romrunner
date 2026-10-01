@@ -8,9 +8,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.noryan.romrunner.R
 
-// Same pixel/retro font used for the embedded emulator cores' in-game menus (see e.g.
-// armsx2-src's RomRunnerPauseMenu.kt) and, via citra_typography_override.xml in this module's
-// own res/values, Azahar's entire UI. Only ships one weight, so every role below uses
+// RomRunner's pixel/retro brand font. Only ships one weight, so every role below uses
 // FontWeight.Normal — asking for Bold/SemiBold on a single-weight font just triggers ugly
 // synthetic-bold rendering.
 val Silkscreen = FontFamily(Font(R.font.silkscreen_regular))

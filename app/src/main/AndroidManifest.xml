@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Needed on Android 11+ to see other apps (emulators) at all: to check whether a specific
          one is installed, and to list installed apps in the "which app should play this?" picker. -->
@@ -11,34 +10,10 @@
         </intent>
     </queries>
 
-    <!-- ARMSX2 and RetroArch declare this same legacy-storage permission with different
-         maxSdkVersion values (28 vs 29) — pick RetroArch's (29), a safe superset of ARMSX2's. -->
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29"
-        tools:replace="android:maxSdkVersion" />
-
     <!-- Normal protection level (auto-granted, no runtime prompt) — lets BackgroundAppCleaner ask
          Android to free other apps' cached/background processes before launching a game. -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
-    <!-- The embedded Azahar/ARMSX2/PrimeHack library modules each declare their own <application
-         android:name>, android:allowBackup, and android:theme (ARMSX2's Theme.ARMSX2); RomRunner's
-         own values win here (and RomRunnerApp.kt explicitly calls into Azahar's CitraApplication
-         init logic, plus PrimeHack's DolphinApplication.initializeForEmbedding). android:label is
-         contested too (PrimeHack's suffixed app name) — RomRunner's plain app identity wins that
-         as well. PrimeHack's own android:banner/android:dataExtractionRules (an Android TV banner
-         image and custom backup-extraction rules) aren't things RomRunner sets or wants at all,
-         so those are dropped outright with tools:remove rather than replaced. DuskLight's own
-         android:icon (@mipmap/icon, a resource RomRunner doesn't have) is contested the same way.
-         Eden and ARMSX2 each declare android:fullBackupContent pointing at their own, mutually
-         incompatible backup-rules XML resource — RomRunner sets its own explicit "false" (skip
-         auto backup content entirely) rather than picking one library's arbitrarily, since ROM
-         libraries/save data are large and not something to auto-backup anyway. Eden and PrimeHack
-         also disagree on android:enableOnBackInvokedCallback (true/false) and
-         android:hasFragileUserData (false/true) — RomRunner picks true/false respectively
-         (predictive-back support on; PrimeHack's opt-in re-request-on-uninstall flag off),
-         cosmetic/behavioral picks in the same spirit as the android.max_aspect one below. -->
     <application
         android:name=".RomRunnerApp"
         android:allowBackup="true"
@@ -46,21 +21,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.RomRunner"
-        android:fullBackupContent="false"
-        android:enableOnBackInvokedCallback="true"
-        android:hasFragileUserData="false"
-        tools:replace="android:name,android:allowBackup,android:theme,android:label,android:icon,android:fullBackupContent,android:enableOnBackInvokedCallback,android:hasFragileUserData"
-        tools:remove="android:banner,android:dataExtractionRules">
-
-        <!-- Inter-library conflict, not a RomRunner-vs-library one: ARMSX2's in-app-updater
-             dependency and PrimeHack both declare this same meta-data with different values.
-             Pick PrimeHack's TV aspect ratio hint arbitrarily — cosmetic only (Android TV
-             launcher card sizing), matches neither app's own image well. -->
-        <meta-data
-            android:name="android.max_aspect"
-            android:value="2.1"
-            tools:replace="android:value" />
+        android:theme="@style/Theme.RomRunner">
 
         <activity
             android:name=".MainActivity"

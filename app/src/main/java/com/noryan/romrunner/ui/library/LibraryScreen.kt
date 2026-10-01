@@ -55,16 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.noryan.romrunner.data.embedded.AzaharEmbeddedLauncher
-import com.noryan.romrunner.data.embedded.PS2EmbeddedLauncher
-import com.noryan.romrunner.data.embedded.CemuEmbeddedLauncher
-import com.noryan.romrunner.data.embedded.DuskLightEmbeddedLauncher
-import com.noryan.romrunner.data.embedded.EdenIntegration
-import com.noryan.romrunner.data.embedded.PrimeHackEmbeddedLauncher
-import com.noryan.romrunner.data.embedded.RetroArchEmbeddedLauncher
-import com.noryan.romrunner.data.embedded.WatermelonDSEmbeddedLauncher
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
-import com.noryan.romrunner.data.launch.BiosKeysImporter
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.model.Game
@@ -81,7 +72,6 @@ import com.noryan.romrunner.ui.components.HomeStatusInfo
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 import com.noryan.romrunner.ui.apps.AppsContent
 import com.noryan.romrunner.ui.platforms.PlatformsContent
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 private data class MissingAppRequest(val platform: Platform, val game: Game, val target: EmulatorLauncher.Target)
@@ -98,9 +88,6 @@ private fun cycleTab(current: HomeTab, delta: Int): HomeTab {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
-    onEditPlatform: (Long) -> Unit,
-    onOpenControllerMapping: () -> Unit,
-    onOpenControllerMappingForPlatform: (Long) -> Unit,
     onDualScreenSupportChanged: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(HomeTab.GAMES) }
@@ -127,27 +114,6 @@ fun LibraryScreen(
         if (uri != null) viewModel.setRootFolder(context, uri)
     }
 
-    // First-run onboarding, step 2 — shown once the ROMs folder is set, until either a BIOS/Keys
-    // folder is chosen or the user explicitly skips it (see ChooseBiosKeysFolderPrompt below).
-    var biosKeysFolderUri by remember { mutableStateOf(repository.getBiosKeysFolderUri()) }
-    var biosKeysPromptDismissed by remember { mutableStateOf(repository.getBiosKeysPromptDismissed()) }
-    val biosKeysFolderPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            repository.setBiosKeysFolderUri(uri.toString())
-            biosKeysFolderUri = uri.toString()
-            scope.launch {
-                val message = BiosKeysImporter.scanImportAndDescribe(context, uri)
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)
@@ -155,108 +121,14 @@ fun LibraryScreen(
         }
     }
 
-    // Nintendo Switch (Eden, "full" flavor only — a no-op stub on "lite") — lives behind this seam
-    // so this file never references Eden types directly.
-    val edenState = EdenIntegration.rememberState(context, state.romsRootUri, repository, viewModel::markPlayed, scope)
-
     val platformsById = remember(state.platforms) { state.platforms.associateBy { it.id } }
 
-    // RomRunner integration: each embedded core's own launch() does blocking file I/O (reading/
-    // writing its config ini files, and on first run per core, unzipping/copying bundled assets)
-    // before starting its Activity — confirmed synchronous, with no internal dispatcher switch.
-    // Called directly from this onClick-driven function, that I/O used to run on the calling
-    // (main/UI) thread, producing a visible stall right when the user taps a game and expects an
-    // immediate response. Dispatching the call itself to Dispatchers.IO moves that work off the
-    // main thread; calling Context.startActivity() from a background thread is safe (it's just a
-    // Binder IPC to ActivityManagerService, same as any other system-service call).
     fun attemptLaunch(platform: Platform, game: Game) {
         // Best-effort memory reclaim before any launch path below — see BackgroundAppCleaner's
         // own doc comment for exactly what this can and can't do.
         if (repository.getKillBackgroundAppsOnLaunch()) {
             BackgroundAppCleaner.killNonEssentialApps(context)
         }
-        if (platform.name == AzaharEmbeddedLauncher.PLATFORM_NAME && platform.useBuiltIn) {
-            val romsRootUri = state.romsRootUri
-            if (romsRootUri == null) {
-                Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            val mapping = repository.getEffectiveControllerMapping(platform)
-            scope.launch(Dispatchers.IO) { AzaharEmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
-            viewModel.markPlayed(game)
-            return
-        }
-        if (platform.name == PS2EmbeddedLauncher.PLATFORM_NAME && platform.useBuiltIn) {
-            val romsRootUri = state.romsRootUri
-            if (romsRootUri == null) {
-                Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            if (!PS2EmbeddedLauncher.isBiosImported(context)) {
-                Toast.makeText(context, "Set your BIOS/Keys folder in Settings first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            val mapping = repository.getEffectiveControllerMapping(platform)
-            scope.launch(Dispatchers.IO) { PS2EmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
-            viewModel.markPlayed(game)
-            return
-        }
-        if (platform.name == WatermelonDSEmbeddedLauncher.PLATFORM_NAME && platform.useBuiltIn) {
-            // romsRootUri isn't actually consumed by the launcher (WatermelonDS needs no BIOS
-            // import to boot — it defaults to melonDS's own built-in HLE BIOS) — kept only for UX
-            // consistency with every other built-in core's "choose a folder first" gate.
-            if (state.romsRootUri == null) {
-                Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            val mapping = repository.getEffectiveControllerMapping(platform)
-            scope.launch(Dispatchers.IO) { WatermelonDSEmbeddedLauncher.launch(context, game, mapping) }
-            viewModel.markPlayed(game)
-            return
-        }
-        // Twilight Princess routes to its own embedded DuskLight core — a decompilation-based
-        // native reimplementation of this one title — instead of the generic GameCube/Wii
-        // (PrimeHack) branch below. Checked first and unconditionally (no useBuiltIn gate: this
-        // isn't a platform-level toggle, it's a per-title override, same as GameLaunchOverrides
-        // used to be for this exact title before DuskLight was embedded — see that file).
-        if (DuskLightEmbeddedLauncher.matches(game.title)) {
-            scope.launch(Dispatchers.IO) { DuskLightEmbeddedLauncher.launch(context, game) }
-            viewModel.markPlayed(game)
-            return
-        }
-        if (platform.name == PrimeHackEmbeddedLauncher.PLATFORM_NAME && platform.useBuiltIn) {
-            val romsRootUri = state.romsRootUri
-            if (romsRootUri == null) {
-                Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            val mapping = repository.getEffectiveControllerMapping(platform)
-            scope.launch(Dispatchers.IO) { PrimeHackEmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
-            viewModel.markPlayed(game)
-            return
-        }
-        if (platform.name == CemuEmbeddedLauncher.PLATFORM_NAME && platform.useBuiltIn) {
-            val romsRootUri = state.romsRootUri
-            if (romsRootUri == null) {
-                Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            val mapping = repository.getEffectiveControllerMapping(platform)
-            scope.launch(Dispatchers.IO) { CemuEmbeddedLauncher.launch(context, game, romsRootUri, mapping) }
-            viewModel.markPlayed(game)
-            return
-        }
-        if (platform.name in RetroArchEmbeddedLauncher.PLATFORM_NAMES && platform.useBuiltIn) {
-            if (state.romsRootUri == null) {
-                Toast.makeText(context, "Choose a ROMs folder first.", Toast.LENGTH_LONG).show()
-                return
-            }
-            val mapping = repository.getEffectiveControllerMapping(platform)
-            scope.launch(Dispatchers.IO) { RetroArchEmbeddedLauncher.launch(context, game, platform.name, mapping) }
-            viewModel.markPlayed(game)
-            return
-        }
-        if (edenState.attemptLaunch(platform, game)) return
         val target = EmulatorLauncher.resolveTarget(platform, game)
         if (target != null && !EmulatorLauncher.isPackageInstalled(context, target.packageName)) {
             installPrompt = MissingAppRequest(platform, game, target)
@@ -342,26 +214,16 @@ fun LibraryScreen(
                     ) {
                         when {
                             state.romsRootUri == null -> ChooseFolderPrompt(onChooseFolder = { folderPicker.launch(null) })
-                            biosKeysFolderUri == null && !biosKeysPromptDismissed -> ChooseBiosKeysFolderPrompt(
-                                onChooseFolder = { biosKeysFolderPicker.launch(null) },
-                                onSkip = {
-                                    repository.setBiosKeysPromptDismissed(true)
-                                    biosKeysPromptDismissed = true
-                                }
-                            )
                             state.games.isEmpty() -> {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text("No games found yet. Pull down to refresh, or check Settings for supported file types.")
                                 }
                             }
                             else -> {
-                                // RomRunner integration: GameRow.onClick/onLongClick previously
-                                // allocated a fresh closure per row on every recomposition of this
-                                // LazyColumn, defeating Compose's skip-recomposition check for
-                                // every visible row whenever anything else in this screen changed.
-                                // Hoisting one stable (Game) -> Unit lambda per callback, reused
-                                // across all rows, fixes that — GameRow takes the game as a
-                                // parameter instead of the row pre-binding it into a no-arg lambda.
+                                // GameRow.onClick/onLongClick are hoisted as stable (Game) -> Unit
+                                // lambdas, reused across every row, so Compose's skip-recomposition
+                                // check for a row isn't defeated by a fresh closure every time this
+                                // LazyColumn recomposes for an unrelated reason.
                                 val onGameClick = remember(platformsById) {
                                     { game: Game ->
                                         val platform = platformsById[game.platformId]
@@ -385,9 +247,6 @@ fun LibraryScreen(
                     }
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
-                        onEditPlatform = onEditPlatform,
-                        onOpenControllerMapping = onOpenControllerMapping,
-                        onOpenControllerMappingForPlatform = onOpenControllerMappingForPlatform,
                         onDualScreenSupportChanged = onDualScreenSupportChanged
                     )
                     HomeTab.APPS -> AppsContent()
@@ -563,39 +422,5 @@ private fun ChooseFolderPrompt(onChooseFolder: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onChooseFolder) { Text("Choose folder") }
-    }
-}
-
-@Composable
-private fun ChooseBiosKeysFolderPrompt(onChooseFolder: () -> Unit, onSkip: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = Color.Unspecified
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Point RomRunner at your BIOS/Keys folder", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "Pick a folder holding your Switch prod.keys, Switch firmware zip, and/or PS2 BIOS file " +
-                "and RomRunner will find and import them automatically. Skip this if you don't play " +
-                "Switch or PS2 games.",
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onChooseFolder) { Text("Choose folder") }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "Skip for now",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.clickable(onClick = onSkip).padding(8.dp)
-        )
     }
 }

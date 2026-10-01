@@ -2,8 +2,6 @@ package com.noryan.romrunner.data.repository
 
 import com.noryan.romrunner.data.dao.GameDao
 import com.noryan.romrunner.data.dao.PlatformDao
-import com.noryan.romrunner.data.input.ControllerMapping
-import com.noryan.romrunner.data.input.ControllerMappingSerializer
 import com.noryan.romrunner.data.launch.DefaultPlatforms
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
@@ -84,12 +82,12 @@ class LibraryRepository(
 
     /**
      * One-time merge of the formerly-separate "Game Boy Advance" and "Game Boy / Color" default
-     * platforms into a single "GameBoy (Color + Advance)" platform, since both already play
-     * through the same embedded RetroArch mGBA core — no reason to make the user manage two
-     * toggles for one emulator. Keeps one of the two existing rows (renamed/re-extensioned) so
-     * already-scanned games and any custom settings on it survive; moves the other's games over
-     * by extension, then deletes it. Idempotent: no-ops once the merged platform already exists,
-     * or if neither old platform was ever seeded to begin with.
+     * platforms into a single "GameBoy (Color + Advance)" platform, since both play through the
+     * same emulator app anyway — no reason to make the user manage two toggles for one emulator.
+     * Keeps one of the two existing rows (renamed/re-extensioned) so already-scanned games and any
+     * custom settings on it survive; moves the other's games over by extension, then deletes it.
+     * Idempotent: no-ops once the merged platform already exists, or if neither old platform was
+     * ever seeded to begin with.
      */
     suspend fun mergeGameBoyPlatforms() {
         val mergedName = "GameBoy (Color + Advance)"
@@ -122,14 +120,6 @@ class LibraryRepository(
         DefaultPlatforms.ALL.filter { it.name !in existingNames }.forEach { platformDao.insert(it) }
     }
 
-    /** Blanks out a platform's launch package, e.g. once it's switched to an embedded emulation path that doesn't use one. */
-    suspend fun clearLaunchPackage(platformName: String) {
-        val platform = platformDao.getAllOnce().find { it.name == platformName } ?: return
-        if (platform.launchPackage.isNotBlank()) {
-            platformDao.update(platform.copy(launchPackage = ""))
-        }
-    }
-
     suspend fun allExistingFileUris(): Set<String> = gameDao.getAllFileUris().toSet()
 
     suspend fun addGames(games: List<Game>) = gameDao.insertAll(games)
@@ -144,16 +134,6 @@ class LibraryRepository(
         settings.rootFolderUri = uri
     }
 
-    fun getBiosKeysFolderUri(): String? = settings.biosKeysFolderUri
-    fun setBiosKeysFolderUri(uri: String?) {
-        settings.biosKeysFolderUri = uri
-    }
-
-    fun getBiosKeysPromptDismissed(): Boolean = settings.biosKeysPromptDismissed
-    fun setBiosKeysPromptDismissed(value: Boolean) {
-        settings.biosKeysPromptDismissed = value
-    }
-
     fun getKillBackgroundAppsOnLaunch(): Boolean = settings.killBackgroundAppsOnLaunch
     fun setKillBackgroundAppsOnLaunch(value: Boolean) {
         settings.killBackgroundAppsOnLaunch = value
@@ -162,32 +142,5 @@ class LibraryRepository(
     fun getDualScreenSupportEnabled(): Boolean = settings.dualScreenSupportEnabled
     fun setDualScreenSupportEnabled(value: Boolean) {
         settings.dualScreenSupportEnabled = value
-    }
-
-    fun getControllerMapping(): ControllerMapping =
-        settings.controllerMappingJson?.let { json ->
-            runCatching { ControllerMappingSerializer.fromJson(json) }.getOrNull()
-        } ?: ControllerMapping.AYN_THOR_DEFAULT
-
-    fun setControllerMapping(mapping: ControllerMapping) {
-        settings.controllerMappingJson = ControllerMappingSerializer.toJson(mapping)
-    }
-
-    fun resetControllerMappingToDefault() {
-        settings.controllerMappingJson = null
-    }
-
-    /**
-     * The mapping a launch of [platform] should actually apply: the global mapping when
-     * [Platform.useGlobalControllerMapping] is true (the default), otherwise this platform's own
-     * override — falling back to the current global mapping if that override hasn't been
-     * customized yet, so opening "Map Controller" for the first time starts from sensible values
-     * rather than a blank slate.
-     */
-    fun getEffectiveControllerMapping(platform: Platform): ControllerMapping {
-        if (platform.useGlobalControllerMapping) return getControllerMapping()
-        return platform.controllerMappingJson?.let { json ->
-            runCatching { ControllerMappingSerializer.fromJson(json) }.getOrNull()
-        } ?: getControllerMapping()
     }
 }
