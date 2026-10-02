@@ -48,7 +48,10 @@ class LibraryRepository(
      * ARMSX2's own VIEW intent-filters match by Uri scheme only with no declared mimeType, and it
      * declares three equally-matching activities for that filter, so Android can't resolve either
      * an explicit type or a package-only (no explicit activity) launch Intent against it at all
-     * ("unable to resolve Intent", confirmed directly), even with the app installed.
+     * ("unable to resolve Intent", confirmed directly), even with the app installed. Also:
+     * "Nintendo DS" was originally seeded with DraStic (com.dsemu.drastic) as its launchPackage,
+     * before the recommendation changed to MelonDS (me.magnum.melondualds, actually published by
+     * WatermelonDS) — already-seeded installs never picked up that change on their own.
      */
     suspend fun repairKnownMisclassifications() {
         val platforms = platformDao.getAllOnce()
@@ -56,6 +59,11 @@ class LibraryRepository(
         val ps2 = platforms.find { it.name == "PlayStation 2" }
         if (ps2 != null && (ps2.mimeType == "application/octet-stream" || ps2.launchActivity.isBlank())) {
             platformDao.update(ps2.copy(mimeType = "", launchActivity = "com.armsx2.MainActivity"))
+        }
+
+        val ds = platforms.find { it.name == "Nintendo DS" }
+        if (ds != null && ds.launchPackage == "com.dsemu.drastic") {
+            platformDao.update(ds.copy(launchPackage = "me.magnum.melondualds"))
         }
 
         val psp = platforms.find { it.name == "PSP" } ?: return

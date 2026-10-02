@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -52,6 +53,9 @@ private val InstalledGreen = Color(0xFF6BCB77)
 private val NotInstalledRed = Color(0xFFFF6B6B)
 
 private data class RecommendedEmulator(
+    /** Must exactly match a Platform.name from DefaultPlatforms.kt — used to only show this row
+     *  when the library actually has a game for that platform. */
+    val platformName: String,
     val systemName: String,
     val appLabel: String,
     val packageName: String,
@@ -76,6 +80,7 @@ private val armsx2AssetMatcher: (String) -> Boolean = { name ->
 
 private val RECOMMENDED_EMULATORS = listOf(
     RecommendedEmulator(
+        platformName = "Nintendo 3DS",
         systemName = "3DS",
         appLabel = "Azahar",
         packageName = "org.azahar_emu.azahar",
@@ -86,6 +91,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         assetMatches = { name -> name.endsWith(".apk") && "vanilla" in name }
     ),
     RecommendedEmulator(
+        platformName = "PlayStation 2",
         systemName = "PS2",
         appLabel = "ARMSX2",
         packageName = "com.armsx2",
@@ -94,6 +100,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         assetMatches = armsx2AssetMatcher
     ),
     RecommendedEmulator(
+        platformName = "Nintendo Switch",
         systemName = "Switch",
         appLabel = "Eden",
         packageName = "dev.eden.eden_emulator",
@@ -106,6 +113,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         assetMatches = { name -> name.endsWith(".apk") && "standard" in name }
     ),
     RecommendedEmulator(
+        platformName = "Nintendo DS",
         systemName = "Nintendo DS",
         appLabel = "MelonDS",
         // The app published under this package is WatermelonDS, a melonDS-android fork.
@@ -114,6 +122,13 @@ private val RECOMMENDED_EMULATORS = listOf(
         releasesPageUrl = "https://github.com/SapphireRhodonite/WatermelonDS/releases",
         assetMatches = { name -> name.endsWith(".apk") }
     )
+    // GameBoy (Color + Advance)/NES/SNES/Nintendo 64/PlayStation (RetroArch), GameCube / Wii
+    // (Dolphin), and Wii U (Cemu) intentionally have no entry yet — none of those three actually
+    // have a clean "latest stable" GitHub-release APK to drive the same download flow (confirmed
+    // directly: Dolphin's GitHub repo has no releases at all, RetroArch's latest release ships
+    // only a source tarball, and Cemu has no Android build whatsoever) — asked the user how to
+    // handle each rather than guessing a download source or recommending an app that may not
+    // exist.
 )
 
 /**
@@ -240,6 +255,18 @@ fun PlatformsContent(
 
     var biosKeysFolderUri by remember { mutableStateOf(repository.getBiosKeysFolderUri()) }
     LaunchedEffect(Unit) { biosKeysFolderUri = repository.getBiosKeysFolderUri() }
+
+    // Only show a Recommended Emulators row for a platform the library actually has a game for —
+    // e.g. no point recommending Eden if there isn't a single Switch game scanned in yet.
+    val games by repository.observeGames().collectAsStateWithLifecycle(initialValue = emptyList())
+    val platforms by repository.observePlatforms().collectAsStateWithLifecycle(initialValue = emptyList())
+    val platformNamesWithGames = remember(games, platforms) {
+        val platformIdsWithGames = games.map { it.platformId }.toSet()
+        platforms.filter { it.id in platformIdsWithGames }.map { it.name }.toSet()
+    }
+    val visibleRecommendedEmulators = remember(platformNamesWithGames) {
+        RECOMMENDED_EMULATORS.filter { it.platformName in platformNamesWithGames }
+    }
 
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
     var dualScreenSupportEnabled by remember { mutableStateOf(repository.getDualScreenSupportEnabled()) }
@@ -379,16 +406,18 @@ fun PlatformsContent(
             }
         }
 
-        item {
-            Text(
-                "Recommended Emulators",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
-            )
+        if (visibleRecommendedEmulators.isNotEmpty()) {
+            item {
+                Text(
+                    "Recommended Emulators",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+                )
+            }
         }
 
-        RECOMMENDED_EMULATORS.forEach { emulator ->
+        visibleRecommendedEmulators.forEach { emulator ->
             item(key = emulator.packageName) {
                 var isInstalled by remember(emulator.packageName, installCheckTick) {
                     mutableStateOf(EmulatorLauncher.isPackageInstalled(context, emulator.packageName))
