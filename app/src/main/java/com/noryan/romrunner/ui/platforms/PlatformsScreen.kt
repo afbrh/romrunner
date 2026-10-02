@@ -112,9 +112,18 @@ private val RECOMMENDED_EMULATORS = listOf(
     )
 )
 
-/** Looks up [emulator]'s latest stable release and starts downloading its APK, or falls back to
- *  just opening the releases page if no matching asset could be found. */
-private suspend fun downloadLatestRelease(context: android.content.Context, emulator: RecommendedEmulator) {
+/**
+ * Looks up [emulator]'s latest stable release, downloads its APK, and hands it straight to the
+ * system installer once the download finishes — or falls back to just opening the releases page
+ * if no matching asset could be found. [onStatusChange] drives the row's "Finding latest…" /
+ * "Downloading…" / "Installing…" label while this runs.
+ */
+private suspend fun downloadLatestRelease(
+    context: android.content.Context,
+    emulator: RecommendedEmulator,
+    onStatusChange: (String) -> Unit
+) {
+    onStatusChange("Finding latest…")
     val apkUrl = withContext(Dispatchers.IO) {
         LatestReleaseFinder.findStableAssetUrl(emulator.releasesApiUrl, emulator.assetMatches)
     }
@@ -123,15 +132,52 @@ private suspend fun downloadLatestRelease(context: android.content.Context, emul
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(emulator.releasesPageUrl)))
         return
     }
+
+    val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as DownloadManager
     val request = DownloadManager.Request(Uri.parse(apkUrl))
         .setTitle(emulator.appLabel)
         .setDescription("Downloading latest ${emulator.appLabel} release")
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "${emulator.appLabel}.apk")
         .setMimeType("application/vnd.android.package-archive")
-    val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as DownloadManager
-    downloadManager.enqueue(request)
-    Toast.makeText(context, "Downloading ${emulator.appLabel}…", Toast.LENGTH_SHORT).show()
+    val downloadId = downloadManager.enqueue(request)
+    onStatusChange("Downloading…")
+
+    val succeeded = withContext(Dispatchers.IO) { awaitDownload(downloadManager, downloadId) }
+    if (!succeeded) {
+        Toast.makeText(context, "Download failed for ${emulator.appLabel}.", Toast.LENGTH_LONG).show()
+        return
+    }
+
+    onStatusChange("Installing…")
+    val apkUri = downloadManager.getUriForDownloadedFile(downloadId)
+    context.startActivity(
+        Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(apkUri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    )
+}
+
+/**
+ * Polls [downloadId]'s status until DownloadManager reports it finished (successfully or not),
+ * since DownloadManager has no suspend-friendly completion API of its own. Gives up after 5
+ * minutes so a stalled/paused download (e.g. lost network mid-transfer) can't hang this forever.
+ */
+private fun awaitDownload(downloadManager: DownloadManager, downloadId: Long): Boolean {
+    val query = DownloadManager.Query().setFilterById(downloadId)
+    repeat(600) {
+        downloadManager.query(query).use { cursor ->
+            if (cursor.moveToFirst()) {
+                when (cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))) {
+                    DownloadManager.STATUS_SUCCESSFUL -> return true
+                    DownloadManager.STATUS_FAILED -> return false
+                }
+            }
+        }
+        Thread.sleep(500)
+    }
+    return false
 }
 
 /**
@@ -147,6 +193,7 @@ fun PlatformsContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var resolvingPackage by remember { mutableStateOf<String?>(null) }
+    var resolvingLabel by remember { mutableStateOf("") }
 
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
@@ -271,19 +318,19 @@ fun PlatformsContent(
                             append("${emulator.appLabel} — ")
                             when {
                                 isInstalled -> withStyle(SpanStyle(color = InstalledGreen)) { append("Installed") }
-                                isResolving -> append("Finding latest…")
+                                isResolving -> append(resolvingLabel)
                                 else -> withStyle(SpanStyle(color = NotInstalledRed)) { append("Not Installed") }
                             }
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.End,
-                        // Tapping "Not Installed" looks up the latest stable release and starts
-                        // downloading its APK. No action once it's installed, or while a lookup for
-                        // this row is already in flight.
+                        // Tapping "Not Installed" looks up the latest stable release, downloads
+                        // it, and hands it to the system installer. No action once it's installed,
+                        // or while this row's download/install is already in flight.
                         modifier = Modifier.clickable(enabled = !isInstalled && !isResolving) {
                             resolvingPackage = emulator.packageName
                             scope.launch {
-                                downloadLatestRelease(context, emulator)
+                                downloadLatestRelease(context, emulator) { status -> resolvingLabel = status }
                                 resolvingPackage = null
                             }
                         }
