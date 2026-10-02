@@ -247,7 +247,8 @@ fun LibraryScreen(
                     }
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
-                        onDualScreenSupportChanged = onDualScreenSupportChanged
+                        onDualScreenSupportChanged = onDualScreenSupportChanged,
+                        onRomsFolderChanged = { viewModel.rescanAll(context) }
                     )
                     HomeTab.APPS -> AppsContent()
                 }

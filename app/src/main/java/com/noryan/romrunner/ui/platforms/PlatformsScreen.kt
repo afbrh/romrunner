@@ -213,7 +213,8 @@ private fun awaitDownload(downloadManager: DownloadManager, downloadId: Long): B
 @Composable
 fun PlatformsContent(
     repository: LibraryRepository,
-    onDualScreenSupportChanged: () -> Unit
+    onDualScreenSupportChanged: () -> Unit,
+    onRomsFolderChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -250,6 +251,11 @@ fun PlatformsContent(
             )
             repository.setRootFolderUri(uri.toString())
             rootFolderUri = uri.toString()
+            // Unlike the first-run "Choose folder" prompt on the Games tab (which goes through
+            // LibraryViewModel.setRootFolder and rescans immediately), changing the folder from
+            // here used to just update the stored Uri with no rescan at all — the Games list
+            // wouldn't reflect the new folder until the user separately pulled to refresh.
+            onRomsFolderChanged()
         }
     }
 
