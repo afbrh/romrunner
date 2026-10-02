@@ -1,44 +1,50 @@
 package com.noryan.romrunner.data.launch
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Finds the download URL of a specific asset in a project's most recent stable release, via the
- * GitHub-compatible "/releases/latest" Releases API — both GitHub itself and a self-hosted Gitea
+ * Finds the download URL of a specific asset in a project's most recent stable release that has one,
+ * via the GitHub-compatible "/releases" list API — both GitHub itself and a self-hosted Gitea
  * instance (e.g. Eden's git.eden-emu.dev) expose this same endpoint shape (tag_name/prerelease/
  * draft/assets[].name/assets[].browser_download_url), so one implementation covers both hosts.
- * "latest" already excludes prereleases/drafts on both hosts, but prerelease/draft are rechecked
- * explicitly here rather than trusted blindly, in case a host's definition of "latest" ever
- * changes or a project mis-tags a nightly as a full release.
+ *
+ * Deliberately scans the release list instead of using "/releases/latest": a repo that publishes
+ * more than one platform's releases can have its newest stable release be for a different platform
+ * (ARMSX2 shipped an iOS-only "iOSv2.6.0" that "latest" then returned, with no Android APK at all).
+ * Prereleases and drafts (nightlies) are skipped explicitly.
  */
 object LatestReleaseFinder {
 
     /**
      * Blocking network I/O — call this from a background dispatcher (e.g. Dispatchers.IO), never
-     * from the main thread. Returns null on any network/parsing failure, or if no asset in the
-     * latest stable release satisfies [assetMatches], so callers can fall back to just opening the
-     * project's releases page instead.
+     * from the main thread. [releasesUrl] is the repo's ".../releases" list endpoint. Returns null
+     * on any network/parsing failure, or if no recent stable release has an asset satisfying
+     * [assetMatches], so callers can fall back to just opening the project's releases page instead.
      */
-    fun findStableAssetUrl(releasesLatestUrl: String, assetMatches: (String) -> Boolean): String? {
+    fun findStableAssetUrl(releasesUrl: String, assetMatches: (String) -> Boolean): String? {
         var connection: HttpURLConnection? = null
         return try {
-            connection = (URL(releasesLatestUrl).openConnection() as HttpURLConnection).apply {
+            // per_page is GitHub's name for the page size, limit is Gitea's; each host ignores the other's.
+            connection = (URL("$releasesUrl?per_page=30&limit=30").openConnection() as HttpURLConnection).apply {
                 setRequestProperty("Accept", "application/json")
                 connectTimeout = 15_000
                 readTimeout = 15_000
             }
             if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
-            val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            if (release.optBoolean("prerelease") || release.optBoolean("draft")) return null
-            val assets = release.optJSONArray("assets") ?: return null
-            for (i in 0 until assets.length()) {
-                val asset = assets.getJSONObject(i)
-                val name = asset.optString("name")
-                if (assetMatches(name)) {
-                    val url = asset.optString("browser_download_url")
-                    if (url.isNotBlank()) return url
+            val releases = JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+            for (r in 0 until releases.length()) {
+                val release = releases.getJSONObject(r)
+                if (release.optBoolean("prerelease") || release.optBoolean("draft")) continue
+                val assets = release.optJSONArray("assets") ?: continue
+                for (i in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(i)
+                    if (assetMatches(asset.optString("name"))) {
+                        val url = asset.optString("browser_download_url")
+                        if (url.isNotBlank()) return url
+                    }
                 }
             }
             null

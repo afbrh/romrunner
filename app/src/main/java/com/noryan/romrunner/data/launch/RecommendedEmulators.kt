@@ -71,7 +71,7 @@ val RECOMMENDED_EMULATORS = listOf(
         // "vanilla" (not "googleplay") is the sideload-capable build — same flavor pick this
         // project already made for the formerly-embedded Azahar core.
         resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/azahar-emu/azahar/releases/latest") { name ->
+            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/azahar-emu/azahar/releases") { name ->
                 name.endsWith(".apk") && "vanilla" in name
             }
         },
@@ -83,7 +83,7 @@ val RECOMMENDED_EMULATORS = listOf(
         packageName = "com.armsx2",
         releasesPageUrl = "https://github.com/ARMSX2/ARMSX2/releases",
         resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/ARMSX2/ARMSX2/releases/latest", armsx2AssetMatcher)
+            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/ARMSX2/ARMSX2/releases", armsx2AssetMatcher)
         },
         isNeeded = hasGameOn("PlayStation 2")
     ),
@@ -97,7 +97,7 @@ val RECOMMENDED_EMULATORS = listOf(
         // "standard" is Eden's generic build; "optimized" needs newer-CPU-specific instructions
         // not guaranteed on every device, and "chromeos"/"legacy" aren't the right pick either.
         resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://git.eden-emu.dev/api/v1/repos/eden-emu/eden/releases/latest") { name ->
+            LatestReleaseFinder.findStableAssetUrl("https://git.eden-emu.dev/api/v1/repos/eden-emu/eden/releases") { name ->
                 name.endsWith(".apk") && "standard" in name
             }
         },
@@ -110,7 +110,7 @@ val RECOMMENDED_EMULATORS = listOf(
         packageName = "me.magnum.melondualds",
         releasesPageUrl = "https://github.com/SapphireRhodonite/WatermelonDS/releases",
         resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/SapphireRhodonite/WatermelonDS/releases/latest") { name ->
+            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/SapphireRhodonite/WatermelonDS/releases") { name ->
                 name.endsWith(".apk")
             }
         },
@@ -140,7 +140,7 @@ val RECOMMENDED_EMULATORS = listOf(
         packageName = "org.dolphinemu.primehack",
         releasesPageUrl = "https://github.com/Starlightbotanist/PrimeHack-Android/releases",
         resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/Starlightbotanist/PrimeHack-Android/releases/latest") { name ->
+            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/Starlightbotanist/PrimeHack-Android/releases") { name ->
                 name.endsWith(".apk")
             }
         },
@@ -152,7 +152,7 @@ val RECOMMENDED_EMULATORS = listOf(
         packageName = "info.cemu.cemu",
         releasesPageUrl = "https://github.com/SapphireRhodonite/Cemu/releases",
         resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/SapphireRhodonite/Cemu/releases/latest") { name ->
+            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/SapphireRhodonite/Cemu/releases") { name ->
                 name.endsWith(".apk")
             }
         },
@@ -173,7 +173,7 @@ val RECOMMENDED_EMULATORS = listOf(
         appLabel = "Flycast",
         packageName = "com.flycast.emulator",
         releasesPageUrl = "https://github.com/flyinghead/flycast/releases",
-        resolveApkUrl = { LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/flyinghead/flycast/releases/latest") { name -> name.endsWith(".apk") } },
+        resolveApkUrl = { LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/flyinghead/flycast/releases") { name -> name.endsWith(".apk") } },
         isNeeded = hasGameOn("Dreamcast")
     ),
     RecommendedEmulator(

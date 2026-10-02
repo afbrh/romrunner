@@ -81,7 +81,7 @@ object EmulatorDownloader {
      * Opens the system installer for [downloadId] and waits until the user is done with it, so a
      * batch install can move on to the next app without stacking installer screens on top of each
      * other. "Done" means RomRunner goes to the background (the installer took over) and then comes
-     * back; the install itself is then confirmed with a short PackageManager poll. If the installer
+     * back (paused then resumed); the install itself is then confirmed with a short PackageManager poll. If the installer
      * never appears to take over, falls back to polling for up to a minute.
      */
     suspend fun runInstallerAndWait(context: Context, downloadId: Long, packageName: String): Boolean {
@@ -89,17 +89,20 @@ object EmulatorDownloader {
         val wentToBackground = CompletableDeferred<Unit>()
         val cameBack = CompletableDeferred<Unit>()
         val callbacks = object : Application.ActivityLifecycleCallbacks {
-            override fun onActivityStopped(activity: Activity) {
+            // Paused/resumed, not stopped/started: the system installer's confirm screen is a
+            // translucent dialog-style activity, so RomRunner only ever pauses behind it and never
+            // stops (confirmed on-device — waiting on "stopped" never fired and installers stacked).
+            override fun onActivityPaused(activity: Activity) {
                 wentToBackground.complete(Unit)
             }
 
-            override fun onActivityStarted(activity: Activity) {
+            override fun onActivityResumed(activity: Activity) {
                 if (wentToBackground.isCompleted) cameBack.complete(Unit)
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-            override fun onActivityResumed(activity: Activity) {}
-            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) {}
         }
