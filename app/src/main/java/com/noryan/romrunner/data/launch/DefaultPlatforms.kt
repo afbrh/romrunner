@@ -33,7 +33,22 @@ object DefaultPlatforms {
         Platform(name = "Nintendo Switch", extensionsCsv = "xci", launchPackage = "dev.eden.eden_emulator"),
         Platform(name = "Wii U", extensionsCsv = "wua", launchPackage = "info.cemu.cemu"),
         Platform(name = "GameCube / Wii", extensionsCsv = "rvz,ciso", launchPackage = "org.dolphinemu.dolphinemu"),
-        Platform(name = "PlayStation 2", extensionsCsv = "iso", launchPackage = "com.armsx2"),
+        // mimeType = "" (not the Platform default "application/octet-stream"): ARMSX2's own VIEW
+        // intent-filters match by content/file Uri scheme only, with no <data mimeType> at all —
+        // forcing an explicit type breaks Android's intent resolution against it entirely (see
+        // EmulatorLauncher.buildIntentForPackage). launchActivity is also required, not just the
+        // package: ARMSX2 declares three activities (BootSplashActivity, Main, and the
+        // MainActivity alias) with the exact same VIEW intent-filter, and Android can't pick one
+        // when startActivity's Intent is restricted to this package via setPackage() alone with no
+        // chooser allowed ("unable to resolve Intent", confirmed directly against the real app) —
+        // pointing at MainActivity explicitly resolves it unambiguously.
+        Platform(
+            name = "PlayStation 2",
+            extensionsCsv = "iso",
+            launchPackage = "com.armsx2",
+            launchActivity = "com.armsx2.MainActivity",
+            mimeType = ""
+        ),
         // ".cue" chosen as the least-ambiguous common PS1 dump extension in this starter set —
         // same reasoning as ".iso" above for PS2. A library using .chd/.pbp/bare .bin can add
         // those extensions to this platform from Settings.

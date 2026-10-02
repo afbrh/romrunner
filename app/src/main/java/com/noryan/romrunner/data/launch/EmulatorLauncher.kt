@@ -74,7 +74,16 @@ object EmulatorLauncher {
             intent.component = ComponentName(targetPackage, platform.launchActivity)
         }
         if (platform.passAsIntentData) {
-            intent.setDataAndType(fileUri, platform.mimeType.ifBlank { "application/octet-stream" })
+            // Some real emulator apps (confirmed for ARMSX2 — its VIEW intent-filters declare a
+            // content/file scheme but no <data android:mimeType> at all) only match an implicit
+            // Intent whose type is null; forcing one via setDataAndType breaks resolution for them
+            // ("Invalid packageName" from ActivityManager) even though the package is installed.
+            // Only force a type when a platform has actually been configured with one.
+            if (platform.mimeType.isBlank()) {
+                intent.setData(fileUri)
+            } else {
+                intent.setDataAndType(fileUri, platform.mimeType)
+            }
         }
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
