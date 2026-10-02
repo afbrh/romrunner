@@ -1,5 +1,6 @@
 package com.noryan.romrunner.ui.platforms
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,12 +38,21 @@ import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 private val InstalledGreen = Color(0xFF6BCB77)
 private val NotInstalledRed = Color(0xFFFF6B6B)
 
-/** System name, the app that plays it best, and that app's package name (for the installed check). */
+private data class RecommendedEmulator(
+    val systemName: String,
+    val appLabel: String,
+    val packageName: String,
+    /** Opened when the row's "Not Installed" status is tapped, so the user can go get the app. */
+    val repoUrl: String
+)
+
 private val RECOMMENDED_EMULATORS = listOf(
-    Triple("3DS", "Azahar", "org.azahar_emu.azahar"),
-    Triple("PS2", "ARMSX2", "com.armsx2"),
-    Triple("Switch", "Eden", "dev.eden.eden_emulator"),
-    Triple("Nintendo DS", "MelonDS", "me.magnum.melondualds")
+    RecommendedEmulator("3DS", "Azahar", "org.azahar_emu.azahar", "https://github.com/azahar-emu/azahar"),
+    RecommendedEmulator("PS2", "ARMSX2", "com.armsx2", "https://github.com/ARMSX2/ARMSX2"),
+    // Eden's maintainers moved off GitHub entirely to self-hosted infrastructure.
+    RecommendedEmulator("Switch", "Eden", "dev.eden.eden_emulator", "https://git.eden-emu.dev/eden-emu/eden"),
+    // The app published under the me.magnum.melondualds package is WatermelonDS, a melonDS-android fork.
+    RecommendedEmulator("Nintendo DS", "MelonDS", "me.magnum.melondualds", "https://github.com/SapphireRhodonite/WatermelonDS")
 )
 
 /**
@@ -158,9 +168,11 @@ fun PlatformsContent(
             )
         }
 
-        RECOMMENDED_EMULATORS.forEach { (systemName, appLabel, packageName) ->
-            item(key = packageName) {
-                val isInstalled = remember(packageName) { EmulatorLauncher.isPackageInstalled(context, packageName) }
+        RECOMMENDED_EMULATORS.forEach { emulator ->
+            item(key = emulator.packageName) {
+                val isInstalled = remember(emulator.packageName) {
+                    EmulatorLauncher.isPackageInstalled(context, emulator.packageName)
+                }
                 Row(
                     // Extra start padding beyond the header's 20.dp — visually nests each row "one
                     // tab over" under the "Recommended Emulators" heading.
@@ -168,19 +180,24 @@ fun PlatformsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        systemName,
+                        emulator.systemName,
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
                         text = buildAnnotatedString {
-                            append("$appLabel — ")
+                            append("${emulator.appLabel} — ")
                             withStyle(SpanStyle(color = if (isInstalled) InstalledGreen else NotInstalledRed)) {
                                 append(if (isInstalled) "Installed" else "Not Installed")
                             }
                         },
                         style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.End
+                        textAlign = TextAlign.End,
+                        // Tapping "Not Installed" opens the emulator's project page so the user can
+                        // go get it. No action once it's installed — nothing left to do here.
+                        modifier = Modifier.clickable(enabled = !isInstalled) {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(emulator.repoUrl)))
+                        }
                     )
                 }
             }
