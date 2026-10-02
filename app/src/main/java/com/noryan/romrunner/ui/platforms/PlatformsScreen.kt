@@ -55,9 +55,10 @@ private val InstalledGreen = Color(0xFF6BCB77)
 private val NotInstalledRed = Color(0xFFFF6B6B)
 
 private data class RecommendedEmulator(
-    /** Shown in the row's left column — usually a system name ("3DS"), but a specific game title
-     *  for a per-title override ("Metroid Prime Trilogy") where the system's usual app won't do. */
-    val rowLabel: String,
+    /** Shown in the row's left column — usually a fixed system name ("3DS"), but a specific game
+     *  title for a per-title override ("Metroid Prime Trilogy"), or computed from which of several
+     *  systems actually have games for a multi-system app like RetroArch ("GameBoy / NES"). */
+    val rowLabel: (platforms: List<Platform>, games: List<Game>) -> String,
     val appLabel: String,
     val packageName: String,
     /** Fallback the user lands on if [resolveApkUrl] can't find a matching asset (or there's no
@@ -86,9 +87,22 @@ private fun hasGameOn(platformName: String): (List<Platform>, List<Game>) -> Boo
     platformId != null && games.any { it.platformId == platformId }
 }
 
+/** Fixed, platform-independent row label — the common case for every entry except RetroArch's. */
+private fun fixedLabel(label: String): (List<Platform>, List<Game>) -> String = { _, _ -> label }
+
+// The five systems that all play through the same RetroArch app, and the short name each shows
+// as in the row label when it's the one(s) actually present in the library.
+private val RETROARCH_SYSTEM_LABELS = linkedMapOf(
+    "GameBoy (Color + Advance)" to "GameBoy",
+    "NES" to "NES",
+    "SNES" to "SNES",
+    "Nintendo 64" to "N64",
+    "PlayStation" to "PS1"
+)
+
 private val RECOMMENDED_EMULATORS = listOf(
     RecommendedEmulator(
-        rowLabel = "3DS",
+        rowLabel = fixedLabel("3DS"),
         appLabel = "Azahar",
         packageName = "org.azahar_emu.azahar",
         releasesPageUrl = "https://github.com/azahar-emu/azahar/releases",
@@ -102,7 +116,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         isNeeded = hasGameOn("Nintendo 3DS")
     ),
     RecommendedEmulator(
-        rowLabel = "PS2",
+        rowLabel = fixedLabel("PS2"),
         appLabel = "ARMSX2",
         packageName = "com.armsx2",
         releasesPageUrl = "https://github.com/ARMSX2/ARMSX2/releases",
@@ -112,7 +126,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         isNeeded = hasGameOn("PlayStation 2")
     ),
     RecommendedEmulator(
-        rowLabel = "Switch",
+        rowLabel = fixedLabel("Switch"),
         appLabel = "Eden",
         packageName = "dev.eden.eden_emulator",
         releasesPageUrl = "https://git.eden-emu.dev/eden-emu/eden/releases",
@@ -128,7 +142,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         isNeeded = hasGameOn("Nintendo Switch")
     ),
     RecommendedEmulator(
-        rowLabel = "Nintendo DS",
+        rowLabel = fixedLabel("Nintendo DS"),
         appLabel = "MelonDS",
         // The app published under this package is WatermelonDS, a melonDS-android fork.
         packageName = "me.magnum.melondualds",
@@ -141,7 +155,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         isNeeded = hasGameOn("Nintendo DS")
     ),
     RecommendedEmulator(
-        rowLabel = "GameCube / Wii",
+        rowLabel = fixedLabel("GameCube / Wii"),
         appLabel = "Dolphin",
         packageName = "org.dolphinemu.dolphinemu",
         // Dolphin isn't distributed via GitHub Releases at all (confirmed: the repo has none) —
@@ -159,7 +173,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         }
     ),
     RecommendedEmulator(
-        rowLabel = "Metroid Prime Trilogy",
+        rowLabel = fixedLabel("Metroid Prime Trilogy"),
         appLabel = "PrimeHack",
         packageName = "org.dolphinemu.primehack",
         releasesPageUrl = "https://github.com/Starlightbotanist/PrimeHack-Android/releases",
@@ -171,7 +185,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         isNeeded = { _, games -> games.any { it.title.contains("metroid prime trilogy", ignoreCase = true) } }
     ),
     RecommendedEmulator(
-        rowLabel = "Wii U",
+        rowLabel = fixedLabel("Wii U"),
         appLabel = "Cemu",
         packageName = "info.cemu.cemu",
         releasesPageUrl = "https://github.com/SapphireRhodonite/Cemu/releases",
@@ -183,7 +197,13 @@ private val RECOMMENDED_EMULATORS = listOf(
         isNeeded = hasGameOn("Wii U")
     ),
     RecommendedEmulator(
-        rowLabel = "GameBoy",
+        // Lists just the systems actually present, e.g. "GameBoy" alone, or "GameBoy / NES" once
+        // both have games — not a fixed label, since this one app covers five systems at once.
+        rowLabel = { platforms, games ->
+            RETROARCH_SYSTEM_LABELS.entries
+                .filter { (platformName, _) -> hasGameOn(platformName)(platforms, games) }
+                .joinToString(" / ") { it.value }
+        },
         appLabel = "RetroArch",
         packageName = "com.retroarch",
         // Explicitly the web build per request, not the Play Store listing — RetroArch's GitHub
@@ -191,10 +211,7 @@ private val RECOMMENDED_EMULATORS = listOf(
         // its own buildbot instead (see LatestReleaseFinder.findRetroArchStableApkUrl).
         releasesPageUrl = "https://www.retroarch.com/?page=platforms",
         resolveApkUrl = { LatestReleaseFinder.findRetroArchStableApkUrl() },
-        isNeeded = hasGameOn("GameBoy (Color + Advance)")
-        // NES/SNES/Nintendo 64/PlayStation also play through RetroArch but have no games in the
-        // library yet — add their own hasGameOn(...) entries (same appLabel/packageName/resolver)
-        // if/when they do, rather than show a RetroArch row with nothing in it to justify it.
+        isNeeded = { platforms, games -> RETROARCH_SYSTEM_LABELS.keys.any { hasGameOn(it)(platforms, games) } }
     )
 )
 
@@ -491,7 +508,7 @@ fun PlatformsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        emulator.rowLabel,
+                        emulator.rowLabel(platforms, games),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f)
                     )
