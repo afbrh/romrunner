@@ -238,6 +238,9 @@ fun PlatformsContent(
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
 
+    var biosKeysFolderUri by remember { mutableStateOf(repository.getBiosKeysFolderUri()) }
+    LaunchedEffect(Unit) { biosKeysFolderUri = repository.getBiosKeysFolderUri() }
+
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
     var dualScreenSupportEnabled by remember { mutableStateOf(repository.getDualScreenSupportEnabled()) }
 
@@ -256,6 +259,19 @@ fun PlatformsContent(
             // here used to just update the stored Uri with no rescan at all — the Games list
             // wouldn't reflect the new folder until the user separately pulled to refresh.
             onRomsFolderChanged()
+        }
+    }
+
+    val biosKeysFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            repository.setBiosKeysFolderUri(uri.toString())
+            biosKeysFolderUri = uri.toString()
         }
     }
 
@@ -286,6 +302,37 @@ fun PlatformsContent(
                     text = rootFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
                     style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
                     color = romsFolderColor,
+                    textAlign = TextAlign.End
+                )
+            }
+        }
+
+        item {
+            val biosFolderInteractionSource = rememberFocusInteractionSource()
+            val biosFolderGlow = biosFolderInteractionSource.glowShadow()
+            val biosFolderColor = biosFolderInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = biosFolderInteractionSource,
+                        indication = null
+                    ) {
+                        biosKeysFolderPicker.launch(biosKeysFolderUri?.let { Uri.parse(it) })
+                    }
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "BIOS/Keys/Firmware folder",
+                    style = LocalTextStyle.current.copy(shadow = biosFolderGlow),
+                    color = biosFolderColor,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = biosKeysFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
+                    style = LocalTextStyle.current.copy(shadow = biosFolderGlow),
+                    color = biosFolderColor,
                     textAlign = TextAlign.End
                 )
             }
@@ -369,10 +416,19 @@ fun PlatformsContent(
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.End,
+                        // Tapping "Installed" opens the app directly — RomRunner can't configure
+                        // another app's own settings (sandboxed private storage, no public API for
+                        // it; confirmed against ARMSX2's real source), so this is a one-tap
+                        // shortcut into its own setup/settings rather than real automation.
                         // Tapping "Not Installed" looks up the latest stable release, downloads
-                        // it, and hands it to the system installer. No action once it's installed,
-                        // or while this row's download/install is already in flight.
-                        modifier = Modifier.clickable(enabled = !isInstalled && !isResolving) {
+                        // it, and hands it to the system installer. No action while this row's
+                        // download/install is already in flight.
+                        modifier = Modifier.clickable(enabled = !isResolving) {
+                            if (isInstalled) {
+                                context.packageManager.getLaunchIntentForPackage(emulator.packageName)
+                                    ?.let { context.startActivity(it) }
+                                return@clickable
+                            }
                             resolvingPackage = emulator.packageName
                             scope.launch {
                                 downloadLatestRelease(

@@ -10,6 +10,12 @@ class LibrarySettings(context: Context) {
         get() = prefs.getString(KEY_ROOT_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_ROOT_FOLDER_URI, value).apply()
 
+    /** The folder holding BIOS/keys/firmware files for emulators that need them — see
+     *  [com.noryan.romrunner.ui.platforms.PlatformsContent]'s "Recommended Emulators" auto-setup. */
+    var biosKeysFolderUri: String?
+        get() = prefs.getString(KEY_BIOS_KEYS_FOLDER_URI, null)
+        set(value) = prefs.edit().putString(KEY_BIOS_KEYS_FOLDER_URI, value).apply()
+
     /** Whether to ask Android to kill other apps' background processes right before launching a
      *  game, freeing memory for it. Default on — see [com.noryan.romrunner.data.launch.BackgroundAppCleaner]. */
     var killBackgroundAppsOnLaunch: Boolean
@@ -26,6 +32,7 @@ class LibrarySettings(context: Context) {
     companion object {
         private const val PREFS_NAME = "romrunner_settings"
         private const val KEY_ROOT_FOLDER_URI = "root_folder_uri"
+        private const val KEY_BIOS_KEYS_FOLDER_URI = "bios_keys_folder_uri"
         private const val KEY_KILL_BACKGROUND_APPS_ON_LAUNCH = "kill_background_apps_on_launch"
         private const val KEY_DUAL_SCREEN_SUPPORT_ENABLED = "dual_screen_support_enabled"
     }

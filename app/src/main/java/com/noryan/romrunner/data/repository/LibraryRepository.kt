@@ -154,4 +154,9 @@ class LibraryRepository(
     fun setDualScreenSupportEnabled(value: Boolean) {
         settings.dualScreenSupportEnabled = value
     }
+
+    fun getBiosKeysFolderUri(): String? = settings.biosKeysFolderUri
+    fun setBiosKeysFolderUri(uri: String?) {
+        settings.biosKeysFolderUri = uri
+    }
 }
