@@ -20,7 +20,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.EmulatorLauncher
@@ -29,6 +33,9 @@ import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
+
+private val InstalledGreen = Color(0xFF6BCB77)
+private val NotInstalledRed = Color(0xFFFF6B6B)
 
 /** System name, the app that plays it best, and that app's package name (for the installed check). */
 private val RECOMMENDED_EMULATORS = listOf(
@@ -164,7 +171,12 @@ fun PlatformsContent(
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = "$appLabel — ${if (isInstalled) "Yes" else "No"}",
+                        text = buildAnnotatedString {
+                            append("$appLabel — ")
+                            withStyle(SpanStyle(color = if (isInstalled) InstalledGreen else NotInstalledRed)) {
+                                append(if (isInstalled) "Installed" else "Not Installed")
+                            }
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.End
                     )
