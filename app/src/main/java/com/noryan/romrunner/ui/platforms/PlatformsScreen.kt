@@ -162,7 +162,9 @@ fun PlatformsContent(
             item(key = packageName) {
                 val isInstalled = remember(packageName) { EmulatorLauncher.isPackageInstalled(context, packageName) }
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                    // Extra start padding beyond the header's 20.dp — visually nests each row "one
+                    // tab over" under the "Recommended Emulators" heading.
+                    modifier = Modifier.fillMaxWidth().padding(start = 36.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
