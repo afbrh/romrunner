@@ -18,6 +18,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -116,12 +120,15 @@ private val RECOMMENDED_EMULATORS = listOf(
  * Looks up [emulator]'s latest stable release, downloads its APK, and hands it straight to the
  * system installer once the download finishes — or falls back to just opening the releases page
  * if no matching asset could be found. [onStatusChange] drives the row's "Finding latest…" /
- * "Downloading…" / "Installing…" label while this runs.
+ * "Downloading…" / "Installing…" label while this runs; [onInstalled] fires the moment the
+ * package actually shows up as installed, so the row can flip to "Installed" right away instead
+ * of waiting for the user to back out to RomRunner and re-open Settings.
  */
 private suspend fun downloadLatestRelease(
     context: android.content.Context,
     emulator: RecommendedEmulator,
-    onStatusChange: (String) -> Unit
+    onStatusChange: (String) -> Unit,
+    onInstalled: () -> Unit
 ) {
     onStatusChange("Finding latest…")
     val apkUrl = withContext(Dispatchers.IO) {
@@ -157,6 +164,24 @@ private suspend fun downloadLatestRelease(
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     )
+
+    // The install Intent above just hands off to the system installer UI — it doesn't tell us
+    // when (or whether) the user actually finishes it. Poll PackageManager in the background
+    // (this coroutine keeps running while the installer is in front) so the row can flip to
+    // "Installed" the moment it actually becomes installed, without needing the user to back out
+    // to RomRunner first. Gives up after a minute if the user never completes/cancels the prompt;
+    // PlatformsContent's own resume-triggered recheck still catches it later if they finish it
+    // after that.
+    val installed = withContext(Dispatchers.IO) { awaitInstall(context, emulator.packageName) }
+    if (installed) onInstalled()
+}
+
+private fun awaitInstall(context: android.content.Context, packageName: String): Boolean {
+    repeat(60) {
+        if (EmulatorLauncher.isPackageInstalled(context, packageName)) return true
+        Thread.sleep(1_000)
+    }
+    return false
 }
 
 /**
@@ -194,6 +219,20 @@ fun PlatformsContent(
     val scope = rememberCoroutineScope()
     var resolvingPackage by remember { mutableStateOf<String?>(null) }
     var resolvingLabel by remember { mutableStateOf("") }
+
+    // Safety net alongside downloadLatestRelease's own post-install poll: re-checks every
+    // Recommended Emulators row whenever RomRunner comes back to the foreground (e.g. returning
+    // from the system installer), so a row still catches up to "Installed" even if the user takes
+    // longer than that poll's own timeout to finish installing.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var installCheckTick by remember { mutableStateOf(0) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) installCheckTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
@@ -298,8 +337,8 @@ fun PlatformsContent(
 
         RECOMMENDED_EMULATORS.forEach { emulator ->
             item(key = emulator.packageName) {
-                val isInstalled = remember(emulator.packageName) {
-                    EmulatorLauncher.isPackageInstalled(context, emulator.packageName)
+                var isInstalled by remember(emulator.packageName, installCheckTick) {
+                    mutableStateOf(EmulatorLauncher.isPackageInstalled(context, emulator.packageName))
                 }
                 Row(
                     // Extra start padding beyond the header's 20.dp — visually nests each row "one
@@ -330,7 +369,12 @@ fun PlatformsContent(
                         modifier = Modifier.clickable(enabled = !isInstalled && !isResolving) {
                             resolvingPackage = emulator.packageName
                             scope.launch {
-                                downloadLatestRelease(context, emulator) { status -> resolvingLabel = status }
+                                downloadLatestRelease(
+                                    context = context,
+                                    emulator = emulator,
+                                    onStatusChange = { status -> resolvingLabel = status },
+                                    onInstalled = { isInstalled = true }
+                                )
                                 resolvingPackage = null
                             }
                         }
