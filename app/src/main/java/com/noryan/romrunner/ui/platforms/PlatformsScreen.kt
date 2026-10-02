@@ -23,11 +23,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
+
+/** System name, the app that plays it best, and that app's package name (for the installed check). */
+private val RECOMMENDED_EMULATORS = listOf(
+    Triple("3DS", "Azahar", "org.azahar_emu.azahar"),
+    Triple("PS2", "ARMSX2", "com.armsx2"),
+    Triple("Switch", "Eden", "dev.eden.eden_emulator"),
+    Triple("Nintendo DS", "MelonDS", "me.magnum.melondualds")
+)
 
 /**
  * The Settings tab's content on RomRunner's home screen (see LibraryScreen). Deliberately has no
@@ -130,6 +139,36 @@ fun PlatformsContent(
                         onDualScreenSupportChanged()
                     }
                 )
+            }
+        }
+
+        item {
+            Text(
+                "Recommended Emulators",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+            )
+        }
+
+        RECOMMENDED_EMULATORS.forEach { (systemName, appLabel, packageName) ->
+            item(key = packageName) {
+                val isInstalled = remember(packageName) { EmulatorLauncher.isPackageInstalled(context, packageName) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        systemName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "$appLabel — ${if (isInstalled) "Yes" else "No"}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.End
+                    )
+                }
             }
         }
     }

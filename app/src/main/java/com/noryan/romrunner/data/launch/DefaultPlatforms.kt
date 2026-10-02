@@ -28,7 +28,7 @@ object DefaultPlatforms {
         Platform(name = "NES", extensionsCsv = "nes", launchPackage = "com.retroarch"),
         Platform(name = "SNES", extensionsCsv = "sfc,smc", launchPackage = "com.retroarch"),
         Platform(name = "Nintendo 64", extensionsCsv = "n64,z64", launchPackage = "com.retroarch"),
-        Platform(name = "Nintendo DS", extensionsCsv = "nds", launchPackage = "com.dsemu.drastic"),
+        Platform(name = "Nintendo DS", extensionsCsv = "nds", launchPackage = "me.magnum.melondualds"),
         Platform(name = "Nintendo 3DS", extensionsCsv = "3ds,cia,cci", launchPackage = "org.azahar_emu.azahar"),
         Platform(name = "Nintendo Switch", extensionsCsv = "xci", launchPackage = "dev.eden.eden_emulator"),
         Platform(name = "Wii U", extensionsCsv = "wua", launchPackage = "info.cemu.cemu"),

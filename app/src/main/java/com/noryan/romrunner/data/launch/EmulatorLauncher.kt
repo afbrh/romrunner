@@ -22,7 +22,8 @@ object EmulatorLauncher {
         "dev.eden.eden_emulator" to "Eden",
         "org.azahar_emu.azahar" to "Azahar",
         "dev.twilitrealm.dusk" to "DuskLight",
-        "org.dolphinemu.primehack" to "PrimeHack"
+        "org.dolphinemu.primehack" to "PrimeHack",
+        "me.magnum.melondualds" to "MelonDS"
     )
 
     data class Target(val packageName: String, val label: String, val launchUri: String? = null)
