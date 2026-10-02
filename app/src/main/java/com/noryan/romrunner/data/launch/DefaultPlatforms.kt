@@ -52,12 +52,39 @@ object DefaultPlatforms {
         // ".cue" chosen as the least-ambiguous common PS1 dump extension in this starter set —
         // same reasoning as ".iso" above for PS2. A library using .chd/.pbp/bare .bin can add
         // those extensions to this platform from Settings.
-        Platform(name = "PlayStation", extensionsCsv = "cue", launchPackage = "com.retroarch")
-        // Removed for now (2026-09-24), per request: Sega Genesis/Mega Drive, Sega Game Gear,
-        // PSP, Atari Lynx, Neo Geo Pocket, WonderSwan, PC Engine/TurboGrafx-16. No default-launch-
-        // package support was ever wired up for any of these, so removing them here only affects
-        // the starter seed a fresh ROMs-folder setup gets — add them back the same way (a
-        // Platform(...) entry) if support for them is wanted again later.
-        // Sega Master System removed the same way (2026-09-25), per request.
+        Platform(name = "PlayStation", extensionsCsv = "cue", launchPackage = "com.retroarch"),
+        // PSP: ".iso" is claimed by PS2 above, so PSP is matched by the extensions only it uses
+        // (.cso compressed ISOs, .pbp EBOOT/PSN packages). A PSP library of plain .iso files has
+        // to be moved to its own platform by hand. launchActivity is set explicitly so PPSSPP's
+        // path-pattern VIEW filter (which matches by file name, awkward against SAF content
+        // Uris) never decides whether the launch resolves.
+        Platform(
+            name = "PSP",
+            extensionsCsv = "cso,pbp",
+            launchPackage = "org.ppsspp.ppsspp",
+            launchActivity = "org.ppsspp.ppsspp.PpssppActivity"
+        ),
+        // Flycast's VIEW intent-filters only declare the file:// scheme, but RomRunner hands over
+        // content:// Uris — an explicit activity bypasses the filter, and Flycast's own code just
+        // forwards the Uri string to its native layer, which opens content Uris itself. .chd/.bin/
+        // .cue are shared with other disc systems and left out, same as for PS1.
+        Platform(
+            name = "Dreamcast",
+            extensionsCsv = "cdi,gdi",
+            launchPackage = "com.flycast.emulator",
+            launchActivity = "com.flycast.emulator.NativeGLActivity"
+        ),
+        // Everything below is PS1/N64 era or earlier and plays through RetroArch.
+        Platform(name = "Virtual Boy", extensionsCsv = "vb", launchPackage = "com.retroarch"),
+        Platform(name = "Sega Genesis", extensionsCsv = "md,gen,smd", launchPackage = "com.retroarch"),
+        Platform(name = "Sega Master System", extensionsCsv = "sms", launchPackage = "com.retroarch"),
+        Platform(name = "Sega Game Gear", extensionsCsv = "gg", launchPackage = "com.retroarch"),
+        Platform(name = "Sega 32X", extensionsCsv = "32x", launchPackage = "com.retroarch"),
+        Platform(name = "PC Engine / TurboGrafx-16", extensionsCsv = "pce", launchPackage = "com.retroarch"),
+        Platform(name = "Atari 2600", extensionsCsv = "a26", launchPackage = "com.retroarch"),
+        Platform(name = "Atari 7800", extensionsCsv = "a78", launchPackage = "com.retroarch"),
+        Platform(name = "Atari Lynx", extensionsCsv = "lnx", launchPackage = "com.retroarch"),
+        Platform(name = "Neo Geo Pocket", extensionsCsv = "ngp,ngc", launchPackage = "com.retroarch"),
+        Platform(name = "WonderSwan", extensionsCsv = "ws,wsc", launchPackage = "com.retroarch")
     )
 }

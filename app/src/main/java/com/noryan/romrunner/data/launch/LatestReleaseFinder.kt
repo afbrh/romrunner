@@ -73,9 +73,48 @@ object LatestReleaseFinder {
                 if (app.optString("name") != "RetroArch") continue
                 val version = app.optJSONArray("versions")?.optJSONObject(0)?.optString("version")
                 if (version.isNullOrBlank()) return null
-                return "https://buildbot.libretro.com/stable/$version/android/RetroArch_aarch64.apk"
+                // Universal RetroArch.apk (package "com.retroarch", same as the Play Store build and what
+                // every RomRunner platform's launchPackage points at) — NOT RetroArch_aarch64.apk,
+                // which is published under a different package name ("com.retroarch.aarch64") and
+                // so would never register as installed against "com.retroarch".
+                return "https://buildbot.libretro.com/stable/$version/android/RetroArch.apk"
             }
             null
+        } catch (e: Exception) {
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    /**
+     * PPSSPP specifically: its GitHub releases ship no Android APK at all (confirmed: only source,
+     * desktop and iOS builds). The official site serves the stable Android build as a plain static
+     * file at ppsspp.org/files/<major_minor_patch>/ppsspp.apk, so this reads the latest stable
+     * release tag from GitHub (e.g. "v1.20.4" -> "1_20_4") and verifies the constructed URL
+     * actually exists before returning it. Blocking network I/O — call from a background dispatcher.
+     */
+    fun findPpssppStableApkUrl(): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL("https://api.github.com/repos/hrydgard/ppsspp/releases/latest").openConnection() as HttpURLConnection).apply {
+                setRequestProperty("Accept", "application/json")
+                connectTimeout = 15_000
+                readTimeout = 15_000
+            }
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
+            val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            if (release.optBoolean("prerelease") || release.optBoolean("draft")) return null
+            val version = release.optString("tag_name").removePrefix("v").replace('.', '_')
+            if (!Regex("""\d+_\d+_\d+""").matches(version)) return null
+            val apkUrl = "https://www.ppsspp.org/files/$version/ppsspp.apk"
+            connection.disconnect()
+            connection = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "HEAD"
+                connectTimeout = 15_000
+                readTimeout = 15_000
+            }
+            if (connection.responseCode == HttpURLConnection.HTTP_OK) apkUrl else null
         } catch (e: Exception) {
             null
         } finally {

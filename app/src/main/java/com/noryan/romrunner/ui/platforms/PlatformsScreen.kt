@@ -90,14 +90,26 @@ private fun hasGameOn(platformName: String): (List<Platform>, List<Game>) -> Boo
 /** Fixed, platform-independent row label — the common case for every entry except RetroArch's. */
 private fun fixedLabel(label: String): (List<Platform>, List<Game>) -> String = { _, _ -> label }
 
-// The five systems that all play through the same RetroArch app, and the short name each shows
-// as in the row label when it's the one(s) actually present in the library.
+// Every system that plays through the same RetroArch app (the PS1/N64 era and earlier, plus other
+// retro handhelds), and the short name each shows as in the row label when it's one of the
+// systems actually present in the library.
 private val RETROARCH_SYSTEM_LABELS = linkedMapOf(
     "GameBoy (Color + Advance)" to "GameBoy",
     "NES" to "NES",
     "SNES" to "SNES",
     "Nintendo 64" to "N64",
-    "PlayStation" to "PS1"
+    "Virtual Boy" to "Virtual Boy",
+    "PlayStation" to "PS1",
+    "Sega Genesis" to "Genesis",
+    "Sega Master System" to "Master System",
+    "Sega Game Gear" to "Game Gear",
+    "Sega 32X" to "32X",
+    "PC Engine / TurboGrafx-16" to "PC Engine",
+    "Atari 2600" to "Atari 2600",
+    "Atari 7800" to "Atari 7800",
+    "Atari Lynx" to "Lynx",
+    "Neo Geo Pocket" to "Neo Geo Pocket",
+    "WonderSwan" to "WonderSwan"
 )
 
 private val RECOMMENDED_EMULATORS = listOf(
@@ -195,6 +207,24 @@ private val RECOMMENDED_EMULATORS = listOf(
             }
         },
         isNeeded = hasGameOn("Wii U")
+    ),
+    RecommendedEmulator(
+        rowLabel = fixedLabel("PSP"),
+        appLabel = "PPSSPP",
+        packageName = "org.ppsspp.ppsspp",
+        // PPSSPP's GitHub releases carry no Android APK (confirmed: source/desktop/iOS only); the
+        // official site hosts the stable Android build as a static file instead.
+        releasesPageUrl = "https://www.ppsspp.org/download",
+        resolveApkUrl = { LatestReleaseFinder.findPpssppStableApkUrl() },
+        isNeeded = hasGameOn("PSP")
+    ),
+    RecommendedEmulator(
+        rowLabel = fixedLabel("Dreamcast"),
+        appLabel = "Flycast",
+        packageName = "com.flycast.emulator",
+        releasesPageUrl = "https://github.com/flyinghead/flycast/releases",
+        resolveApkUrl = { LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/flyinghead/flycast/releases/latest") { name -> name.endsWith(".apk") } },
+        isNeeded = hasGameOn("Dreamcast")
     ),
     RecommendedEmulator(
         // Lists just the systems actually present, e.g. "GameBoy" alone, or "GameBoy / NES" once

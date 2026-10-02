@@ -23,7 +23,10 @@ object EmulatorLauncher {
         "org.azahar_emu.azahar" to "Azahar",
         "dev.twilitrealm.dusk" to "DuskLight",
         "org.dolphinemu.primehack" to "PrimeHack",
-        "me.magnum.melondualds" to "MelonDS"
+        "me.magnum.melondualds" to "MelonDS",
+        "org.ppsspp.ppsspp" to "PPSSPP",
+        "com.flycast.emulator" to "Flycast",
+        "com.retroarch" to "RetroArch"
     )
 
     data class Target(

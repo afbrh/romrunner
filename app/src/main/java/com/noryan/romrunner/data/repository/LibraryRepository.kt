@@ -66,6 +66,19 @@ class LibraryRepository(
             platformDao.update(ds.copy(launchPackage = "me.magnum.melondualds"))
         }
 
+        // PSP/Dreamcast were seeded in earlier builds with no launchActivity (and PSP with the
+        // old removed-from-seed extensions); fill in the explicit activity those apps need.
+        val explicitActivities = mapOf(
+            "PSP" to ("org.ppsspp.ppsspp" to "org.ppsspp.ppsspp.PpssppActivity"),
+            "Dreamcast" to ("com.flycast.emulator" to "com.flycast.emulator.NativeGLActivity")
+        )
+        for ((name, pkgAndActivity) in explicitActivities) {
+            val existing = platforms.find { it.name == name } ?: continue
+            if (existing.launchPackage == pkgAndActivity.first && existing.launchActivity.isBlank()) {
+                platformDao.update(existing.copy(launchActivity = pkgAndActivity.second))
+            }
+        }
+
         val psp = platforms.find { it.name == "PSP" } ?: return
         if ("ciso" !in psp.extensions) return
 
