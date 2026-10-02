@@ -14,14 +14,27 @@ data class GameOverride(
      * A deep link that launches straight into this exact title instead of the generic
      * file-handoff Intent, for apps that support one. Null falls back to the generic path.
      */
-    val launchUri: String? = null
+    val launchUri: String? = null,
+    /**
+     * True for an app with no generic "hand it a file" Intent filter at all (confirmed for
+     * PrimeHack-Android: its only VIEW filter uses a custom `dolphinemu://` scheme that needs a
+     * channel/game id from that app's own library scan, which RomRunner has no way to know ahead
+     * of time). The app is just opened plainly instead — the user picks the game from within its
+     * own UI, the same as it'd need its own one-time ROM-folder setup regardless.
+     */
+    val openAppOnly: Boolean = false
 )
 
 object GameLaunchOverrides {
     val ALL: List<GameOverride> = listOf(
-        // No overrides currently needed — every platform routes through its own default
-        // launchPackage (see DefaultPlatforms.kt). Add an entry here for a specific title that
-        // needs a different app (or a direct deep link) than its platform's usual default.
+        // Metroid Prime Trilogy plays best with PrimeHack's mouselook controls rather than the
+        // library's plain Dolphin default for every other GameCube/Wii title.
+        GameOverride(
+            titleKeyword = "metroid prime trilogy",
+            appLabel = "PrimeHack",
+            packageName = "org.dolphinemu.primehack",
+            openAppOnly = true
+        )
     )
 
     fun find(gameTitle: String): GameOverride? {

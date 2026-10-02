@@ -48,4 +48,38 @@ object LatestReleaseFinder {
             connection?.disconnect()
         }
     }
+
+    /**
+     * RetroArch specifically: it isn't distributed via GitHub Releases at all (its latest GitHub
+     * release ships only a source tarball, confirmed directly) — real builds live at
+     * buildbot.libretro.com instead, as a plain version-numbered directory tree with no
+     * "/stable/latest/" alias. buildbot.libretro.com/stable/altstore.json (meant for iOS AltStore,
+     * but version-agnostic) is the one place that states the current stable version number in a
+     * parseable form, so it's used here just to read that number rather than scraping the HTML
+     * directory listing. Blocking network I/O — call from a background dispatcher.
+     */
+    fun findRetroArchStableApkUrl(): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL("https://buildbot.libretro.com/stable/altstore.json").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15_000
+                readTimeout = 15_000
+            }
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
+            val root = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val apps = root.optJSONArray("apps") ?: return null
+            for (i in 0 until apps.length()) {
+                val app = apps.getJSONObject(i)
+                if (app.optString("name") != "RetroArch") continue
+                val version = app.optJSONArray("versions")?.optJSONObject(0)?.optString("version")
+                if (version.isNullOrBlank()) return null
+                return "https://buildbot.libretro.com/stable/$version/android/RetroArch_aarch64.apk"
+            }
+            null
+        } catch (e: Exception) {
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
 }

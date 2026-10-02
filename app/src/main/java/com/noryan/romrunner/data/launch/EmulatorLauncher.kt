@@ -26,12 +26,17 @@ object EmulatorLauncher {
         "me.magnum.melondualds" to "MelonDS"
     )
 
-    data class Target(val packageName: String, val label: String, val launchUri: String? = null)
+    data class Target(
+        val packageName: String,
+        val label: String,
+        val launchUri: String? = null,
+        val openAppOnly: Boolean = false
+    )
 
     /** Which app should play this game: a hard-coded per-title exception if one matches, else the platform's default. */
     fun resolveTarget(platform: Platform, game: Game): Target? {
         GameLaunchOverrides.find(game.title)?.let { override ->
-            return Target(override.packageName.orEmpty(), override.appLabel, override.launchUri)
+            return Target(override.packageName.orEmpty(), override.appLabel, override.launchUri, override.openAppOnly)
         }
         if (platform.launchPackage.isBlank()) return null
         return Target(platform.launchPackage, KNOWN_APP_LABELS[platform.launchPackage] ?: platform.launchPackage)
@@ -49,6 +54,16 @@ object EmulatorLauncher {
 
     fun buildIntent(context: Context, platform: Platform, game: Game): Intent {
         val target = resolveTarget(platform, game)
+        if (target?.openAppOnly == true) {
+            // No generic file-handoff Intent filter exists for this app (confirmed per-app, e.g.
+            // PrimeHack) — just open it; the user picks the game from its own library/UI.
+            return context.packageManager.getLaunchIntentForPackage(target.packageName)
+                ?: Intent(Intent.ACTION_MAIN).apply {
+                    setPackage(target.packageName)
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+        }
         target?.launchUri?.let { uri ->
             // A per-game deep link (e.g. PrimeHack's home-screen-shortcut scheme) that launches
             // straight into that title, bypassing the generic file-handoff below entirely —
