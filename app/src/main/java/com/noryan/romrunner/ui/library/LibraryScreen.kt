@@ -58,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.InstalledApp
+import com.noryan.romrunner.data.launch.RetroArchLauncher
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
@@ -132,6 +133,27 @@ fun LibraryScreen(
         val target = EmulatorLauncher.resolveTarget(platform, game)
         if (target != null && !EmulatorLauncher.isPackageInstalled(context, target.packageName)) {
             installPrompt = MissingAppRequest(platform, game, target)
+            return
+        }
+        if (RetroArchLauncher.handles(platform)) {
+            scope.launch {
+                when (val prepared = RetroArchLauncher.prepare(context, platform, game)) {
+                    is RetroArchLauncher.Prepared.Ready -> {
+                        context.startActivity(prepared.intent)
+                        viewModel.markPlayed(game)
+                    }
+                    is RetroArchLauncher.Prepared.NeedsFirstRun -> {
+                        Toast.makeText(
+                            context,
+                            "RetroArch needs one-time setup: allow storage access in it, then launch ${game.title} again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        prepared.intent?.let { context.startActivity(it) }
+                    }
+                    is RetroArchLauncher.Prepared.Failed ->
+                        Toast.makeText(context, prepared.message, Toast.LENGTH_LONG).show()
+                }
+            }
             return
         }
         val intent = EmulatorLauncher.buildIntent(context, platform, game)

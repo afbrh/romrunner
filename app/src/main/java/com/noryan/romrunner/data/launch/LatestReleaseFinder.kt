@@ -73,11 +73,9 @@ object LatestReleaseFinder {
                 if (app.optString("name") != "RetroArch") continue
                 val version = app.optJSONArray("versions")?.optJSONObject(0)?.optString("version")
                 if (version.isNullOrBlank()) return null
-                // Universal RetroArch.apk (package "com.retroarch", same as the Play Store build and what
-                // every RomRunner platform's launchPackage points at) — NOT RetroArch_aarch64.apk,
-                // which is published under a different package name ("com.retroarch.aarch64") and
-                // so would never register as installed against "com.retroarch".
-                return "https://buildbot.libretro.com/stable/$version/android/RetroArch.apk"
+                // The aarch64 build (package "com.retroarch.aarch64"): matches the arm64 cores RomRunner
+                // downloads for it, and EmulatorLauncher counts it as the same app as "com.retroarch".
+                return "https://buildbot.libretro.com/stable/$version/android/RetroArch_aarch64.apk"
             }
             null
         } catch (e: Exception) {

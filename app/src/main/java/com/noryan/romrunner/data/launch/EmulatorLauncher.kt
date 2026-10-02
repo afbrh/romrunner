@@ -45,15 +45,31 @@ object EmulatorLauncher {
         return Target(platform.launchPackage, KNOWN_APP_LABELS[platform.launchPackage] ?: platform.launchPackage)
     }
 
-    fun isPackageInstalled(context: Context, packageName: String): Boolean {
-        if (packageName.isBlank()) return false
-        return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
+    /**
+     * Some apps ship under more than one package name. RetroArch's buildbot publishes the same app
+     * as "com.retroarch" (universal, and the Play Store build), "com.retroarch.aarch64" and
+     * "com.retroarch.ra32" — a platform configured with "com.retroarch" should count as installed,
+     * and launch, whichever of them is actually on the device.
+     */
+    private val PACKAGE_VARIANTS = mapOf(
+        "com.retroarch" to listOf("com.retroarch", "com.retroarch.aarch64", "com.retroarch.ra32")
+    )
+
+    /** The package actually installed for [packageName] (itself, or one of its known variants), or null if none is. */
+    fun installedPackageFor(context: Context, packageName: String): String? {
+        if (packageName.isBlank()) return null
+        return (PACKAGE_VARIANTS[packageName] ?: listOf(packageName)).firstOrNull { candidate ->
+            try {
+                context.packageManager.getPackageInfo(candidate, 0)
+                true
+            } catch (e: PackageManager.NameNotFoundException) {
+                false
+            }
         }
     }
+
+    fun isPackageInstalled(context: Context, packageName: String): Boolean =
+        installedPackageFor(context, packageName) != null
 
     fun buildIntent(context: Context, platform: Platform, game: Game): Intent {
         val target = resolveTarget(platform, game)
