@@ -14,6 +14,10 @@
          Android to free other apps' cached/background processes before launching a game. -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
+    <!-- Needed to query each recommended emulator's GitHub/Gitea Releases API and download its
+         latest stable APK — see LatestReleaseFinder.kt. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".RomRunnerApp"
         android:allowBackup="true"

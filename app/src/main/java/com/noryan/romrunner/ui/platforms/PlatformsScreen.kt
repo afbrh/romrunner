@@ -1,7 +1,11 @@
 package com.noryan.romrunner.ui.platforms
 
+import android.app.DownloadManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -18,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,11 +34,15 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.LatestReleaseFinder
 import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val InstalledGreen = Color(0xFF6BCB77)
 private val NotInstalledRed = Color(0xFFFF6B6B)
@@ -42,18 +51,88 @@ private data class RecommendedEmulator(
     val systemName: String,
     val appLabel: String,
     val packageName: String,
-    /** Opened when the row's "Not Installed" status is tapped, so the user can go get the app. */
-    val repoUrl: String
+    /** A GitHub (or GitHub-compatible Gitea) "/releases/latest" API endpoint. */
+    val releasesApiUrl: String,
+    /** Fallback the user lands on if no matching asset is found via the API. */
+    val releasesPageUrl: String,
+    /** Picks this device's right asset out of a release's (possibly several) .apk files. */
+    val assetMatches: (String) -> Boolean
 )
 
+// ARMSX2 ships one .apk per Android-version tier (sdk30/33/35) rather than one universal .apk —
+// pick the highest tier this device's own SDK_INT actually qualifies for.
+private val armsx2AssetMatcher: (String) -> Boolean = { name ->
+    val tier = when {
+        Build.VERSION.SDK_INT >= 35 -> "sdk35"
+        Build.VERSION.SDK_INT >= 33 -> "sdk33"
+        else -> "sdk30"
+    }
+    name.endsWith(".apk") && tier in name
+}
+
 private val RECOMMENDED_EMULATORS = listOf(
-    RecommendedEmulator("3DS", "Azahar", "org.azahar_emu.azahar", "https://github.com/azahar-emu/azahar"),
-    RecommendedEmulator("PS2", "ARMSX2", "com.armsx2", "https://github.com/ARMSX2/ARMSX2"),
-    // Eden's maintainers moved off GitHub entirely to self-hosted infrastructure.
-    RecommendedEmulator("Switch", "Eden", "dev.eden.eden_emulator", "https://git.eden-emu.dev/eden-emu/eden"),
-    // The app published under the me.magnum.melondualds package is WatermelonDS, a melonDS-android fork.
-    RecommendedEmulator("Nintendo DS", "MelonDS", "me.magnum.melondualds", "https://github.com/SapphireRhodonite/WatermelonDS")
+    RecommendedEmulator(
+        systemName = "3DS",
+        appLabel = "Azahar",
+        packageName = "org.azahar_emu.azahar",
+        releasesApiUrl = "https://api.github.com/repos/azahar-emu/azahar/releases/latest",
+        releasesPageUrl = "https://github.com/azahar-emu/azahar/releases",
+        // "vanilla" (not "googleplay") is the sideload-capable build — same flavor pick this
+        // project already made for the formerly-embedded Azahar core.
+        assetMatches = { name -> name.endsWith(".apk") && "vanilla" in name }
+    ),
+    RecommendedEmulator(
+        systemName = "PS2",
+        appLabel = "ARMSX2",
+        packageName = "com.armsx2",
+        releasesApiUrl = "https://api.github.com/repos/ARMSX2/ARMSX2/releases/latest",
+        releasesPageUrl = "https://github.com/ARMSX2/ARMSX2/releases",
+        assetMatches = armsx2AssetMatcher
+    ),
+    RecommendedEmulator(
+        systemName = "Switch",
+        appLabel = "Eden",
+        packageName = "dev.eden.eden_emulator",
+        // Eden's maintainers moved off GitHub entirely to self-hosted infrastructure, which
+        // exposes the same GitHub-compatible Releases API shape.
+        releasesApiUrl = "https://git.eden-emu.dev/api/v1/repos/eden-emu/eden/releases/latest",
+        releasesPageUrl = "https://git.eden-emu.dev/eden-emu/eden/releases",
+        // "standard" is Eden's generic build; "optimized" needs newer-CPU-specific instructions
+        // not guaranteed on every device, and "chromeos"/"legacy" aren't the right pick either.
+        assetMatches = { name -> name.endsWith(".apk") && "standard" in name }
+    ),
+    RecommendedEmulator(
+        systemName = "Nintendo DS",
+        appLabel = "MelonDS",
+        // The app published under this package is WatermelonDS, a melonDS-android fork.
+        packageName = "me.magnum.melondualds",
+        releasesApiUrl = "https://api.github.com/repos/SapphireRhodonite/WatermelonDS/releases/latest",
+        releasesPageUrl = "https://github.com/SapphireRhodonite/WatermelonDS/releases",
+        assetMatches = { name -> name.endsWith(".apk") }
+    )
 )
+
+/** Looks up [emulator]'s latest stable release and starts downloading its APK, or falls back to
+ *  just opening the releases page if no matching asset could be found. */
+private suspend fun downloadLatestRelease(context: android.content.Context, emulator: RecommendedEmulator) {
+    val apkUrl = withContext(Dispatchers.IO) {
+        LatestReleaseFinder.findStableAssetUrl(emulator.releasesApiUrl, emulator.assetMatches)
+    }
+    if (apkUrl == null) {
+        Toast.makeText(context, "Couldn't find a download for ${emulator.appLabel} — opening its releases page.", Toast.LENGTH_LONG).show()
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(emulator.releasesPageUrl)))
+        return
+    }
+    val request = DownloadManager.Request(Uri.parse(apkUrl))
+        .setTitle(emulator.appLabel)
+        .setDescription("Downloading latest ${emulator.appLabel} release")
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "${emulator.appLabel}.apk")
+        .setMimeType("application/vnd.android.package-archive")
+    val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as DownloadManager
+    downloadManager.enqueue(request)
+    Toast.makeText(context, "Downloading ${emulator.appLabel}…", Toast.LENGTH_SHORT).show()
+}
 
 /**
  * The Settings tab's content on RomRunner's home screen (see LibraryScreen). Deliberately has no
@@ -66,6 +145,8 @@ fun PlatformsContent(
     onDualScreenSupportChanged: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var resolvingPackage by remember { mutableStateOf<String?>(null) }
 
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
@@ -184,19 +265,27 @@ fun PlatformsContent(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f)
                     )
+                    val isResolving = resolvingPackage == emulator.packageName
                     Text(
                         text = buildAnnotatedString {
                             append("${emulator.appLabel} — ")
-                            withStyle(SpanStyle(color = if (isInstalled) InstalledGreen else NotInstalledRed)) {
-                                append(if (isInstalled) "Installed" else "Not Installed")
+                            when {
+                                isInstalled -> withStyle(SpanStyle(color = InstalledGreen)) { append("Installed") }
+                                isResolving -> append("Finding latest…")
+                                else -> withStyle(SpanStyle(color = NotInstalledRed)) { append("Not Installed") }
                             }
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.End,
-                        // Tapping "Not Installed" opens the emulator's project page so the user can
-                        // go get it. No action once it's installed — nothing left to do here.
-                        modifier = Modifier.clickable(enabled = !isInstalled) {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(emulator.repoUrl)))
+                        // Tapping "Not Installed" looks up the latest stable release and starts
+                        // downloading its APK. No action once it's installed, or while a lookup for
+                        // this row is already in flight.
+                        modifier = Modifier.clickable(enabled = !isInstalled && !isResolving) {
+                            resolvingPackage = emulator.packageName
+                            scope.launch {
+                                downloadLatestRelease(context, emulator)
+                                resolvingPackage = null
+                            }
                         }
                     )
                 }
