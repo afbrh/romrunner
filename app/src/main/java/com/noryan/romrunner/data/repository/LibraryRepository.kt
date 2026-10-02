@@ -164,6 +164,20 @@ class LibraryRepository(
     fun getRootFolderUri(): String? = settings.rootFolderUri
     fun setRootFolderUri(uri: String?) {
         settings.rootFolderUri = uri
+        if (uri != null && !settings.emulatorSetupPrompted) settings.emulatorSetupPending = true
+    }
+
+    fun isEmulatorSetupPending(): Boolean = settings.emulatorSetupPending
+
+    /** Marks the first-run emulator prompt as shown, so it never appears again. */
+    fun markEmulatorSetupPromptShown() {
+        settings.emulatorSetupPrompted = true
+        settings.emulatorSetupPending = false
+    }
+
+    /** Nothing was missing, so there's nothing to ask about — just stop waiting to show the prompt. */
+    fun clearEmulatorSetupPending() {
+        settings.emulatorSetupPending = false
     }
 
     fun getKillBackgroundAppsOnLaunch(): Boolean = settings.killBackgroundAppsOnLaunch

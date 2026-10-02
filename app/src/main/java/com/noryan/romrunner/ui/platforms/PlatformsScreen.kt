@@ -39,7 +39,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.EmulatorLauncher
-import com.noryan.romrunner.data.launch.LatestReleaseFinder
+import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
@@ -54,284 +54,6 @@ import kotlinx.coroutines.withContext
 private val InstalledGreen = Color(0xFF6BCB77)
 private val NotInstalledRed = Color(0xFFFF6B6B)
 
-private data class RecommendedEmulator(
-    /** Shown in the row's left column — usually a fixed system name ("3DS"), but a specific game
-     *  title for a per-title override ("Metroid Prime Trilogy"), or computed from which of several
-     *  systems actually have games for a multi-system app like RetroArch ("GameBoy / NES"). */
-    val rowLabel: (platforms: List<Platform>, games: List<Game>) -> String,
-    val appLabel: String,
-    val packageName: String,
-    /** Fallback the user lands on if [resolveApkUrl] can't find a matching asset (or there's no
-     *  download API available for this app at all — it just always returns null in that case). */
-    val releasesPageUrl: String,
-    /** Resolves this release's current APK download URL, or null if none could be found/this app
-     *  has no automatable download source at all. Blocking — always called on Dispatchers.IO. */
-    val resolveApkUrl: () -> String?,
-    /** Whether this row should show at all, given the platforms/games actually in the library. */
-    val isNeeded: (platforms: List<Platform>, games: List<Game>) -> Boolean
-)
-
-// ARMSX2 ships one .apk per Android-version tier (sdk30/33/35) rather than one universal .apk —
-// pick the highest tier this device's own SDK_INT actually qualifies for.
-private val armsx2AssetMatcher: (String) -> Boolean = { name ->
-    val tier = when {
-        Build.VERSION.SDK_INT >= 35 -> "sdk35"
-        Build.VERSION.SDK_INT >= 33 -> "sdk33"
-        else -> "sdk30"
-    }
-    name.endsWith(".apk") && tier in name
-}
-
-private fun hasGameOn(platformName: String): (List<Platform>, List<Game>) -> Boolean = { platforms, games ->
-    val platformId = platforms.find { it.name == platformName }?.id
-    platformId != null && games.any { it.platformId == platformId }
-}
-
-/** Fixed, platform-independent row label — the common case for every entry except RetroArch's. */
-private fun fixedLabel(label: String): (List<Platform>, List<Game>) -> String = { _, _ -> label }
-
-// Every system that plays through the same RetroArch app (the PS1/N64 era and earlier, plus other
-// retro handhelds), and the short name each shows as in the row label when it's one of the
-// systems actually present in the library.
-private val RETROARCH_SYSTEM_LABELS = linkedMapOf(
-    "GameBoy (Color + Advance)" to "GameBoy",
-    "NES" to "NES",
-    "SNES" to "SNES",
-    "Nintendo 64" to "N64",
-    "Virtual Boy" to "Virtual Boy",
-    "PlayStation" to "PS1",
-    "Sega Genesis" to "Genesis",
-    "Sega Master System" to "Master System",
-    "Sega Game Gear" to "Game Gear",
-    "Sega 32X" to "32X",
-    "PC Engine / TurboGrafx-16" to "PC Engine",
-    "Atari 2600" to "Atari 2600",
-    "Atari 7800" to "Atari 7800",
-    "Atari Lynx" to "Lynx",
-    "Neo Geo Pocket" to "Neo Geo Pocket",
-    "WonderSwan" to "WonderSwan"
-)
-
-private val RECOMMENDED_EMULATORS = listOf(
-    RecommendedEmulator(
-        rowLabel = fixedLabel("3DS"),
-        appLabel = "Azahar",
-        packageName = "org.azahar_emu.azahar",
-        releasesPageUrl = "https://github.com/azahar-emu/azahar/releases",
-        // "vanilla" (not "googleplay") is the sideload-capable build — same flavor pick this
-        // project already made for the formerly-embedded Azahar core.
-        resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/azahar-emu/azahar/releases/latest") { name ->
-                name.endsWith(".apk") && "vanilla" in name
-            }
-        },
-        isNeeded = hasGameOn("Nintendo 3DS")
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("PS2"),
-        appLabel = "ARMSX2",
-        packageName = "com.armsx2",
-        releasesPageUrl = "https://github.com/ARMSX2/ARMSX2/releases",
-        resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/ARMSX2/ARMSX2/releases/latest", armsx2AssetMatcher)
-        },
-        isNeeded = hasGameOn("PlayStation 2")
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("Switch"),
-        appLabel = "Eden",
-        packageName = "dev.eden.eden_emulator",
-        releasesPageUrl = "https://git.eden-emu.dev/eden-emu/eden/releases",
-        // Eden's maintainers moved off GitHub entirely to self-hosted infrastructure, which
-        // exposes the same GitHub-compatible Releases API shape.
-        // "standard" is Eden's generic build; "optimized" needs newer-CPU-specific instructions
-        // not guaranteed on every device, and "chromeos"/"legacy" aren't the right pick either.
-        resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://git.eden-emu.dev/api/v1/repos/eden-emu/eden/releases/latest") { name ->
-                name.endsWith(".apk") && "standard" in name
-            }
-        },
-        isNeeded = hasGameOn("Nintendo Switch")
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("Nintendo DS"),
-        appLabel = "MelonDS",
-        // The app published under this package is WatermelonDS, a melonDS-android fork.
-        packageName = "me.magnum.melondualds",
-        releasesPageUrl = "https://github.com/SapphireRhodonite/WatermelonDS/releases",
-        resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/SapphireRhodonite/WatermelonDS/releases/latest") { name ->
-                name.endsWith(".apk")
-            }
-        },
-        isNeeded = hasGameOn("Nintendo DS")
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("GameCube / Wii"),
-        appLabel = "Dolphin",
-        packageName = "org.dolphinemu.dolphinemu",
-        // Dolphin isn't distributed via GitHub Releases at all (confirmed: the repo has none) —
-        // it's built on its own buildbot with no stable, parseable "latest Android APK" URL, so
-        // this always falls back to the download page rather than guessing one.
-        releasesPageUrl = "https://dolphin-emu.org/download/",
-        resolveApkUrl = { null },
-        // Needed only for a GameCube/Wii game that ISN'T Metroid Prime Trilogy — that one routes
-        // to PrimeHack instead (see the entry below and GameLaunchOverrides.kt).
-        isNeeded = { platforms, games ->
-            val platformId = platforms.find { it.name == "GameCube / Wii" }?.id
-            platformId != null && games.any {
-                it.platformId == platformId && !it.title.contains("metroid prime trilogy", ignoreCase = true)
-            }
-        }
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("Metroid Prime Trilogy"),
-        appLabel = "PrimeHack",
-        packageName = "org.dolphinemu.primehack",
-        releasesPageUrl = "https://github.com/Starlightbotanist/PrimeHack-Android/releases",
-        resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/Starlightbotanist/PrimeHack-Android/releases/latest") { name ->
-                name.endsWith(".apk")
-            }
-        },
-        isNeeded = { _, games -> games.any { it.title.contains("metroid prime trilogy", ignoreCase = true) } }
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("Wii U"),
-        appLabel = "Cemu",
-        packageName = "info.cemu.cemu",
-        releasesPageUrl = "https://github.com/SapphireRhodonite/Cemu/releases",
-        resolveApkUrl = {
-            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/SapphireRhodonite/Cemu/releases/latest") { name ->
-                name.endsWith(".apk")
-            }
-        },
-        isNeeded = hasGameOn("Wii U")
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("PSP"),
-        appLabel = "PPSSPP",
-        packageName = "org.ppsspp.ppsspp",
-        // PPSSPP's GitHub releases carry no Android APK (confirmed: source/desktop/iOS only); the
-        // official site hosts the stable Android build as a static file instead.
-        releasesPageUrl = "https://www.ppsspp.org/download",
-        resolveApkUrl = { LatestReleaseFinder.findPpssppStableApkUrl() },
-        isNeeded = hasGameOn("PSP")
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("Dreamcast"),
-        appLabel = "Flycast",
-        packageName = "com.flycast.emulator",
-        releasesPageUrl = "https://github.com/flyinghead/flycast/releases",
-        resolveApkUrl = { LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/flyinghead/flycast/releases/latest") { name -> name.endsWith(".apk") } },
-        isNeeded = hasGameOn("Dreamcast")
-    ),
-    RecommendedEmulator(
-        // Lists just the systems actually present, e.g. "GameBoy" alone, or "GameBoy / NES" once
-        // both have games — not a fixed label, since this one app covers five systems at once.
-        rowLabel = { platforms, games ->
-            RETROARCH_SYSTEM_LABELS.entries
-                .filter { (platformName, _) -> hasGameOn(platformName)(platforms, games) }
-                .joinToString(" / ") { it.value }
-        },
-        appLabel = "RetroArch",
-        packageName = "com.retroarch",
-        // Explicitly the web build per request, not the Play Store listing — RetroArch's GitHub
-        // releases carry no Android APK either (source tarball only), so this resolves against
-        // its own buildbot instead (see LatestReleaseFinder.findRetroArchStableApkUrl).
-        releasesPageUrl = "https://www.retroarch.com/?page=platforms",
-        resolveApkUrl = { LatestReleaseFinder.findRetroArchStableApkUrl() },
-        isNeeded = { platforms, games -> RETROARCH_SYSTEM_LABELS.keys.any { hasGameOn(it)(platforms, games) } }
-    )
-)
-
-/**
- * Looks up [emulator]'s latest stable release, downloads its APK, and hands it straight to the
- * system installer once the download finishes — or falls back to just opening the releases page
- * if no matching asset could be found. [onStatusChange] drives the row's "Finding latest…" /
- * "Downloading…" / "Installing…" label while this runs; [onInstalled] fires the moment the
- * package actually shows up as installed, so the row can flip to "Installed" right away instead
- * of waiting for the user to back out to RomRunner and re-open Settings.
- */
-private suspend fun downloadLatestRelease(
-    context: android.content.Context,
-    emulator: RecommendedEmulator,
-    onStatusChange: (String) -> Unit,
-    onInstalled: () -> Unit
-) {
-    onStatusChange("Finding latest…")
-    val apkUrl = withContext(Dispatchers.IO) { emulator.resolveApkUrl() }
-    if (apkUrl == null) {
-        Toast.makeText(context, "Couldn't find a download for ${emulator.appLabel} — opening its releases page.", Toast.LENGTH_LONG).show()
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(emulator.releasesPageUrl)))
-        return
-    }
-
-    val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as DownloadManager
-    val request = DownloadManager.Request(Uri.parse(apkUrl))
-        .setTitle(emulator.appLabel)
-        .setDescription("Downloading latest ${emulator.appLabel} release")
-        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "${emulator.appLabel}.apk")
-        .setMimeType("application/vnd.android.package-archive")
-    val downloadId = downloadManager.enqueue(request)
-    onStatusChange("Downloading…")
-
-    val succeeded = withContext(Dispatchers.IO) { awaitDownload(downloadManager, downloadId) }
-    if (!succeeded) {
-        Toast.makeText(context, "Download failed for ${emulator.appLabel}.", Toast.LENGTH_LONG).show()
-        return
-    }
-
-    onStatusChange("Installing…")
-    val apkUri = downloadManager.getUriForDownloadedFile(downloadId)
-    context.startActivity(
-        Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(apkUri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-    )
-
-    // The install Intent above just hands off to the system installer UI — it doesn't tell us
-    // when (or whether) the user actually finishes it. Poll PackageManager in the background
-    // (this coroutine keeps running while the installer is in front) so the row can flip to
-    // "Installed" the moment it actually becomes installed, without needing the user to back out
-    // to RomRunner first. Gives up after a minute if the user never completes/cancels the prompt;
-    // PlatformsContent's own resume-triggered recheck still catches it later if they finish it
-    // after that.
-    val installed = withContext(Dispatchers.IO) { awaitInstall(context, emulator.packageName) }
-    if (installed) onInstalled()
-}
-
-private fun awaitInstall(context: android.content.Context, packageName: String): Boolean {
-    repeat(60) {
-        if (EmulatorLauncher.isPackageInstalled(context, packageName)) return true
-        Thread.sleep(1_000)
-    }
-    return false
-}
-
-/**
- * Polls [downloadId]'s status until DownloadManager reports it finished (successfully or not),
- * since DownloadManager has no suspend-friendly completion API of its own. Gives up after 5
- * minutes so a stalled/paused download (e.g. lost network mid-transfer) can't hang this forever.
- */
-private fun awaitDownload(downloadManager: DownloadManager, downloadId: Long): Boolean {
-    val query = DownloadManager.Query().setFilterById(downloadId)
-    repeat(600) {
-        downloadManager.query(query).use { cursor ->
-            if (cursor.moveToFirst()) {
-                when (cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))) {
-                    DownloadManager.STATUS_SUCCESSFUL -> return true
-                    DownloadManager.STATUS_FAILED -> return false
-                }
-            }
-        }
-        Thread.sleep(500)
-    }
-    return false
-}
-
 /**
  * The Settings tab's content on RomRunner's home screen (see LibraryScreen). Deliberately has no
  * Scaffold/TopAppBar of its own — it's embedded directly under the GAMES/SETTINGS tab heading row
@@ -340,13 +62,12 @@ private fun awaitDownload(downloadManager: DownloadManager, downloadId: Long): B
 @Composable
 fun PlatformsContent(
     repository: LibraryRepository,
+    installState: EmulatorInstallState,
     onDualScreenSupportChanged: () -> Unit,
     onRomsFolderChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var resolvingPackage by remember { mutableStateOf<String?>(null) }
-    var resolvingLabel by remember { mutableStateOf("") }
 
     // Safety net alongside downloadLatestRelease's own post-install poll: re-checks every
     // Recommended Emulators row whenever RomRunner comes back to the foreground (e.g. returning
@@ -375,6 +96,9 @@ fun PlatformsContent(
     val platforms by repository.observePlatforms().collectAsStateWithLifecycle(initialValue = emptyList())
     val visibleRecommendedEmulators = remember(games, platforms) {
         RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) }
+    }
+    val anyMissing = remember(visibleRecommendedEmulators, installCheckTick, installState.refreshTick) {
+        visibleRecommendedEmulators.any { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
     }
 
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
@@ -517,20 +241,43 @@ fun PlatformsContent(
 
         if (visibleRecommendedEmulators.isNotEmpty()) {
             item {
-                Text(
-                    "Recommended Emulators",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Recommended Emulators",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (installState.isInstallingAll) {
+                        Text("Installing…", style = MaterialTheme.typography.bodyLarge)
+                    } else if (anyMissing) {
+                        val installAllInteractionSource = rememberFocusInteractionSource()
+                        val installAllGlow = installAllInteractionSource.glowShadow()
+                        Text(
+                            "Install All",
+                            style = MaterialTheme.typography.bodyLarge.copy(shadow = installAllGlow),
+                            color = installAllInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
+                            modifier = Modifier.clickable(
+                                interactionSource = installAllInteractionSource,
+                                indication = null
+                            ) {
+                                scope.launch { installState.installAll(context, visibleRecommendedEmulators) }
+                            }
+                        )
+                    }
+                }
             }
         }
 
         visibleRecommendedEmulators.forEach { emulator ->
             item(key = emulator.packageName) {
-                var isInstalled by remember(emulator.packageName, installCheckTick) {
-                    mutableStateOf(EmulatorLauncher.isPackageInstalled(context, emulator.packageName))
+                val isInstalled = remember(emulator.packageName, installCheckTick, installState.refreshTick) {
+                    EmulatorLauncher.isPackageInstalled(context, emulator.packageName)
                 }
+                val status = installState.statuses[emulator.packageName]
                 Row(
                     // Extra start padding beyond the header's 20.dp — visually nests each row "one
                     // tab over" under the "Recommended Emulators" heading.
@@ -542,13 +289,13 @@ fun PlatformsContent(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f)
                     )
-                    val isResolving = resolvingPackage == emulator.packageName
+                    val isResolving = status != null
                     Text(
                         text = buildAnnotatedString {
                             append("${emulator.appLabel} — ")
                             when {
                                 isInstalled -> withStyle(SpanStyle(color = InstalledGreen)) { append("Installed") }
-                                isResolving -> append(resolvingLabel)
+                                isResolving -> append(status.orEmpty())
                                 else -> withStyle(SpanStyle(color = NotInstalledRed)) { append("Not Installed") }
                             }
                         },
@@ -567,16 +314,7 @@ fun PlatformsContent(
                                     ?.let { context.startActivity(it) }
                                 return@clickable
                             }
-                            resolvingPackage = emulator.packageName
-                            scope.launch {
-                                downloadLatestRelease(
-                                    context = context,
-                                    emulator = emulator,
-                                    onStatusChange = { status -> resolvingLabel = status },
-                                    onInstalled = { isInstalled = true }
-                                )
-                                resolvingPackage = null
-                            }
+                            scope.launch { installState.installOne(context, emulator) }
                         }
                     )
                 }

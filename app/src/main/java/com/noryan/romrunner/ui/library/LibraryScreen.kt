@@ -58,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.InstalledApp
+import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.launch.RetroArchLauncher
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
@@ -65,7 +66,9 @@ import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
+import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
+import com.noryan.romrunner.ui.platforms.EmulatorInstallState
 import com.noryan.romrunner.ui.components.RenameDialog
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
@@ -106,6 +109,26 @@ fun LibraryScreen(
     var renameGame by remember { mutableStateOf<Game?>(null) }
     var installPrompt by remember { mutableStateOf<MissingAppRequest?>(null) }
     var appPickerFor by remember { mutableStateOf<MissingAppRequest?>(null) }
+
+    // Shared with the Settings tab so its rows show live progress for installs started from here.
+    val emulatorInstallState = remember { EmulatorInstallState() }
+    var showEmulatorSetupPrompt by remember { mutableStateOf(false) }
+    val neededEmulators = remember(state.games, state.platforms) {
+        RECOMMENDED_EMULATORS.filter { it.isNeeded(state.platforms, state.games) }
+    }
+    // First-run offer: right after the first ROMs folder is chosen and scanned, ask once whether to
+    // download the emulators those games need. Waits for the scan to finish and for at least one
+    // game to turn up; if everything needed is already installed there's nothing to ask about.
+    LaunchedEffect(state.games, state.platforms, state.isScanning) {
+        if (!repository.isEmulatorSetupPending() || state.isScanning || state.games.isEmpty()) return@LaunchedEffect
+        val missing = neededEmulators.filter { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
+        if (missing.isEmpty()) {
+            repository.clearEmulatorSetupPending()
+        } else {
+            repository.markEmulatorSetupPromptShown()
+            showEmulatorSetupPrompt = true
+        }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -269,6 +292,7 @@ fun LibraryScreen(
                     }
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
+                        installState = emulatorInstallState,
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
                         onRomsFolderChanged = { viewModel.rescanAll(context) }
                     )
@@ -301,6 +325,21 @@ fun LibraryScreen(
                 viewModel.renameGame(game, newTitle)
                 renameGame = null
             }
+        )
+    }
+
+    if (showEmulatorSetupPrompt) {
+        EmulatorSetupDialog(
+            emulatorLabels = neededEmulators
+                .filter { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
+                .map { it.appLabel },
+            onYes = {
+                showEmulatorSetupPrompt = false
+                // Jump to Settings so the per-emulator progress is visible while it works.
+                selectedTab = HomeTab.SETTINGS
+                scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
+            },
+            onNotNow = { showEmulatorSetupPrompt = false }
         )
     }
 
