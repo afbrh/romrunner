@@ -130,7 +130,7 @@ val RECOMMENDED_EMULATORS = listOf(
         isNeeded = { platforms, games ->
             val platformId = platforms.find { it.name == "GameCube / Wii" }?.id
             platformId != null && games.any {
-                it.platformId == platformId && !it.title.contains("metroid prime trilogy", ignoreCase = true)
+                it.platformId == platformId && !GameLaunchOverrides.titleMatches(it.title, "metroid prime trilogy")
             }
         }
     ),
@@ -144,7 +144,7 @@ val RECOMMENDED_EMULATORS = listOf(
                 name.endsWith(".apk")
             }
         },
-        isNeeded = { _, games -> games.any { it.title.contains("metroid prime trilogy", ignoreCase = true) } }
+        isNeeded = { _, games -> games.any { GameLaunchOverrides.titleMatches(it.title, "metroid prime trilogy") } }
     ),
     RecommendedEmulator(
         rowLabel = fixedLabel("Wii U"),

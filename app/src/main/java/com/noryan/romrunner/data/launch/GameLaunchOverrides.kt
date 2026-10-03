@@ -2,8 +2,8 @@ package com.noryan.romrunner.data.launch
 
 /**
  * Hard-coded per-title exceptions: specific games that should launch in a different app than
- * their platform's usual default. Matched by a case-insensitive substring against the game's
- * (cleaned) title, so slight filename variations (region tags, etc.) still match.
+ * their platform's usual default. Matched by whole words, ignoring case and punctuation, against the
+ * game's (cleaned) title, so slight filename variations (dashes, region tags, etc.) still match.
  */
 data class GameOverride(
     val titleKeyword: String,
@@ -37,8 +37,17 @@ object GameLaunchOverrides {
         )
     )
 
-    fun find(gameTitle: String): GameOverride? {
-        val lower = gameTitle.lowercase()
-        return ALL.firstOrNull { lower.contains(it.titleKeyword) }
-    }
+    fun find(gameTitle: String): GameOverride? = ALL.firstOrNull { titleMatches(gameTitle, it.titleKeyword) }
+
+    /**
+     * Whether [title] contains [keyword] as a run of whole words, ignoring case, punctuation and
+     * spacing — so "Metroid - Prime Trilogy", "Metroid: Prime Trilogy" and "metroid_prime_trilogy" all
+     * match "metroid prime trilogy". Plain substring matching missed the dashed filename style that
+     * ROM sets commonly use, silently sending the game to the wrong emulator.
+     */
+    fun titleMatches(title: String, keyword: String): Boolean =
+        " ${normalizeTitle(title)} ".contains(" ${normalizeTitle(keyword)} ")
+
+    private fun normalizeTitle(text: String): String =
+        text.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
 }
