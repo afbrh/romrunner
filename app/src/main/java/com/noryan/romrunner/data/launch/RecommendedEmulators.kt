@@ -125,12 +125,12 @@ val RECOMMENDED_EMULATORS = listOf(
         // this always falls back to the download page rather than guessing one.
         releasesPageUrl = "https://dolphin-emu.org/download/",
         resolveApkUrl = { null },
-        // Needed only for a GameCube/Wii game that ISN'T Metroid Prime Trilogy — that one routes
-        // to PrimeHack instead (see the entry below and GameLaunchOverrides.kt).
+        // Needed only for a GameCube/Wii game that doesn't have its own dedicated app — Metroid Prime
+        // Trilogy routes to PrimeHack and Twilight Princess to Dusklight (see GameLaunchOverrides.kt).
         isNeeded = { platforms, games ->
             val platformId = platforms.find { it.name == "GameCube / Wii" }?.id
             platformId != null && games.any {
-                it.platformId == platformId && !GameLaunchOverrides.titleMatches(it.title, "metroid prime trilogy")
+                it.platformId == platformId && GameLaunchOverrides.find(it.title, "GameCube / Wii") == null
             }
         }
     ),
@@ -145,6 +145,24 @@ val RECOMMENDED_EMULATORS = listOf(
             }
         },
         isNeeded = { _, games -> games.any { GameLaunchOverrides.titleMatches(it.title, "metroid prime trilogy") } }
+    ),
+    RecommendedEmulator(
+        rowLabel = fixedLabel("Twilight Princess"),
+        appLabel = "Dusklight",
+        packageName = "dev.twilitrealm.dusk",
+        // Dusklight's official site (twilitrealm.dev) links its builds to this GitHub project's releases.
+        releasesPageUrl = "https://twilitrealm.dev",
+        resolveApkUrl = {
+            LatestReleaseFinder.findStableAssetUrl("https://api.github.com/repos/TwilitRealm/dusklight/releases") { name ->
+                name.endsWith("android-arm64.apk")
+            }
+        },
+        isNeeded = { platforms, games ->
+            val platformId = platforms.find { it.name == "GameCube / Wii" }?.id
+            platformId != null && games.any {
+                it.platformId == platformId && GameLaunchOverrides.titleMatches(it.title, "legend of zelda twilight princess")
+            }
+        }
     ),
     RecommendedEmulator(
         rowLabel = fixedLabel("Wii U"),

@@ -24,6 +24,7 @@ object EmulatorLauncher {
         "dev.twilitrealm.dusk" to "DuskLight",
         "org.dolphinemu.primehack" to "PrimeHack",
         "me.magnum.melondualds" to "MelonDS",
+        "dev.twilitrealm.dusk" to "Dusklight",
         "org.ppsspp.ppsspp" to "PPSSPP",
         "com.flycast.emulator" to "Flycast",
         "com.retroarch" to "RetroArch"
@@ -33,13 +34,14 @@ object EmulatorLauncher {
         val packageName: String,
         val label: String,
         val launchUri: String? = null,
-        val openAppOnly: Boolean = false
+        val openAppOnly: Boolean = false,
+        val argvLaunch: ArgvLaunch? = null
     )
 
     /** Which app should play this game: a hard-coded per-title exception if one matches, else the platform's default. */
     fun resolveTarget(platform: Platform, game: Game): Target? {
-        GameLaunchOverrides.find(game.title)?.let { override ->
-            return Target(override.packageName.orEmpty(), override.appLabel, override.launchUri, override.openAppOnly)
+        GameLaunchOverrides.find(game.title, platform.name)?.let { override ->
+            return Target(override.packageName.orEmpty(), override.appLabel, override.launchUri, override.openAppOnly, override.argvLaunch)
         }
         if (platform.launchPackage.isBlank()) return null
         return Target(platform.launchPackage, KNOWN_APP_LABELS[platform.launchPackage] ?: platform.launchPackage)
@@ -76,6 +78,24 @@ object EmulatorLauncher {
         if (target?.openAppOnly == true) {
             // No generic file-handoff Intent filter exists for this app (confirmed per-app, e.g.
             // PrimeHack) — just open it; the user picks the game from its own library/UI.
+            return context.packageManager.getLaunchIntentForPackage(target.packageName)
+                ?: Intent(Intent.ACTION_MAIN).apply {
+                    setPackage(target.packageName)
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+        }
+        target?.argvLaunch?.let { launch ->
+            // The app takes the disc on its command line (see ArgvLaunch). It needs a real file path,
+            // not a content:// Uri; if one can't be derived (e.g. an SD card), just open the app.
+            val realPath = SafPathUtils.realPathFromDocumentUri(Uri.parse(game.fileUri))
+            if (realPath != null) {
+                return Intent().apply {
+                    component = ComponentName(target.packageName, launch.activity)
+                    putExtra(launch.extraKey, (launch.argsBeforeRomPath + realPath).toTypedArray())
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
             return context.packageManager.getLaunchIntentForPackage(target.packageName)
                 ?: Intent(Intent.ACTION_MAIN).apply {
                     setPackage(target.packageName)

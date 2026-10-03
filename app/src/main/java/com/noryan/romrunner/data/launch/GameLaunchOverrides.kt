@@ -22,7 +22,23 @@ data class GameOverride(
      * of time). The app is just opened plainly instead — the user picks the game from within its
      * own UI, the same as it'd need its own one-time ROM-folder setup regardless.
      */
-    val openAppOnly: Boolean = false
+    val openAppOnly: Boolean = false,
+    /** When set, the override only applies to games on this platform (by name), e.g. so "Twilight Princess HD" on Wii U isn't caught by a GameCube-only override. */
+    val platformName: String? = null,
+    /** For apps that take the game on their command line: launches the app straight into the game. */
+    val argvLaunch: ArgvLaunch? = null
+)
+
+/**
+ * Launches an app's activity with the game's real file path appended to a fixed argument list, passed
+ * as a string-array Intent extra. Confirmed for Dusklight: DuskActivity reads the `borealis_argv`
+ * extra as its command line, and `--dvd <path>` opens that disc directly (tested on-device with a
+ * .ciso image — it skips the app's own disc picker).
+ */
+data class ArgvLaunch(
+    val activity: String,
+    val extraKey: String,
+    val argsBeforeRomPath: List<String>
 )
 
 object GameLaunchOverrides {
@@ -34,10 +50,26 @@ object GameLaunchOverrides {
             appLabel = "PrimeHack",
             packageName = "org.dolphinemu.primehack",
             openAppOnly = true
+        ),
+        // Dusklight is a native port built specifically for Twilight Princess (GameCube; it also
+        // reads the Wii disc), so it replaces Dolphin for that one title. Restricted to the
+        // GameCube/Wii platform: "Twilight Princess HD" is a different game on Wii U.
+        GameOverride(
+            titleKeyword = "legend of zelda twilight princess",
+            appLabel = "Dusklight",
+            packageName = "dev.twilitrealm.dusk",
+            platformName = "GameCube / Wii",
+            argvLaunch = ArgvLaunch(
+                activity = "dev.twilitrealm.dusk.DuskActivity",
+                extraKey = "borealis_argv",
+                argsBeforeRomPath = listOf("--dvd")
+            )
         )
     )
 
-    fun find(gameTitle: String): GameOverride? = ALL.firstOrNull { titleMatches(gameTitle, it.titleKeyword) }
+    fun find(gameTitle: String, platformName: String): GameOverride? = ALL.firstOrNull {
+        (it.platformName == null || it.platformName == platformName) && titleMatches(gameTitle, it.titleKeyword)
+    }
 
     /**
      * Whether [title] contains [keyword] as a run of whole words, ignoring case, punctuation and
