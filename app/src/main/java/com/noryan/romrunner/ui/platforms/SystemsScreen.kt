@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,8 +59,8 @@ private val InstalledGreen = Color(0xFF6BCB77)
 private val NotInstalledRed = Color(0xFFFF6B6B)
 
 /**
- * The Systems tab: everything that's specific to a game system's emulator — the Recommended Emulators
- * list for the systems in the library (with "Install All"), plus the one-off setup rows for PrimeHack's
+ * The Systems tab: everything that's specific to a game system's emulator — a row per system in the
+ * library (with "Install All"), plus the one-off setup rows for PrimeHack's
  * controller profile and Eden's graphics driver. General app settings live in [PlatformsContent].
  */
 @Composable
@@ -74,7 +75,7 @@ fun SystemsContent(
     val scope = rememberCoroutineScope()
 
     // Safety net alongside downloadLatestRelease's own post-install poll: re-checks every
-    // Recommended Emulators row whenever RomRunner comes back to the foreground (e.g. returning
+    // emulator row whenever RomRunner comes back to the foreground (e.g. returning
     // from the system installer), so a row still catches up to "Installed" even if the user takes
     // longer than that poll's own timeout to finish installing.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -87,7 +88,7 @@ fun SystemsContent(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Only show a Recommended Emulators row for a platform (or specific title, for a per-title
+    // Only show an emulator row for a platform (or specific title, for a per-title
     // override) the library actually has a matching game for — e.g. no point recommending Eden if
     // there isn't a single Switch game scanned in yet.
     val games by repository.observeGames().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -208,18 +209,15 @@ fun SystemsContent(
             }
         }
 
-        if (visibleRecommendedEmulators.isNotEmpty()) {
+        // No heading: the system rows below are the content. Install All sits above them, right-aligned,
+        // and only while there is something to install or an install-all is running.
+        if (installState.isInstallingAll || (visibleRecommendedEmulators.isNotEmpty() && anyMissing)) {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Recommended Emulators",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
                     if (installState.isInstallingAll) {
                         Text("Installing…", style = MaterialTheme.typography.bodyLarge)
                     } else if (anyMissing) {
@@ -248,9 +246,7 @@ fun SystemsContent(
                 }
                 val status = installState.statuses[emulator.packageName]
                 Row(
-                    // Extra start padding beyond the header's 20.dp — visually nests each row "one
-                    // tab over" under the "Recommended Emulators" heading.
-                    modifier = Modifier.fillMaxWidth().padding(start = 36.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
