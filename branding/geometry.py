@@ -95,11 +95,11 @@ def text_cutout(pen, text, x_left, x_right, cy, cap_height, stretch=1.0):
 X0, Y0, X1, Y1 = 150, 96, 430, 416
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
 # Label window spans x 182..398. RUNNER fills it exactly. ROM starts on the same left edge but ends at
-# 384: the top-right notch (x >= 396, y <= 130) would swallow the M's right stem at 398, so it stops 12
-# short of the notch, the same margin it keeps from the top edge.
+# 376: the top-right notch (x >= 396, y <= 130) would swallow the M's right stem at 398, so it stops
+# well short of the notch (20 units, tuned by eye).
 WIN_X0, WIN_X1 = 182, 398
-ROM_X0, ROM_X1 = WIN_X0, 384
-ROM_CAP, ROM_STRETCH = 42, 1.25    # ROM_STRETCH trades pixel width for letter-spacing
+ROM_X0, ROM_X1 = WIN_X0, 376
+ROM_CAP, ROM_STRETCH = 44, 1.35    # ROM_STRETCH trades pixel width for letter-spacing
 RUNNER_CAP = 30.9                  # = 216 / 35 pixels, so RUNNER sits on the window edges at natural spacing
 
 def paths(T):
