@@ -169,8 +169,8 @@ NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
 # well short of the notch (20 units, tuned by eye).
 WIN_X0, WIN_X1 = 182, 398
 ROM_X0, ROM_X1 = WIN_X0, 376
-ROM_CAP, ROM_BOLD, ROM_GAP = 44, 1.5, 9   # total height; extra stroke weight per side; gap between letters
-RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP = 30.9, 1.0, 6.3   # same treatment as ROM, scaled to its smaller size
+ROM_CAP, ROM_BOLD, ROM_GAP = 44, 2.0, 9   # total height; extra stroke weight per side; gap between letters
+RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP = 30.9, 1.5, 6.3   # same treatment as ROM, scaled to its smaller size
 
 def paths(T):
     """Returns the mark's path, filled even-odd (cutouts + the arrow inside the label)."""
