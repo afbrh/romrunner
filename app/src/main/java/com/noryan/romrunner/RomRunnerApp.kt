@@ -31,6 +31,7 @@ class RomRunnerApp : Application() {
             // being added to the starter set after an install has already seeded/scanned a library.
             repository.seedMissingDefaultPlatforms()
             repository.repairKnownMisclassifications()
+            repository.ensureWiiWadExtension()
             repository.applyDefaultLaunchPackagesIfMissing()
         }
     }

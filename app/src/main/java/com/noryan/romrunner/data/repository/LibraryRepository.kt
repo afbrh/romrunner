@@ -91,10 +91,22 @@ class LibraryRepository(
             }
             gcWii.id
         } else {
-            platformDao.insert(Platform(name = "GameCube / Wii", extensionsCsv = "rvz,ciso"))
+            platformDao.insert(Platform(name = "GameCube / Wii", extensionsCsv = "rvz,ciso,wad"))
         }
 
         gameDao.reassignByExtension(fromPlatformId = psp.id, toPlatformId = gcWiiId, extension = "ciso")
+    }
+
+    /**
+     * "GameCube / Wii" was originally seeded with only ".rvz,.ciso", so Wii channel / Virtual Console
+     * ".wad" files in a library were silently never listed. Adds ".wad" to installs that already have
+     * the platform seeded; idempotent. (A rescan is needed afterward to pick the files up.)
+     */
+    suspend fun ensureWiiWadExtension() {
+        val gcWii = platformDao.getAllOnce().find { it.name == "GameCube / Wii" } ?: return
+        if ("wad" !in gcWii.extensions) {
+            platformDao.update(gcWii.copy(extensionsCsv = Platform.extensionsToCsv(gcWii.extensions + "wad")))
+        }
     }
 
     /**

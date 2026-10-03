@@ -32,7 +32,8 @@ object DefaultPlatforms {
         Platform(name = "Nintendo 3DS", extensionsCsv = "3ds,cia,cci", launchPackage = "org.azahar_emu.azahar"),
         Platform(name = "Nintendo Switch", extensionsCsv = "xci", launchPackage = "dev.eden.eden_emulator"),
         Platform(name = "Wii U", extensionsCsv = "wua", launchPackage = "info.cemu.cemu"),
-        Platform(name = "GameCube / Wii", extensionsCsv = "rvz,ciso", launchPackage = "org.dolphinemu.dolphinemu"),
+        // .wad is a Wii channel / Virtual Console title (e.g. "Super Mario 64" for Wii), which Dolphin plays.
+        Platform(name = "GameCube / Wii", extensionsCsv = "rvz,ciso,wad", launchPackage = "org.dolphinemu.dolphinemu"),
         // mimeType = "" (not the Platform default "application/octet-stream"): ARMSX2's own VIEW
         // intent-filters match by content/file Uri scheme only, with no <data mimeType> at all —
         // forcing an explicit type breaks Android's intent resolution against it entirely (see

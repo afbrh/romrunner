@@ -535,7 +535,7 @@ private fun displayPlatformName(platform: Platform?, game: Game): String {
     if (platform.name == "GameCube / Wii") {
         return when (game.fileName.substringAfterLast('.', "").lowercase()) {
             "ciso" -> "GameCube"
-            "rvz" -> "Wii"
+            "rvz", "wad" -> "Wii"
             else -> platform.name
         }
     }
