@@ -74,9 +74,9 @@ import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.EdenRestartDialog
-import com.noryan.romrunner.ui.components.EdenSetupDialog
+import com.noryan.romrunner.ui.components.EdenOpenFirstDialog
+import com.noryan.romrunner.ui.components.FolderAccessDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
-import com.noryan.romrunner.ui.components.PrimeHackSetupDialog
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
 import com.noryan.romrunner.ui.components.RenameDialog
 import com.noryan.romrunner.ui.components.glowColor
@@ -141,7 +141,14 @@ fun LibraryScreen(
     }
 
     var showEdenPrompt by remember { mutableStateOf(false) }
+    var showPrimeHackPrompt by remember { mutableStateOf(false) }
     var showEdenRestartPrompt by remember { mutableStateOf(false) }
+    var showEdenOpenFirst by remember { mutableStateOf(false) }
+    // Each folder walkthrough is offered automatically at most once per app run (so cancelling the
+    // file picker can't make it nag), and only stops being offered for good once the folder is
+    // granted or the user taps "Not now" — see the dialogs at the bottom of this file.
+    var primeHackOfferedThisRun by remember { mutableStateOf(false) }
+    var edenOfferedThisRun by remember { mutableStateOf(false) }
 
     // PrimeHack setup (controller profiles + graphics defaults): the folder grant comes from the
     // system picker, opened right on PrimeHack's own folder (see PrimeHackControls).
@@ -162,7 +169,8 @@ fun LibraryScreen(
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         if (!PrimeHackControls.isPrimeHackTree(uri)) {
-            Toast.makeText(context, "That isn't PrimeHack's folder — open the menu and choose \"Prime Hack\".", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "That wasn't PrimeHack's folder — let's try again.", Toast.LENGTH_LONG).show()
+            showPrimeHackPrompt = true
             return@rememberLauncherForActivityResult
         }
         context.contentResolver.takePersistableUriPermission(
@@ -174,15 +182,14 @@ fun LibraryScreen(
     }
     fun setUpPrimeHack() {
         val granted = repository.getPrimeHackFolderUri()?.let { Uri.parse(it) }
-        if (granted != null) applyPrimeHackProfile(granted) else primeHackPicker.launch(PrimeHackControls.pickerInitialUri())
+        if (granted != null) applyPrimeHackProfile(granted) else showPrimeHackPrompt = true
     }
-    var showPrimeHackPrompt by remember { mutableStateOf(false) }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showEdenPrompt) {
         if (emulatorInstallState.isInstallingAll || showEdenPrompt) return@LaunchedEffect
-        if (repository.isPrimeHackSetupPrompted() || repository.getPrimeHackFolderUri() != null) return@LaunchedEffect
+        if (primeHackOfferedThisRun || repository.isPrimeHackSetupPrompted() || repository.getPrimeHackFolderUri() != null) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == PrimeHackControls.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)) return@LaunchedEffect
-        repository.markPrimeHackSetupPrompted()
+        primeHackOfferedThisRun = true
         showPrimeHackPrompt = true
     }
 
@@ -194,6 +201,7 @@ fun LibraryScreen(
                     repository.setEdenDriverApplied(true)
                     showEdenRestartPrompt = true
                 }
+                is EdenGpuDriver.Result.NotOpenedYet -> if (!quiet) showEdenOpenFirst = true
                 is EdenGpuDriver.Result.Failed ->
                     if (!quiet) Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
             }
@@ -205,7 +213,8 @@ fun LibraryScreen(
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         if (!EdenGpuDriver.isEdenTree(uri)) {
-            Toast.makeText(context, "That isn't Eden's folder — open the menu and choose \"Eden\".", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "That wasn't Eden's folder — let's try again.", Toast.LENGTH_LONG).show()
+            showEdenPrompt = true
             return@rememberLauncherForActivityResult
         }
         context.contentResolver.takePersistableUriPermission(
@@ -217,15 +226,15 @@ fun LibraryScreen(
     }
     fun setUpEdenDriver() {
         val granted = repository.getEdenFolderUri()?.let { Uri.parse(it) }
-        if (granted != null) applyEdenDriver(granted, quiet = false) else edenPicker.launch(EdenGpuDriver.pickerInitialUri())
+        if (granted != null) applyEdenDriver(granted, quiet = false) else showEdenPrompt = true
     }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt) {
         if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt) return@LaunchedEffect
-        if (repository.isEdenSetupPrompted() || repository.getEdenFolderUri() != null) return@LaunchedEffect
+        if (edenOfferedThisRun || repository.isEdenSetupPrompted() || repository.getEdenFolderUri() != null) return@LaunchedEffect
         if (!EdenGpuDriver.isEligible()) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == EdenGpuDriver.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
-        repository.markEdenSetupPrompted()
+        edenOfferedThisRun = true
         showEdenPrompt = true
     }
     // If the grant was given before Eden had ever been opened (so it had no settings file yet), finish
@@ -466,23 +475,48 @@ fun LibraryScreen(
     }
 
     if (showEdenPrompt) {
-        EdenSetupDialog(
-            onYes = {
+        FolderAccessDialog(
+            title = "Set up Eden's graphics driver",
+            why = "Eden's own graphics driver crashes Switch games on this device. RomRunner can install one that " +
+                "doesn't, but it needs permission to put it in Eden's folder.",
+            appName = "Eden",
+            onChooseFolder = {
                 showEdenPrompt = false
-                setUpEdenDriver()
+                edenPicker.launch(EdenGpuDriver.pickerInitialUri())
             },
-            onNotNow = { showEdenPrompt = false }
+            onNotNow = {
+                showEdenPrompt = false
+                repository.markEdenSetupPrompted()
+            }
+        )
+    }
+
+    if (showEdenOpenFirst) {
+        EdenOpenFirstDialog(
+            onOpenEden = {
+                showEdenOpenFirst = false
+                context.packageManager.getLaunchIntentForPackage(EdenGpuDriver.PACKAGE)?.let { context.startActivity(it) }
+            },
+            onLater = { showEdenOpenFirst = false }
         )
     }
 
     if (showPrimeHackPrompt) {
-        PrimeHackSetupDialog(
-            profileLabel = PrimeHackControls.detectProfile()?.label,
-            onYes = {
+        val profileLabel = PrimeHackControls.detectProfile()?.label
+        FolderAccessDialog(
+            title = "Set up PrimeHack",
+            why = "RomRunner can add the Odin and Retroid controller profiles to PrimeHack" +
+                (if (profileLabel != null) " (using the one for your $profileLabel)" else "") +
+                " and apply the graphics settings that run best on this device. It needs permission to write to PrimeHack's folder.",
+            appName = "Prime Hack",
+            onChooseFolder = {
                 showPrimeHackPrompt = false
-                setUpPrimeHack()
+                primeHackPicker.launch(PrimeHackControls.pickerInitialUri())
             },
-            onNotNow = { showPrimeHackPrompt = false }
+            onNotNow = {
+                showPrimeHackPrompt = false
+                repository.markPrimeHackSetupPrompted()
+            }
         )
     }
 

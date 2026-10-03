@@ -37,6 +37,10 @@ object EdenGpuDriver {
 
     sealed interface Result {
         data object Applied : Result
+
+        /** Eden has never been opened, so it hasn't written its settings file yet; nothing is wrong, it just has to run once. */
+        data object NotOpenedYet : Result
+
         data class Failed(val message: String) : Result
     }
 
@@ -55,7 +59,7 @@ object EdenGpuDriver {
             val root = DocumentFile.fromTreeUri(context, treeUri)
                 ?: return@withContext Result.Failed("Couldn't open Eden's folder.")
             val configFile = root.findFile("config")?.findFile("config.ini")
-                ?: return@withContext Result.Failed("Open Eden once so it can create its settings, then try again.")
+                ?: return@withContext Result.NotOpenedYet
 
             val (driverName, driverFile) = fetchDriver(context)
                 ?: return@withContext Result.Failed("Couldn't download the Turnip graphics driver.")
