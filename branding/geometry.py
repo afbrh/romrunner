@@ -3,6 +3,10 @@ Single source for both the SVG logos (build.py) and the Android vector icon (and
 Everything is emitted as plain M/L/C/Z paths, because Android VectorDrawable supports neither
 transforms like skew nor masks. Cutouts rely on even-odd filling."""
 import math
+from pathlib import Path
+
+from fontTools.pens.basePen import BasePen
+from fontTools.ttLib import TTFont
 
 def _fmt(p): return f"{p[0]:.2f},{p[1]:.2f}"
 
@@ -25,6 +29,9 @@ class Pen:
             if i == 0: (self.move if start else self.line)(p0)
             self.d += f"C{_fmt(self.T(*p1))} {_fmt(self.T(*p2))} {_fmt(self.T(*p3))}"
 
+    def quad(self, c, p):
+        self.d += f"Q{_fmt(self.T(*c))} {_fmt(self.T(*p))}"
+
     def rrect(self, x, y, w, h, r):
         for i, (c, a0) in enumerate([((x + w - r, y + r), -90), ((x + w - r, y + h - r), 0),
                                      ((x + r, y + h - r), 90), ((x + r, y + r), 180)]):
@@ -44,9 +51,39 @@ class Pen:
             self.arc(pts[i], r, a0, a0 + (a1 - a0 + 180) % 360 - 180, start=(i == 0))
         self.close()
 
+_FONT = TTFont(next(Path(__file__).parent.glob("*.ttf")))
+_GLYPHS, _CMAP, _UPM = _FONT.getGlyphSet(), _FONT.getBestCmap(), _FONT["head"].unitsPerEm
+_CAP = _FONT["OS/2"].sCapHeight / _UPM
+
+class _GlyphOutline(BasePen):
+    """Replays a glyph's outline into a Pen, scaled/flipped into mark units (font y points up)."""
+    def __init__(self, pen, ox, baseline, scale):
+        super().__init__(_GLYPHS)
+        self.pen, self.ox, self.base, self.k = pen, ox, baseline, scale
+    def _p(self, p): return (self.ox + p[0] * self.k, self.base - p[1] * self.k)
+    def _moveTo(self, p): self.pen.move(self._p(p))
+    def _lineTo(self, p): self.pen.line(self._p(p))
+    def _qCurveToOne(self, c, p): self.pen.quad(self._p(c), self._p(p))
+    def _curveToOne(self, c1, c2, p):
+        self.pen.d += f"C{_fmt(self.pen.T(*self._p(c1)))} {_fmt(self.pen.T(*self._p(c2)))} {_fmt(self.pen.T(*self._p(p)))}"
+    def _closePath(self): self.pen.close()
+
+def text_cutout(pen, text, cx, cy, cap_height, tracking=0.03):
+    """Outlines `text` (cap-height tall, centred on cx/cy) into `pen`. The shapes become cutouts
+    because the body is filled even-odd; letter counters (the hole in an O or R) fill back in."""
+    scale = cap_height / (_CAP * _UPM)
+    adv = [_GLYPHS[_CMAP[ord(c)]].width * scale for c in text]
+    gap = tracking * cap_height / _CAP
+    x = cx - (sum(adv) + gap * (len(text) - 1)) / 2
+    baseline = cy + cap_height / 2
+    for c, a in zip(text, adv):
+        _GLYPHS[_CMAP[ord(c)]].draw(_GlyphOutline(pen, x, baseline, scale))
+        x += a + gap
+
 # Cartridge in unskewed units (roughly Game Boy proportions, 280 x 320).
 X0, Y0, X1, Y1 = 150, 96, 430, 416
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
+TOP_CAP, BOTTOM_CAP = 46, 36   # cap heights of "ROM" and "RUNNER"
 
 def paths(T):
     """Returns the mark's path, filled even-odd (cutouts + the arrow inside the label)."""
@@ -58,14 +95,13 @@ def paths(T):
     b.arc((X1 - R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 0, 90)
     b.arc((X0 + R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 90, 180)
     b.close()
-    # grip ridges across the top
-    b.rrect(186, 114, 172, 12, 6)
-    b.rrect(186, 136, 172, 12, 6)
+    # the name, cut out of the shell: ROM in the top band, RUNNER in the bottom one
+    cx = (X0 + X1) / 2
+    text_cutout(b, "ROM", cx, 134, TOP_CAP)
+    text_cutout(b, "RUNNER", cx, 382, BOTTOM_CAP)
     # recessed label window, with the play arrow standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
     b.round_poly([(264, 216), (334, 260), (264, 304)], 9)
-    # embossed insert arrow near the bottom
-    b.round_poly([(274, 374), (306, 374), (290, 392)], 4)
 
     return b.d
 
