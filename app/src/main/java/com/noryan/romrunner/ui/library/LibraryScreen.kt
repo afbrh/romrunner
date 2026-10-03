@@ -143,12 +143,14 @@ fun LibraryScreen(
     var showEdenPrompt by remember { mutableStateOf(false) }
     var showEdenRestartPrompt by remember { mutableStateOf(false) }
 
-    // PrimeHack controller profile: the folder grant comes from the system picker, opened right on
-    // PrimeHack's own folder (see PrimeHackControls).
+    // PrimeHack setup (controller profiles + graphics defaults): the folder grant comes from the
+    // system picker, opened right on PrimeHack's own folder (see PrimeHackControls).
     fun applyPrimeHackProfile(treeUri: Uri) {
         scope.launch {
             val message = when (val result = PrimeHackControls.apply(context, treeUri)) {
-                is PrimeHackControls.Result.Applied -> "Loaded the ${result.profile.label} controller profile into PrimeHack."
+                is PrimeHackControls.Result.Applied -> result.profile
+                    ?.let { "Set up PrimeHack: loaded the ${it.label} controller profile and graphics settings." }
+                    ?: "Set up PrimeHack's graphics settings and added the controller profiles."
                 is PrimeHackControls.Result.Failed -> result.message
             }
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
@@ -178,7 +180,6 @@ fun LibraryScreen(
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showEdenPrompt) {
         if (emulatorInstallState.isInstallingAll || showEdenPrompt) return@LaunchedEffect
         if (repository.isPrimeHackSetupPrompted() || repository.getPrimeHackFolderUri() != null) return@LaunchedEffect
-        if (PrimeHackControls.detectProfile() == null) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == PrimeHackControls.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)) return@LaunchedEffect
         repository.markPrimeHackSetupPrompted()
@@ -476,7 +477,7 @@ fun LibraryScreen(
 
     if (showPrimeHackPrompt) {
         PrimeHackSetupDialog(
-            profileLabel = PrimeHackControls.detectProfile()?.label.orEmpty(),
+            profileLabel = PrimeHackControls.detectProfile()?.label,
             onYes = {
                 showPrimeHackPrompt = false
                 setUpPrimeHack()

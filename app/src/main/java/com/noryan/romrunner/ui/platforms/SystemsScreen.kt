@@ -96,7 +96,6 @@ fun SystemsContent(
     val primeHackInstalled = remember(installCheckTick, installState.refreshTick) {
         EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)
     }
-    val primeHackProfile = remember { PrimeHackControls.detectProfile() }
     val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null }
     val edenInstalled = remember(installCheckTick, installState.refreshTick) {
         EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)
@@ -107,7 +106,7 @@ fun SystemsContent(
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        if (primeHackInstalled && primeHackProfile != null) {
+        if (primeHackInstalled) {
             item {
                 val primeHackInteractionSource = rememberFocusInteractionSource()
                 val primeHackGlow = primeHackInteractionSource.glowShadow()
@@ -124,13 +123,13 @@ fun SystemsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "PrimeHack controls",
+                        "PrimeHack setup",
                         style = LocalTextStyle.current.copy(shadow = primeHackGlow),
                         color = primeHackColor,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = if (primeHackLinked) "${primeHackProfile.label} — Loaded" else "Set up",
+                        text = if (primeHackLinked) "Loaded" else "Set up",
                         style = LocalTextStyle.current.copy(shadow = primeHackGlow),
                         color = primeHackColor,
                         textAlign = TextAlign.End

@@ -8,25 +8,24 @@ import android.view.InputDevice
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
- * Loads the community PrimeHack controller profile that matches this handheld (AYN Odin/Thor or
- * Retroid Pocket) into PrimeHack. The profiles are published by PrimeHack-Android itself, as assets
- * of its "Controller_config_files" release.
+ * Sets PrimeHack up for this handheld: installs the community controller profiles for AYN Odin/Thor
+ * and Retroid Pocket (so both show up in PrimeHack's profile list, with the one that matches this
+ * device made active), and writes the graphics defaults we settled on while getting PrimeHack running
+ * well on this hardware. The two profiles are the ones PrimeHack-Android publishes as assets of its
+ * "Controller_config_files" release; RomRunner ships its own copies (assets/primehack/), so this works
+ * offline and doesn't depend on that release staying up.
  *
  * PrimeHack keeps its config in Android/data/org.dolphinemu.primehack/files, which other apps can't
  * touch directly on Android 13. Dolphin-based apps do expose that folder through Android's file
  * picker, though (PrimeHack's DocumentProvider, enabled on API 24+), so the user picks PrimeHack's
- * folder once, RomRunner keeps the grant, and the profile is written through it.
+ * folder once, RomRunner keeps the grant, and everything is written through it.
  */
 object PrimeHackControls {
 
     const val PACKAGE = "org.dolphinemu.primehack"
     private const val PROVIDER_AUTHORITY = "$PACKAGE.user"
-    private const val RELEASES_URL = "https://api.github.com/repos/Starlightbotanist/PrimeHack-Android/releases"
 
     enum class DeviceProfile(val assetName: String, val label: String) {
         ODIN("PrimeHack.Odin.ini", "AYN Odin"),
@@ -34,7 +33,8 @@ object PrimeHackControls {
     }
 
     sealed interface Result {
-        data class Applied(val profile: DeviceProfile) : Result
+        /** [profile] is null when this device isn't a known handheld: graphics defaults and both profiles are still installed, but none is made active. */
+        data class Applied(val profile: DeviceProfile?) : Result
         data class Failed(val message: String) : Result
     }
 
@@ -61,56 +61,98 @@ object PrimeHackControls {
     fun isPrimeHackTree(treeUri: Uri): Boolean = treeUri.authority == PROVIDER_AUTHORITY
 
     /**
-     * Downloads (or, offline, reuses the last downloaded copy of) the profile for this device and
-     * writes it into PrimeHack through [treeUri]: as a loadable profile under Config/Profiles/Wiimote,
-     * and as the active Wii Remote 1 mapping in Config/WiimoteNew.ini. Blocking I/O, run on IO.
+     * Writes everything through [treeUri]: both controller profiles under Config/Profiles/Wiimote
+     * (where PrimeHack's profile list reads them), this device's profile as the active Wii Remote 1
+     * mapping in Config/WiimoteNew.ini, and the graphics defaults. Blocking I/O, run on IO.
      */
     suspend fun apply(context: Context, treeUri: Uri): Result = withContext(Dispatchers.IO) {
         val profile = detectProfile()
-            ?: return@withContext Result.Failed("No PrimeHack controller profile for this device.")
-        val profileText = fetchProfile(context, profile)
-            ?: return@withContext Result.Failed("Couldn't download the ${profile.label} controller profile.")
         try {
             val root = DocumentFile.fromTreeUri(context, treeUri)
                 ?: return@withContext Result.Failed("Couldn't open PrimeHack's folder.")
             val config = root.ensureDir("Config")
-            val profilesDir = config.ensureDir("Profiles").ensureDir("Wiimote")
-            writeText(context, profilesDir, profile.assetName, profileText)
 
-            val body = profileText.lines().filterNot { it.trim() == "[Profile]" }.joinToString("\n").trim()
-            val wiimoteIni = config.findFile("WiimoteNew.ini")
-            val existing = wiimoteIni?.let { readText(context, it) }.orEmpty()
-            writeText(context, config, "WiimoteNew.ini", replaceSection(existing, "Wiimote1", body))
+            val profilesDir = config.ensureDir("Profiles").ensureDir("Wiimote")
+            for (candidate in DeviceProfile.entries) {
+                writeText(context, profilesDir, candidate.assetName, loadProfile(context, candidate))
+            }
+            if (profile != null) {
+                val body = loadProfile(context, profile).lines().filterNot { it.trim() == "[Profile]" }.joinToString("\n").trim()
+                val wiimoteIni = config.findFile("WiimoteNew.ini")
+                val existing = wiimoteIni?.let { readText(context, it) }.orEmpty()
+                writeText(context, config, "WiimoteNew.ini", replaceSection(existing, "Wiimote1", body))
+            }
+
+            editIni(context, config, "Dolphin.ini") { ini ->
+                // Hide the on-screen touch overlay: a physical controller is expected.
+                setIniValue(ini, "Android", "ShowInputOverlay", "False")
+            }
+            editIni(context, config, "GFX.ini") { ini ->
+                // Compile shaders before a game starts, and use asynchronous ubershaders for the ones
+                // that still turn up mid-game. The second is the one that matters: a cold-compile burst
+                // used to spike memory/CPU enough to get PrimeHack OOM-killed.
+                setIniValue(setIniValue(ini, "Settings", "WaitForShadersBeforeStarting", "True"), "Settings", "ShaderCompilationMode", "2")
+            }
+            applySuperMarioSunshineDefaults(context, root, config)
             Result.Applied(profile)
         } catch (e: Exception) {
             Result.Failed("Couldn't write to PrimeHack's folder: ${e.message ?: "unknown error"}")
         }
     }
 
-    private fun fetchProfile(context: Context, profile: DeviceProfile): String? {
-        val cache = File(context.filesDir, "primehack/${profile.assetName}")
-        val url = LatestReleaseFinder.findStableAssetUrl(RELEASES_URL) { it == profile.assetName }
-        if (url != null) {
-            try {
-                val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 15_000
-                    readTimeout = 15_000
+    /**
+     * Super Mario Sunshine: turns on its bundled Widescreen and 60FPS Gecko codes and forces a real
+     * 16:9 render. The codes alone leave a letterboxed 4:3 picture, and forcing the aspect without the
+     * widescreen hack stretches it, so all three are set (confirmed on-device). Per-game settings live
+     * in `GameSettings/<gameId>.ini`, a sibling of `Config`, and Gecko codes only run when the global
+     * `EnableCheats` switch is on.
+     */
+    private fun applySuperMarioSunshineDefaults(context: Context, root: DocumentFile, config: DocumentFile) {
+        editIni(context, config, "Dolphin.ini") { setIniValue(it, "Core", "EnableCheats", "True") }
+        editIni(context, root.ensureDir("GameSettings"), "GMSE01.ini") { ini ->
+            var out = ini
+            val existing = ini.lines().map { it.trim() }
+            val codes = listOf("\$Widescreen", "\$60FPS").filter { it !in existing }
+            if (codes.isNotEmpty()) {
+                out = if ("[Gecko_Enabled]" in existing) {
+                    out.lines().flatMap { if (it.trim() == "[Gecko_Enabled]") listOf(it) + codes else listOf(it) }.joinToString("\n")
+                } else {
+                    out.trimEnd() + "\n\n[Gecko_Enabled]\n" + codes.joinToString("\n") + "\n"
                 }
-                try {
-                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                        val text = connection.inputStream.bufferedReader().use { it.readText() }
-                        cache.parentFile?.mkdirs()
-                        cache.writeText(text)
-                        return text
-                    }
-                } finally {
-                    connection.disconnect()
-                }
-            } catch (e: Exception) {
-                // fall through to the cached copy
+            }
+            out = setIniValue(out, "Video_Settings", "AspectRatio", "1")
+            setIniValue(out, "Video_Settings", "wideScreenHack", "True")
+        }
+    }
+
+    private fun loadProfile(context: Context, profile: DeviceProfile): String =
+        context.assets.open("primehack/${profile.assetName}").bufferedReader().use { it.readText() }
+
+    /** Reads [name] under [dir] (empty if it doesn't exist yet), runs [edit] on it, and writes the result back. */
+    private fun editIni(context: Context, dir: DocumentFile, name: String, edit: (String) -> String) {
+        val existing = dir.findFile(name)?.let { readText(context, it) }.orEmpty()
+        writeText(context, dir, name, edit(existing))
+    }
+
+    /**
+     * Sets `key = value` inside `[section]` of [ini], adding the section or key if missing and leaving
+     * every other line alone — these files already hold settings PrimeHack wrote itself.
+     */
+    private fun setIniValue(ini: String, section: String, key: String, value: String): String {
+        val lines = ini.lines().toMutableList()
+        val header = "[$section]"
+        val start = lines.indexOfFirst { it.trim() == header }
+        if (start == -1) return ini.trimEnd() + (if (ini.isBlank()) "" else "\n\n") + "$header\n$key = $value\n"
+        var end = lines.size
+        for (i in start + 1 until lines.size) {
+            if (lines[i].trim().startsWith("[")) {
+                end = i
+                break
             }
         }
-        return if (cache.exists()) cache.readText() else null
+        val keyIndex = (start + 1 until end).firstOrNull { lines[it].trim().startsWith("$key ") || lines[it].trim().startsWith("$key=") }
+        if (keyIndex != null) lines[keyIndex] = "$key = $value" else lines.add(end, "$key = $value")
+        return lines.joinToString("\n")
     }
 
     private fun DocumentFile.ensureDir(name: String): DocumentFile =
