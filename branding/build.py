@@ -8,7 +8,7 @@ font = TTFont("RussoOne.ttf")
 gs, cmap = font.getGlyphSet(), font.getBestCmap()
 upm = font["head"].unitsPerEm
 
-def text_path(s, x, baseline, size, tracking=0.02, skew=-0.18):
+def text_path(s, x, baseline, size, tracking=0.02, skew=0):
     sc, pen = size / upm, SVGPathPen(gs)
     for ch in s:
         g = cmap[ord(ch)]
@@ -36,13 +36,14 @@ write("app-icon.svg", svg("0 0 512 512", f'<rect width="512" height="512" rx="11
 
 d, xend = text_path("ROMRUNNER", 318, 250, 150)
 W = int(xend + 40)
-for name, bg in [("logo-horizontal.svg", BG), ("logo-horizontal-transparent.svg", None)]:
-    back = f'<rect width="{W}" height="400" fill="{bg}"/>' if bg else ""
-    write(name, svg(f"0 0 {W} 400", f'{back}{nested(0, 55, 290, FG, "h")}<path d="{d}" fill="{FG}"/>'))
+# Both horizontal files are transparent now (the opaque one used to carry the dark BG panel); the
+# "-transparent" name is kept so anything already pointing at it keeps working.
+for name in ["logo-horizontal.svg", "logo-horizontal-transparent.svg"]:
+    write(name, svg(f"0 0 {W} 400", f'{nested(0, 55, 290, FG, "h")}<path d="{d}" fill="{FG}"/>'))
 
 d, xend = text_path("ROMRUNNER", 40, 520, 110)
 W = int(xend + 60)
-write("logo-stacked.svg", svg(f"0 0 {W} 580", f'<rect width="{W}" height="580" fill="{BG}"/>{nested(W//2 - 200, 20, 400, FG, "s")}<path d="{d}" fill="{FG}"/>'))
+write("logo-stacked.svg", svg(f"0 0 {W} 580", f'{nested(W//2 - 200, 20, 400, FG, "s")}<path d="{d}" fill="{FG}"/>'))
 
 # preview page (SVGs inlined so it renders anywhere)
 def inl(f, w, style=""): return open(f).read().replace("<svg ", f'<svg width="{w}" style="{style}" ', 1)
