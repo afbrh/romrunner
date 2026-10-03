@@ -41,6 +41,16 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_EMULATOR_SETUP_PENDING, false)
         set(value) = prefs.edit().putBoolean(KEY_EMULATOR_SETUP_PENDING, value).apply()
 
+    /** The folder grant for PrimeHack's own user directory (see PrimeHackControls), if the user gave one. */
+    var primeHackFolderUri: String?
+        get() = prefs.getString(KEY_PRIMEHACK_FOLDER_URI, null)
+        set(value) = prefs.edit().putString(KEY_PRIMEHACK_FOLDER_URI, value).apply()
+
+    /** True once the "load PrimeHack's controller profile?" prompt has been shown — offered once. */
+    var primeHackSetupPrompted: Boolean
+        get() = prefs.getBoolean(KEY_PRIMEHACK_SETUP_PROMPTED, false)
+        set(value) = prefs.edit().putBoolean(KEY_PRIMEHACK_SETUP_PROMPTED, value).apply()
+
     companion object {
         private const val PREFS_NAME = "romrunner_settings"
         private const val KEY_ROOT_FOLDER_URI = "root_folder_uri"
@@ -49,5 +59,7 @@ class LibrarySettings(context: Context) {
         private const val KEY_DUAL_SCREEN_SUPPORT_ENABLED = "dual_screen_support_enabled"
         private const val KEY_EMULATOR_SETUP_PROMPTED = "emulator_setup_prompted"
         private const val KEY_EMULATOR_SETUP_PENDING = "emulator_setup_pending"
+        private const val KEY_PRIMEHACK_FOLDER_URI = "primehack_folder_uri"
+        private const val KEY_PRIMEHACK_SETUP_PROMPTED = "primehack_setup_prompted"
     }
 }

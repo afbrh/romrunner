@@ -167,6 +167,16 @@ class LibraryRepository(
         if (uri != null && !settings.emulatorSetupPrompted) settings.emulatorSetupPending = true
     }
 
+    fun getPrimeHackFolderUri(): String? = settings.primeHackFolderUri
+    fun setPrimeHackFolderUri(uri: String?) {
+        settings.primeHackFolderUri = uri
+    }
+
+    fun isPrimeHackSetupPrompted(): Boolean = settings.primeHackSetupPrompted
+    fun markPrimeHackSetupPrompted() {
+        settings.primeHackSetupPrompted = true
+    }
+
     fun isEmulatorSetupPending(): Boolean = settings.emulatorSetupPending
 
     /** Marks the first-run emulator prompt as shown, so it never appears again. */

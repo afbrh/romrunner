@@ -31,6 +31,11 @@ class EmulatorInstallState {
     var refreshTick by mutableIntStateOf(0)
         private set
 
+    /** Lets other flows (e.g. PrimeHack's folder setup) make the Settings rows re-read their state. */
+    fun bumpRefresh() {
+        refreshTick++
+    }
+
     /** Downloads and installs a single emulator (the per-row tap). */
     suspend fun installOne(context: Context, emulator: RecommendedEmulator) {
         val pkg = emulator.packageName

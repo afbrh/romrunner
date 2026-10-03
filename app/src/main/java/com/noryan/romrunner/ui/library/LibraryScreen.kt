@@ -58,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.InstalledApp
+import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.launch.RetroArchLauncher
 import com.noryan.romrunner.data.model.Game
@@ -68,6 +69,7 @@ import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
+import com.noryan.romrunner.ui.components.PrimeHackSetupDialog
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
 import com.noryan.romrunner.ui.components.RenameDialog
 import com.noryan.romrunner.ui.components.glowColor
@@ -128,6 +130,48 @@ fun LibraryScreen(
             repository.markEmulatorSetupPromptShown()
             showEmulatorSetupPrompt = true
         }
+    }
+
+    // PrimeHack controller profile: the folder grant comes from the system picker, opened right on
+    // PrimeHack's own folder (see PrimeHackControls).
+    fun applyPrimeHackProfile(treeUri: Uri) {
+        scope.launch {
+            val message = when (val result = PrimeHackControls.apply(context, treeUri)) {
+                is PrimeHackControls.Result.Applied -> "Loaded the ${result.profile.label} controller profile into PrimeHack."
+                is PrimeHackControls.Result.Failed -> result.message
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            emulatorInstallState.bumpRefresh()
+        }
+    }
+    val primeHackPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (!PrimeHackControls.isPrimeHackTree(uri)) {
+            Toast.makeText(context, "That isn't PrimeHack's folder — open the menu and choose \"Prime Hack\".", Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        repository.setPrimeHackFolderUri(uri.toString())
+        applyPrimeHackProfile(uri)
+    }
+    fun setUpPrimeHack() {
+        val granted = repository.getPrimeHackFolderUri()?.let { Uri.parse(it) }
+        if (granted != null) applyPrimeHackProfile(granted) else primeHackPicker.launch(PrimeHackControls.pickerInitialUri())
+    }
+    var showPrimeHackPrompt by remember { mutableStateOf(false) }
+    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games) {
+        if (emulatorInstallState.isInstallingAll) return@LaunchedEffect
+        if (repository.isPrimeHackSetupPrompted() || repository.getPrimeHackFolderUri() != null) return@LaunchedEffect
+        if (PrimeHackControls.detectProfile() == null) return@LaunchedEffect
+        if (neededEmulators.none { it.packageName == PrimeHackControls.PACKAGE }) return@LaunchedEffect
+        if (!EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)) return@LaunchedEffect
+        repository.markPrimeHackSetupPrompted()
+        showPrimeHackPrompt = true
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -293,6 +337,7 @@ fun LibraryScreen(
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
                         installState = emulatorInstallState,
+                        onSetUpPrimeHack = { setUpPrimeHack() },
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
                         onRomsFolderChanged = { viewModel.rescanAll(context) }
                     )
@@ -325,6 +370,17 @@ fun LibraryScreen(
                 viewModel.renameGame(game, newTitle)
                 renameGame = null
             }
+        )
+    }
+
+    if (showPrimeHackPrompt) {
+        PrimeHackSetupDialog(
+            profileLabel = PrimeHackControls.detectProfile()?.label.orEmpty(),
+            onYes = {
+                showPrimeHackPrompt = false
+                setUpPrimeHack()
+            },
+            onNotNow = { showPrimeHackPrompt = false }
         )
     }
 

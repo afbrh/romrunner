@@ -39,6 +39,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
@@ -63,6 +64,7 @@ private val NotInstalledRed = Color(0xFFFF6B6B)
 fun PlatformsContent(
     repository: LibraryRepository,
     installState: EmulatorInstallState,
+    onSetUpPrimeHack: () -> Unit,
     onDualScreenSupportChanged: () -> Unit,
     onRomsFolderChanged: () -> Unit
 ) {
@@ -97,6 +99,11 @@ fun PlatformsContent(
     val visibleRecommendedEmulators = remember(games, platforms) {
         RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) }
     }
+    val primeHackInstalled = remember(installCheckTick, installState.refreshTick) {
+        EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)
+    }
+    val primeHackProfile = remember { PrimeHackControls.detectProfile() }
+    val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null }
     val anyMissing = remember(visibleRecommendedEmulators, installCheckTick, installState.refreshTick) {
         visibleRecommendedEmulators.any { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
     }
@@ -195,6 +202,38 @@ fun PlatformsContent(
                     color = biosFolderColor,
                     textAlign = TextAlign.End
                 )
+            }
+        }
+
+        if (primeHackInstalled && primeHackProfile != null) {
+            item {
+                val primeHackInteractionSource = rememberFocusInteractionSource()
+                val primeHackGlow = primeHackInteractionSource.glowShadow()
+                val primeHackColor = primeHackInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = primeHackInteractionSource,
+                            indication = null,
+                            onClick = onSetUpPrimeHack
+                        )
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "PrimeHack controls",
+                        style = LocalTextStyle.current.copy(shadow = primeHackGlow),
+                        color = primeHackColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = if (primeHackLinked) "${primeHackProfile.label} — Loaded" else "Set up",
+                        style = LocalTextStyle.current.copy(shadow = primeHackGlow),
+                        color = primeHackColor,
+                        textAlign = TextAlign.End
+                    )
+                }
             }
         }
 
