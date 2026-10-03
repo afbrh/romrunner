@@ -85,11 +85,12 @@ import com.noryan.romrunner.ui.components.HomeStatusInfo
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 import com.noryan.romrunner.ui.apps.AppsContent
 import com.noryan.romrunner.ui.platforms.PlatformsContent
+import com.noryan.romrunner.ui.platforms.SystemsContent
 import kotlinx.coroutines.launch
 
 private data class MissingAppRequest(val platform: Platform, val game: Game, val target: EmulatorLauncher.Target)
 
-private enum class HomeTab { GAMES, SETTINGS, APPS }
+private enum class HomeTab { GAMES, SYSTEMS, SETTINGS, APPS }
 
 private fun cycleTab(current: HomeTab, delta: Int): HomeTab {
     val tabs = HomeTab.entries
@@ -298,7 +299,7 @@ fun LibraryScreen(
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(
                 context,
-                "No app could open this file. Configure an emulator for ${platform.name} in Settings.",
+                "No app could open this file. Check the emulator for ${platform.name} on the Systems tab.",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -318,7 +319,7 @@ fun LibraryScreen(
         modifier = Modifier
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type != KeyEventType.KeyDown) return@onKeyEvent false
-                // With three tabs now (was two, one fixed jump per shoulder button), L1/R1 cycle
+                // With several tabs (was two, one fixed jump per shoulder button), L1/R1 cycle
                 // through them in order instead of each jumping to one fixed tab.
                 when (keyEvent.nativeKeyEvent.keyCode) {
                     android.view.KeyEvent.KEYCODE_BUTTON_L1 -> {
@@ -346,6 +347,11 @@ fun LibraryScreen(
                         selected = selectedTab == HomeTab.GAMES,
                         onClick = { selectedTab = HomeTab.GAMES },
                         modifier = Modifier.focusRequester(gamesTabFocusRequester)
+                    )
+                    HomeTabHeading(
+                        text = "SYSTEMS",
+                        selected = selectedTab == HomeTab.SYSTEMS,
+                        onClick = { selectedTab = HomeTab.SYSTEMS }
                     )
                     HomeTabHeading(
                         text = "SETTINGS",
@@ -402,11 +408,14 @@ fun LibraryScreen(
                             }
                         }
                     }
-                    HomeTab.SETTINGS -> PlatformsContent(
+                    HomeTab.SYSTEMS -> SystemsContent(
                         repository = repository,
                         installState = emulatorInstallState,
                         onSetUpPrimeHack = { setUpPrimeHack() },
-                        onSetUpEdenDriver = { setUpEdenDriver() },
+                        onSetUpEdenDriver = { setUpEdenDriver() }
+                    )
+                    HomeTab.SETTINGS -> PlatformsContent(
+                        repository = repository,
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
                         onRomsFolderChanged = { viewModel.rescanAll(context) }
                     )
@@ -483,8 +492,8 @@ fun LibraryScreen(
                 .map { it.appLabel },
             onYes = {
                 showEmulatorSetupPrompt = false
-                // Jump to Settings so the per-emulator progress is visible while it works.
-                selectedTab = HomeTab.SETTINGS
+                // Jump to Systems so the per-emulator progress is visible while it works.
+                selectedTab = HomeTab.SYSTEMS
                 scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
             },
             onNotNow = { showEmulatorSetupPrompt = false }

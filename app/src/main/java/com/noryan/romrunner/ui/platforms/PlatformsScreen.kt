@@ -53,66 +53,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val InstalledGreen = Color(0xFF6BCB77)
-private val NotInstalledRed = Color(0xFFFF6B6B)
-
 /**
- * The Settings tab's content on RomRunner's home screen (see LibraryScreen). Deliberately has no
- * Scaffold/TopAppBar of its own — it's embedded directly under the GAMES/SETTINGS tab heading row
- * rather than being a separate navigation destination.
+ * The Settings tab's content on RomRunner's home screen (see LibraryScreen): the general, app-wide
+ * settings. System-specific ones are on the Systems tab ([SystemsContent]). Deliberately has no
+ * Scaffold/TopAppBar of its own — it's embedded directly under the tab heading row rather than being
+ * a separate navigation destination.
  */
 @Composable
 fun PlatformsContent(
     repository: LibraryRepository,
-    installState: EmulatorInstallState,
-    onSetUpPrimeHack: () -> Unit,
-    onSetUpEdenDriver: () -> Unit,
     onDualScreenSupportChanged: () -> Unit,
     onRomsFolderChanged: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    // Safety net alongside downloadLatestRelease's own post-install poll: re-checks every
-    // Recommended Emulators row whenever RomRunner comes back to the foreground (e.g. returning
-    // from the system installer), so a row still catches up to "Installed" even if the user takes
-    // longer than that poll's own timeout to finish installing.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var installCheckTick by remember { mutableStateOf(0) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) installCheckTick++
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
 
     var biosKeysFolderUri by remember { mutableStateOf(repository.getBiosKeysFolderUri()) }
     LaunchedEffect(Unit) { biosKeysFolderUri = repository.getBiosKeysFolderUri() }
-
-    // Only show a Recommended Emulators row for a platform (or specific title, for a per-title
-    // override) the library actually has a matching game for — e.g. no point recommending Eden if
-    // there isn't a single Switch game scanned in yet.
-    val games by repository.observeGames().collectAsStateWithLifecycle(initialValue = emptyList())
-    val platforms by repository.observePlatforms().collectAsStateWithLifecycle(initialValue = emptyList())
-    val visibleRecommendedEmulators = remember(games, platforms) {
-        RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) }
-    }
-    val primeHackInstalled = remember(installCheckTick, installState.refreshTick) {
-        EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)
-    }
-    val primeHackProfile = remember { PrimeHackControls.detectProfile() }
-    val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null }
-    val edenInstalled = remember(installCheckTick, installState.refreshTick) {
-        EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)
-    }
-    val edenDriverApplied = remember(installState.refreshTick) { repository.isEdenDriverApplied() }
-    val anyMissing = remember(visibleRecommendedEmulators, installCheckTick, installState.refreshTick) {
-        visibleRecommendedEmulators.any { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
-    }
 
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
     var dualScreenSupportEnabled by remember { mutableStateOf(repository.getDualScreenSupportEnabled()) }
@@ -211,70 +170,6 @@ fun PlatformsContent(
             }
         }
 
-        if (primeHackInstalled && primeHackProfile != null) {
-            item {
-                val primeHackInteractionSource = rememberFocusInteractionSource()
-                val primeHackGlow = primeHackInteractionSource.glowShadow()
-                val primeHackColor = primeHackInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = primeHackInteractionSource,
-                            indication = null,
-                            onClick = onSetUpPrimeHack
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "PrimeHack controls",
-                        style = LocalTextStyle.current.copy(shadow = primeHackGlow),
-                        color = primeHackColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (primeHackLinked) "${primeHackProfile.label} — Loaded" else "Set up",
-                        style = LocalTextStyle.current.copy(shadow = primeHackGlow),
-                        color = primeHackColor,
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-
-        if (edenInstalled && EdenGpuDriver.isEligible()) {
-            item {
-                val edenInteractionSource = rememberFocusInteractionSource()
-                val edenGlow = edenInteractionSource.glowShadow()
-                val edenColor = edenInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = edenInteractionSource,
-                            indication = null,
-                            onClick = onSetUpEdenDriver
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Eden graphics driver",
-                        style = LocalTextStyle.current.copy(shadow = edenGlow),
-                        color = edenColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (edenDriverApplied) "Turnip — Installed" else "Set up",
-                        style = LocalTextStyle.current.copy(shadow = edenGlow),
-                        color = edenColor,
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
@@ -316,86 +211,5 @@ fun PlatformsContent(
             }
         }
 
-        if (visibleRecommendedEmulators.isNotEmpty()) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Recommended Emulators",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (installState.isInstallingAll) {
-                        Text("Installing…", style = MaterialTheme.typography.bodyLarge)
-                    } else if (anyMissing) {
-                        val installAllInteractionSource = rememberFocusInteractionSource()
-                        val installAllGlow = installAllInteractionSource.glowShadow()
-                        Text(
-                            "Install All",
-                            style = MaterialTheme.typography.bodyLarge.copy(shadow = installAllGlow),
-                            color = installAllInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                            modifier = Modifier.clickable(
-                                interactionSource = installAllInteractionSource,
-                                indication = null
-                            ) {
-                                scope.launch { installState.installAll(context, visibleRecommendedEmulators) }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        visibleRecommendedEmulators.forEach { emulator ->
-            item(key = emulator.packageName) {
-                val isInstalled = remember(emulator.packageName, installCheckTick, installState.refreshTick) {
-                    EmulatorLauncher.isPackageInstalled(context, emulator.packageName)
-                }
-                val status = installState.statuses[emulator.packageName]
-                Row(
-                    // Extra start padding beyond the header's 20.dp — visually nests each row "one
-                    // tab over" under the "Recommended Emulators" heading.
-                    modifier = Modifier.fillMaxWidth().padding(start = 36.dp, end = 20.dp, top = 16.dp, bottom = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        emulator.rowLabel(platforms, games),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    val isResolving = status != null
-                    Text(
-                        text = buildAnnotatedString {
-                            append("${emulator.appLabel} — ")
-                            when {
-                                isInstalled -> withStyle(SpanStyle(color = InstalledGreen)) { append("Installed") }
-                                isResolving -> append(status.orEmpty())
-                                else -> withStyle(SpanStyle(color = NotInstalledRed)) { append("Not Installed") }
-                            }
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.End,
-                        // Tapping "Installed" opens the app directly — RomRunner can't configure
-                        // another app's own settings (sandboxed private storage, no public API for
-                        // it; confirmed against ARMSX2's real source), so this is a one-tap
-                        // shortcut into its own setup/settings rather than real automation.
-                        // Tapping "Not Installed" looks up the latest stable release, downloads
-                        // it, and hands it to the system installer. No action while this row's
-                        // download/install is already in flight.
-                        modifier = Modifier.clickable(enabled = !isResolving) {
-                            if (isInstalled) {
-                                context.packageManager.getLaunchIntentForPackage(emulator.packageName)
-                                    ?.let { context.startActivity(it) }
-                                return@clickable
-                            }
-                            scope.launch { installState.installOne(context, emulator) }
-                        }
-                    )
-                }
-            }
-        }
     }
 }
