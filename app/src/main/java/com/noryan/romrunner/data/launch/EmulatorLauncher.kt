@@ -115,10 +115,31 @@ object EmulatorLauncher {
         return buildIntentForPackage(context, platform, game, target?.packageName.orEmpty())
     }
 
+    /**
+     * PrimeHack declares no VIEW filter for ROM files (its only one is a custom `dolphinemu://`
+     * scheme), but its launcher activity does run Dolphin's StartupHandler, which starts a game from
+     * the launch Intent: the content URI in the Intent data first, else an `AutoStartFile` path extra.
+     * So the game is handed over through the launcher Intent itself. CLEAR_TASK makes that
+     * deterministic when PrimeHack is already open on another game (the handoff would otherwise be
+     * stacked on top of it). Null if PrimeHack has no launcher activity (not installed).
+     */
+    private fun buildPrimeHackIntent(context: Context, fileUri: Uri, realPath: String?): Intent? {
+        val intent = context.packageManager.getLaunchIntentForPackage(PrimeHackControls.PACKAGE) ?: return null
+        return intent.apply {
+            data = fileUri
+            if (realPath != null) putExtra("AutoStartFile", realPath)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+    }
+
     /** Builds the launch Intent using an explicit package, bypassing override resolution — used right after the user picks a replacement app. */
     fun buildIntentForPackage(context: Context, platform: Platform, game: Game, targetPackage: String): Intent {
         val fileUri = Uri.parse(game.fileUri)
         val realPath = SafPathUtils.realPathFromDocumentUri(fileUri)
+
+        if (targetPackage == PrimeHackControls.PACKAGE) {
+            buildPrimeHackIntent(context, fileUri, realPath)?.let { return it }
+        }
 
         val intent = Intent(platform.launchAction.ifBlank { Intent.ACTION_VIEW })
         if (targetPackage.isNotBlank()) {

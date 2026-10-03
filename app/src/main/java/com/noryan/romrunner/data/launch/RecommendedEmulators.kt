@@ -118,24 +118,6 @@ val RECOMMENDED_EMULATORS = listOf(
     ),
     RecommendedEmulator(
         rowLabel = fixedLabel("GameCube / Wii"),
-        appLabel = "Dolphin",
-        packageName = "org.dolphinemu.dolphinemu",
-        // Dolphin isn't distributed via GitHub Releases at all (confirmed: the repo has none) —
-        // it's built on its own buildbot with no stable, parseable "latest Android APK" URL, so
-        // this always falls back to the download page rather than guessing one.
-        releasesPageUrl = "https://dolphin-emu.org/download/",
-        resolveApkUrl = { null },
-        // Needed only for a GameCube/Wii game that doesn't have its own dedicated app — Metroid Prime
-        // Trilogy routes to PrimeHack and Twilight Princess to Dusklight (see GameLaunchOverrides.kt).
-        isNeeded = { platforms, games ->
-            val platformId = platforms.find { it.name == "GameCube / Wii" }?.id
-            platformId != null && games.any {
-                it.platformId == platformId && GameLaunchOverrides.find(it.title, "GameCube / Wii") == null
-            }
-        }
-    ),
-    RecommendedEmulator(
-        rowLabel = fixedLabel("Metroid Prime Trilogy"),
         appLabel = "PrimeHack",
         packageName = "org.dolphinemu.primehack",
         releasesPageUrl = "https://github.com/Starlightbotanist/PrimeHack-Android/releases",
@@ -144,7 +126,14 @@ val RECOMMENDED_EMULATORS = listOf(
                 name.endsWith(".apk")
             }
         },
-        isNeeded = { _, games -> games.any { GameLaunchOverrides.titleMatches(it.title, "metroid prime trilogy") } }
+        // Needed for any GameCube/Wii game except Twilight Princess, which routes to Dusklight
+        // (see GameLaunchOverrides.kt).
+        isNeeded = { platforms, games ->
+            val platformId = platforms.find { it.name == "GameCube / Wii" }?.id
+            platformId != null && games.any {
+                it.platformId == platformId && GameLaunchOverrides.find(it.title, "GameCube / Wii") == null
+            }
+        }
     ),
     RecommendedEmulator(
         rowLabel = fixedLabel("Twilight Princess"),

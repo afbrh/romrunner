@@ -16,11 +16,10 @@ data class GameOverride(
      */
     val launchUri: String? = null,
     /**
-     * True for an app with no generic "hand it a file" Intent filter at all (confirmed for
-     * PrimeHack-Android: its only VIEW filter uses a custom `dolphinemu://` scheme that needs a
-     * channel/game id from that app's own library scan, which RomRunner has no way to know ahead
-     * of time). The app is just opened plainly instead — the user picks the game from within its
-     * own UI, the same as it'd need its own one-time ROM-folder setup regardless.
+     * True for an app with no way to be handed a game at all: it's just opened plainly and the
+     * user picks the game from within its own UI. (Nothing needs this right now — PrimeHack, which
+     * used to, turned out to accept a game through its launcher activity; see
+     * EmulatorLauncher.buildPrimeHackIntent.)
      */
     val openAppOnly: Boolean = false,
     /** When set, the override only applies to games on this platform (by name), e.g. so "Twilight Princess HD" on Wii U isn't caught by a GameCube-only override. */
@@ -43,16 +42,10 @@ data class ArgvLaunch(
 
 object GameLaunchOverrides {
     val ALL: List<GameOverride> = listOf(
-        // Metroid Prime Trilogy plays best with PrimeHack's mouselook controls rather than the
-        // library's plain Dolphin default for every other GameCube/Wii title.
-        GameOverride(
-            titleKeyword = "metroid prime trilogy",
-            appLabel = "PrimeHack",
-            packageName = "org.dolphinemu.primehack",
-            openAppOnly = true
-        ),
+        // PrimeHack is now the GameCube/Wii platform's default app (Metroid Prime Trilogy
+        // included), so the only remaining exception is Twilight Princess.
         // Dusklight is a native port built specifically for Twilight Princess (GameCube; it also
-        // reads the Wii disc), so it replaces Dolphin for that one title. Restricted to the
+        // reads the Wii disc), so it replaces PrimeHack for that one title. Restricted to the
         // GameCube/Wii platform: "Twilight Princess HD" is a different game on Wii U.
         GameOverride(
             titleKeyword = "legend of zelda twilight princess",

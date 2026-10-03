@@ -43,7 +43,7 @@ class LibraryRepository(
     /**
      * One-time, idempotent fixups for past default-seed mistakes, applied in place so installs that
      * already scanned a library don't need to be wiped. Currently: `.ciso` was originally (wrongly)
-     * grouped under PSP; it belongs to GameCube/Wii (Dolphin). Also: "PlayStation 2" was originally
+     * grouped under PSP; it belongs to GameCube/Wii. Also: GameCube/Wii moved from Dolphin to PrimeHack. Also: "PlayStation 2" was originally
      * seeded with the Platform default mimeType ("application/octet-stream") and no launchActivity —
      * ARMSX2's own VIEW intent-filters match by Uri scheme only with no declared mimeType, and it
      * declares three equally-matching activities for that filter, so Android can't resolve either
@@ -55,6 +55,12 @@ class LibraryRepository(
      */
     suspend fun repairKnownMisclassifications() {
         val platforms = platformDao.getAllOnce()
+
+        // GameCube/Wii was seeded with Dolphin; PrimeHack is now the one app for the whole platform.
+        val gcWiiOnDolphin = platforms.find { it.name == "GameCube / Wii" && it.launchPackage == "org.dolphinemu.dolphinemu" }
+        if (gcWiiOnDolphin != null) {
+            platformDao.update(gcWiiOnDolphin.copy(launchPackage = "org.dolphinemu.primehack"))
+        }
 
         val ps2 = platforms.find { it.name == "PlayStation 2" }
         if (ps2 != null && (ps2.mimeType == "application/octet-stream" || ps2.launchActivity.isBlank())) {

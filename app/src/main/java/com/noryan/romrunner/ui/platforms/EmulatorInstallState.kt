@@ -68,7 +68,7 @@ class EmulatorInstallState {
     /**
      * Installs every not-yet-installed emulator in [emulators]. All downloads are queued up front so
      * they run in parallel while the user steps through the system installer one app at a time.
-     * Apps with no automatable download (Dolphin) are skipped during the batch and their download
+     * Apps with no automatable download are skipped during the batch and their download
      * pages opened at the end instead, so a browser doesn't interrupt the installer screens.
      */
     suspend fun installAll(context: Context, emulators: List<RecommendedEmulator>) {
