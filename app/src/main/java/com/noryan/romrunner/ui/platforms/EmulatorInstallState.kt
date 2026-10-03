@@ -42,6 +42,14 @@ class EmulatorInstallState {
         if (isInstallingAll || statuses.containsKey(pkg)) return
         statuses[pkg] = "Finding latest…"
         try {
+            val local = EmulatorDownloader.findLocalApk(context, emulator)
+            if (local != null) {
+                // Already downloaded earlier (or by hand): install that copy instead of fetching another.
+                statuses[pkg] = "Installing…"
+                EmulatorDownloader.launchInstaller(context, local)
+                EmulatorDownloader.awaitInstalled(context, pkg, seconds = 60)
+                return
+            }
             val downloadId = EmulatorDownloader.enqueue(context, emulator)
             if (downloadId == null) {
                 openReleasesPage(context, emulator)
@@ -66,8 +74,9 @@ class EmulatorInstallState {
     }
 
     /**
-     * Installs every not-yet-installed emulator in [emulators]. All downloads are queued up front so
-     * they run in parallel while the user steps through the system installer one app at a time.
+     * Installs every not-yet-installed emulator in [emulators], using an APK already in Downloads where
+     * there is one. Other downloads are queued up front so they run in parallel while the user steps
+     * through the system installer one app at a time.
      * Apps with no automatable download are skipped during the batch and their download
      * pages opened at the end instead, so a browser doesn't interrupt the installer screens.
      */
@@ -80,9 +89,17 @@ class EmulatorInstallState {
         missing.forEach { statuses[it.packageName] = "Queued…" }
         try {
             val queued = mutableListOf<Pair<RecommendedEmulator, Long>>()
+            val local = mutableListOf<Pair<RecommendedEmulator, Uri>>()
             val manual = mutableListOf<RecommendedEmulator>()
             for (emulator in missing) {
                 statuses[emulator.packageName] = "Finding latest…"
+                // A copy that's already on the device is installed as-is, with no download.
+                val existing = EmulatorDownloader.findLocalApk(context, emulator)
+                if (existing != null) {
+                    statuses[emulator.packageName] = "Queued…"
+                    local += emulator to existing
+                    continue
+                }
                 val downloadId = EmulatorDownloader.enqueue(context, emulator)
                 if (downloadId == null) {
                     statuses.remove(emulator.packageName)
@@ -91,6 +108,14 @@ class EmulatorInstallState {
                     statuses[emulator.packageName] = "Downloading…"
                     queued += emulator to downloadId
                 }
+            }
+
+            // Local copies first: they're ready now, while the downloads above are still running.
+            for ((emulator, apkUri) in local) {
+                statuses[emulator.packageName] = "Installing…"
+                EmulatorDownloader.runInstallerAndWait(context, apkUri, emulator.packageName)
+                statuses.remove(emulator.packageName)
+                refreshTick++
             }
 
             for ((emulator, downloadId) in queued) {

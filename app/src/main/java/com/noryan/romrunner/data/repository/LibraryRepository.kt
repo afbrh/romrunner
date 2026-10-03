@@ -185,6 +185,11 @@ class LibraryRepository(
         if (uri != null && !settings.emulatorSetupPrompted) settings.emulatorSetupPending = true
     }
 
+    fun isStorageAccessAsked(): Boolean = settings.storageAccessAsked
+    fun markStorageAccessAsked() {
+        settings.storageAccessAsked = true
+    }
+
     fun getCemuFolderUri(): String? = settings.cemuFolderUri
     fun setCemuFolderUri(uri: String?) {
         settings.cemuFolderUri = uri

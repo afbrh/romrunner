@@ -75,6 +75,7 @@ import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
+import com.noryan.romrunner.ui.components.StorageAccessDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
 import com.noryan.romrunner.ui.components.EdenOpenFirstDialog
 import com.noryan.romrunner.ui.components.FolderAccessDialog
@@ -125,8 +126,17 @@ fun LibraryScreen(
     // Shared with the Settings tab so its rows show live progress for installs started from here.
     val emulatorInstallState = remember { EmulatorInstallState() }
     var showEmulatorSetupPrompt by remember { mutableStateOf(false) }
+    var showStorageAccessPrompt by remember { mutableStateOf(false) }
+    // Set while the user is in Android's "all files access" settings, so the install-all they asked for
+    // continues once they return to RomRunner.
+    var installAllAfterStorageAccess by remember { mutableStateOf(false) }
     val neededEmulators = remember(state.games, state.platforms) {
         RECOMMENDED_EMULATORS.filter { it.isNeeded(state.platforms, state.games) }
+    }
+    fun startInstallAll() {
+        // Jump to Systems so the per-emulator progress is visible while it works.
+        selectedTab = HomeTab.SYSTEMS
+        scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
     }
     // First-run offer: right after the first ROMs folder is chosen and scanned, ask once whether to
     // download the emulators those games need. Waits for the scan to finish and for at least one
@@ -316,6 +326,12 @@ fun LibraryScreen(
         if (repository.isEdenDriverApplied()) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
         applyEdenSetup(granted, quiet = true)
+    }
+    // Back from Android's "all files access" settings (granted or not): carry on with the install-all.
+    LaunchedEffect(resumeTick) {
+        if (!installAllAfterStorageAccess) return@LaunchedEffect
+        installAllAfterStorageAccess = false
+        startInstallAll()
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -613,11 +629,32 @@ fun LibraryScreen(
                 .map { it.appLabel },
             onYes = {
                 showEmulatorSetupPrompt = false
-                // Jump to Systems so the per-emulator progress is visible while it works.
-                selectedTab = HomeTab.SYSTEMS
-                scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
+                if (android.os.Environment.isExternalStorageManager() || repository.isStorageAccessAsked()) {
+                    startInstallAll()
+                } else {
+                    showStorageAccessPrompt = true
+                }
             },
             onNotNow = { showEmulatorSetupPrompt = false }
+        )
+    }
+
+    if (showStorageAccessPrompt) {
+        StorageAccessDialog(
+            onAllow = {
+                showStorageAccessPrompt = false
+                repository.markStorageAccessAsked()
+                installAllAfterStorageAccess = true
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            },
+            onSkip = {
+                showStorageAccessPrompt = false
+                repository.markStorageAccessAsked()
+                startInstallAll()
+            }
         )
     }
 

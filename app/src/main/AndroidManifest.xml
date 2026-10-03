@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Needed on Android 11+ to see other apps (emulators) at all: to check whether a specific
          one is installed, and to list installed apps in the "which app should play this?" picker. -->
@@ -23,6 +24,9 @@
          PlatformsScreen.kt's downloadLatestRelease. Android still shows its own "allow installs
          from this app" prompt the first time, same as any other updater/installer app. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Lets RomRunner see emulator APKs already sitting in Downloads (from earlier installs of itself or
+         downloaded by hand) instead of fetching another copy. Granted by the user in Settings; optional. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
 
     <application
         android:name=".RomRunnerApp"

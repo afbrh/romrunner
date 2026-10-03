@@ -60,7 +60,7 @@ private val NotInstalledRed = Color(0xFFFF6B6B)
 
 /**
  * The Systems tab: everything that's specific to a game system's emulator — a row per system in the
- * library (with "Install All"), plus the one-off setup rows for PrimeHack's
+ * library, plus the one-off setup rows for PrimeHack's
  * controller profile and Eden's graphics driver. General app settings live in [PlatformsContent].
  */
 @Composable
@@ -108,9 +108,6 @@ fun SystemsContent(
         EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)
     }
     val edenDriverApplied = remember(installState.refreshTick) { repository.isEdenDriverApplied() }
-    val anyMissing = remember(visibleRecommendedEmulators, installCheckTick, installState.refreshTick) {
-        visibleRecommendedEmulators.any { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
-    }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         if (primeHackInstalled) {
@@ -205,36 +202,6 @@ fun SystemsContent(
                         color = edenColor,
                         textAlign = TextAlign.End
                     )
-                }
-            }
-        }
-
-        // No heading: the system rows below are the content. Install All sits above them, right-aligned,
-        // and only while there is something to install or an install-all is running.
-        if (installState.isInstallingAll || (visibleRecommendedEmulators.isNotEmpty() && anyMissing)) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (installState.isInstallingAll) {
-                        Text("Installing…", style = MaterialTheme.typography.bodyLarge)
-                    } else if (anyMissing) {
-                        val installAllInteractionSource = rememberFocusInteractionSource()
-                        val installAllGlow = installAllInteractionSource.glowShadow()
-                        Text(
-                            "Install All",
-                            style = MaterialTheme.typography.bodyLarge.copy(shadow = installAllGlow),
-                            color = installAllInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface),
-                            modifier = Modifier.clickable(
-                                interactionSource = installAllInteractionSource,
-                                indication = null
-                            ) {
-                                scope.launch { installState.installAll(context, visibleRecommendedEmulators) }
-                            }
-                        )
-                    }
                 }
             }
         }

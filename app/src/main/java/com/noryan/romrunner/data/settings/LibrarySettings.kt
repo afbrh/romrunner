@@ -41,6 +41,11 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_EMULATOR_SETUP_PENDING, false)
         set(value) = prefs.edit().putBoolean(KEY_EMULATOR_SETUP_PENDING, value).apply()
 
+    /** True once the user has been offered "All files access" (for reusing downloaded emulator APKs) — asked once. */
+    var storageAccessAsked: Boolean
+        get() = prefs.getBoolean(KEY_STORAGE_ACCESS_ASKED, false)
+        set(value) = prefs.edit().putBoolean(KEY_STORAGE_ACCESS_ASKED, value).apply()
+
     /** The folder grant for PrimeHack's own user directory (see PrimeHackControls), if the user gave one. */
     var primeHackFolderUri: String?
         get() = prefs.getString(KEY_PRIMEHACK_FOLDER_URI, null)
@@ -84,6 +89,7 @@ class LibrarySettings(context: Context) {
         private const val KEY_DUAL_SCREEN_SUPPORT_ENABLED = "dual_screen_support_enabled"
         private const val KEY_EMULATOR_SETUP_PROMPTED = "emulator_setup_prompted"
         private const val KEY_EMULATOR_SETUP_PENDING = "emulator_setup_pending"
+        private const val KEY_STORAGE_ACCESS_ASKED = "storage_access_asked"
         private const val KEY_CEMU_FOLDER_URI = "cemu_folder_uri"
         private const val KEY_CEMU_SETUP_PROMPTED = "cemu_setup_prompted"
         private const val KEY_EDEN_FOLDER_URI = "eden_folder_uri"
