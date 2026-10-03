@@ -62,6 +62,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.EdenGpuDriver
+import com.noryan.romrunner.data.launch.EdenSetup
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.PrimeHackControls
@@ -143,8 +144,8 @@ fun LibraryScreen(
 
     var showEdenPrompt by remember { mutableStateOf(false) }
     var showPrimeHackPrompt by remember { mutableStateOf(false) }
-    // The app (label, package, what was set up) the user must Force stop once so it re-reads new settings.
-    var forceStopApp by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    // The app (label, package) the user must Force stop once so it re-reads the settings just written.
+    var forceStopApp by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showEdenOpenFirst by remember { mutableStateOf(false) }
     // Each folder walkthrough is offered automatically at most once per app run (so cancelling the
     // file picker can't make it nag), and only stops being offered for good once the folder is
@@ -202,7 +203,7 @@ fun LibraryScreen(
         scope.launch {
             val message = when (val result = CemuSetup.apply(context, treeUri, repository.getBiosKeysFolderUri()?.let { Uri.parse(it) })) {
                 is CemuSetup.Result.Applied -> {
-                    forceStopApp = Triple("Cemu", CemuSetup.PACKAGE, "controls")
+                    forceStopApp = "Cemu" to CemuSetup.PACKAGE
                     buildString {
                         append(if (result.controller != null) "Set up Cemu's controls for the ${result.controller}." else "No controller was connected, so Cemu's controls weren't set up.")
                         if (result.copiedFiles.isNotEmpty()) append(" Copied ${result.copiedFiles.joinToString(", ")}.")
@@ -243,17 +244,32 @@ fun LibraryScreen(
         showCemuPrompt = true
     }
 
-    // Eden graphics driver (see EdenGpuDriver): same one-time folder grant as PrimeHack above.
-    fun applyEdenDriver(treeUri: Uri, quiet: Boolean) {
+    // Eden setup (keys, firmware, on-screen controls, graphics driver; see EdenSetup): same one-time
+    // folder grant as PrimeHack above.
+    var edenSetupRunning by remember { mutableStateOf(false) }
+    fun applyEdenSetup(treeUri: Uri, quiet: Boolean) {
+        // The picker result and the "back in the foreground" retry below can fire together, and two
+        // runs would both try to unpack the firmware.
+        if (edenSetupRunning) return
+        edenSetupRunning = true
         scope.launch {
-            when (val result = EdenGpuDriver.apply(context, treeUri)) {
-                is EdenGpuDriver.Result.Applied -> {
-                    repository.setEdenDriverApplied(true)
-                    forceStopApp = Triple("Eden", EdenGpuDriver.PACKAGE, "graphics driver")
+            try {
+                if (!quiet && repository.getBiosKeysFolderUri() != null) {
+                    Toast.makeText(context, "Setting up Eden — installing the firmware can take a minute.", Toast.LENGTH_LONG).show()
                 }
-                is EdenGpuDriver.Result.NotOpenedYet -> if (!quiet) showEdenOpenFirst = true
-                is EdenGpuDriver.Result.Failed ->
-                    if (!quiet) Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                val biosFolder = repository.getBiosKeysFolderUri()?.let { Uri.parse(it) }
+                when (val result = EdenSetup.apply(context, treeUri, biosFolder)) {
+                    is EdenSetup.Result.Applied -> {
+                        repository.setEdenDriverApplied(true)
+                        forceStopApp = "Eden" to EdenGpuDriver.PACKAGE
+                        Toast.makeText(context, result.summary.joinToString(" "), Toast.LENGTH_LONG).show()
+                    }
+                    is EdenSetup.Result.NotOpenedYet -> if (!quiet) showEdenOpenFirst = true
+                    is EdenSetup.Result.Failed ->
+                        if (!quiet) Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                edenSetupRunning = false
             }
             emulatorInstallState.bumpRefresh()
         }
@@ -272,16 +288,15 @@ fun LibraryScreen(
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
         repository.setEdenFolderUri(uri.toString())
-        applyEdenDriver(uri, quiet = false)
+        applyEdenSetup(uri, quiet = false)
     }
     fun setUpEdenDriver() {
         val granted = repository.getEdenFolderUri()?.let { Uri.parse(it) }
-        if (granted != null) applyEdenDriver(granted, quiet = false) else showEdenPrompt = true
+        if (granted != null) applyEdenSetup(granted, quiet = false) else showEdenPrompt = true
     }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt) {
         if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt) return@LaunchedEffect
         if (edenOfferedThisRun || repository.isEdenSetupPrompted() || repository.getEdenFolderUri() != null) return@LaunchedEffect
-        if (!EdenGpuDriver.isEligible()) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == EdenGpuDriver.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
         edenOfferedThisRun = true
@@ -298,9 +313,9 @@ fun LibraryScreen(
     }
     LaunchedEffect(resumeTick) {
         val granted = repository.getEdenFolderUri()?.let { Uri.parse(it) } ?: return@LaunchedEffect
-        if (repository.isEdenDriverApplied() || !EdenGpuDriver.isEligible()) return@LaunchedEffect
+        if (repository.isEdenDriverApplied()) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
-        applyEdenDriver(granted, quiet = true)
+        applyEdenSetup(granted, quiet = true)
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -512,10 +527,9 @@ fun LibraryScreen(
         )
     }
 
-    forceStopApp?.let { (label, packageName, what) ->
+    forceStopApp?.let { (label, packageName) ->
         ForceStopDialog(
             appName = label,
-            what = what,
             onOpenAppInfo = {
                 forceStopApp = null
                 context.startActivity(
@@ -546,9 +560,11 @@ fun LibraryScreen(
 
     if (showEdenPrompt) {
         FolderAccessDialog(
-            title = "Set up Eden's graphics driver",
-            why = "Eden's own graphics driver crashes Switch games on this device. RomRunner can install one that " +
-                "doesn't, but it needs permission to put it in Eden's folder.",
+            title = "Set up Eden",
+            why = "RomRunner can install your Switch keys and firmware from your BIOS/Keys folder and hide Eden's " +
+                "on-screen controls" +
+                (if (EdenGpuDriver.isEligible()) ", and install a graphics driver, because Eden's own one crashes Switch games on this device" else "") +
+                ". It needs permission to write to Eden's folder.",
             appName = "Eden",
             onChooseFolder = {
                 showEdenPrompt = false

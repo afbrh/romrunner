@@ -176,7 +176,7 @@ fun SystemsContent(
             }
         }
 
-        if (edenInstalled && EdenGpuDriver.isEligible()) {
+        if (edenInstalled) {
             item {
                 val edenInteractionSource = rememberFocusInteractionSource()
                 val edenGlow = edenInteractionSource.glowShadow()
@@ -193,13 +193,13 @@ fun SystemsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Eden graphics driver",
+                        "Eden setup",
                         style = LocalTextStyle.current.copy(shadow = edenGlow),
                         color = edenColor,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = if (edenDriverApplied) "Turnip — Installed" else "Set up",
+                        text = if (edenDriverApplied) "Loaded" else "Set up",
                         style = LocalTextStyle.current.copy(shadow = edenGlow),
                         color = edenColor,
                         textAlign = TextAlign.End

@@ -87,7 +87,7 @@ object EdenGpuDriver {
      * after being copied in over adb), deletes it and recreates it through Eden's own provider, which
      * gives it back to Eden.
      */
-    private fun writeConfig(context: Context, configDir: DocumentFile, configFile: DocumentFile, text: String) {
+    internal fun writeConfig(context: Context, configDir: DocumentFile, configFile: DocumentFile, text: String) {
         try {
             context.contentResolver.openOutputStream(configFile.uri, "wt")?.bufferedWriter()?.use { it.write(text) }
                 ?: error("couldn't write Eden's settings")
@@ -130,11 +130,17 @@ object EdenGpuDriver {
     }
 
     /** Returns [ini] with `[GpuDriver] driver_path` set to [path], leaving every other line untouched. */
-    private fun withDriverPath(ini: String, path: String): String {
+    private fun withDriverPath(ini: String, path: String): String = withSetting(ini, "GpuDriver", "driver_path", path)
+
+    /**
+     * Returns [ini] with `key` set to [value] in `[section]`, leaving every other line untouched. Eden's
+     * config only honours a value when its `key\default=false` line sits beside it, so both are written.
+     */
+    internal fun withSetting(ini: String, section: String, key: String, value: String): String {
         val lines = ini.lines().toMutableList()
-        val start = lines.indexOfFirst { it.trim() == "[GpuDriver]" }
-        val driverLines = listOf("driver_path\\default=false", "driver_path=$path")
-        if (start == -1) return ini.trimEnd() + "\n\n[GpuDriver]\n" + driverLines.joinToString("\n") + "\n"
+        val start = lines.indexOfFirst { it.trim() == "[$section]" }
+        val settingLines = listOf("$key\\default=false", "$key=$value")
+        if (start == -1) return ini.trimEnd() + "\n\n[$section]\n" + settingLines.joinToString("\n") + "\n"
         var end = lines.size
         for (i in start + 1 until lines.size) {
             if (lines[i].trim().startsWith("[")) {
@@ -143,8 +149,8 @@ object EdenGpuDriver {
             }
         }
         val others = lines.subList(start + 1, end)
-            .filterNot { it.startsWith("driver_path\\default=") || it.startsWith("driver_path=") }
-        val rebuilt = lines.subList(0, start + 1) + driverLines + others + lines.subList(end, lines.size)
+            .filterNot { it.startsWith("$key\\default=") || it.startsWith("$key=") }
+        val rebuilt = lines.subList(0, start + 1) + settingLines + others + lines.subList(end, lines.size)
         return rebuilt.joinToString("\n")
     }
 }

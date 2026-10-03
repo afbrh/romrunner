@@ -82,7 +82,6 @@ fun EdenOpenFirstDialog(
 @Composable
 fun ForceStopDialog(
     appName: String,
-    what: String,
     onOpenAppInfo: () -> Unit,
     onDone: () -> Unit
 ) {
@@ -91,7 +90,7 @@ fun ForceStopDialog(
         title = { Text("One last step") },
         text = {
             Text(
-                "$appName's $what is set up. $appName has to be fully restarted once to start using it.\n\n" +
+                "RomRunner has finished setting up $appName. It has to be fully restarted once to start using the new settings.\n\n" +
                     "Tap \"Open $appName settings\", then tap \"Force stop\" and OK."
             )
         },
