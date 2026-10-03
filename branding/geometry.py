@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 
 from fontTools.pens.basePen import BasePen
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.ttLib import TTFont
 
 def _fmt(p): return f"{p[0]:.2f},{p[1]:.2f}"
@@ -51,16 +52,17 @@ class Pen:
             self.arc(pts[i], r, a0, a0 + (a1 - a0 + 180) % 360 - 180, start=(i == 0))
         self.close()
 
-_FONT = TTFont(next(Path(__file__).parent.glob("*.ttf")))
-_GLYPHS, _CMAP, _UPM = _FONT.getGlyphSet(), _FONT.getBestCmap(), _FONT["head"].unitsPerEm
-_CAP = _FONT["OS/2"].sCapHeight / _UPM
+# The app's own UI font (Silkscreen, a 5x5-pixel font: one font "pixel" = 125 units).
+_FONT = TTFont(Path(__file__).with_name("silkscreen_regular.ttf"))
+_GLYPHS, _CMAP = _FONT.getGlyphSet(), _FONT.getBestCmap()
+_CAP_UNITS = 625   # glyph height: 5 pixels
 
 class _GlyphOutline(BasePen):
     """Replays a glyph's outline into a Pen, scaled/flipped into mark units (font y points up)."""
-    def __init__(self, pen, ox, baseline, scale):
+    def __init__(self, pen, ox, baseline, sx, sy):
         super().__init__(_GLYPHS)
-        self.pen, self.ox, self.base, self.k = pen, ox, baseline, scale
-    def _p(self, p): return (self.ox + p[0] * self.k, self.base - p[1] * self.k)
+        self.pen, self.ox, self.base, self.sx, self.sy = pen, ox, baseline, sx, sy
+    def _p(self, p): return (self.ox + p[0] * self.sx, self.base - p[1] * self.sy)
     def _moveTo(self, p): self.pen.move(self._p(p))
     def _lineTo(self, p): self.pen.line(self._p(p))
     def _qCurveToOne(self, c, p): self.pen.quad(self._p(c), self._p(p))
@@ -68,22 +70,37 @@ class _GlyphOutline(BasePen):
         self.pen.d += f"C{_fmt(self.pen.T(*self._p(c1)))} {_fmt(self.pen.T(*self._p(c2)))} {_fmt(self.pen.T(*self._p(p)))}"
     def _closePath(self): self.pen.close()
 
-def text_cutout(pen, text, cx, cy, cap_height, tracking=0.03):
-    """Outlines `text` (cap-height tall, centred on cx/cy) into `pen`. The shapes become cutouts
-    because the body is filled even-odd; letter counters (the hole in an O or R) fill back in."""
-    scale = cap_height / (_CAP * _UPM)
-    adv = [_GLYPHS[_CMAP[ord(c)]].width * scale for c in text]
-    gap = tracking * cap_height / _CAP
-    x = cx - (sum(adv) + gap * (len(text) - 1)) / 2
+def _ink(ch):
+    bp = BoundsPen(_GLYPHS); _GLYPHS[_CMAP[ord(ch)]].draw(bp)
+    return bp.bounds[0], bp.bounds[2]
+
+def text_cutout(pen, text, x_left, x_right, cy, cap_height, stretch=1.0):
+    """Outlines `text` into `pen` as cutouts (the body is filled even-odd, so letter counters fill
+    back in): cap_height tall, centred vertically on cy, with the first letter's left edge on x_left
+    and the last letter's right edge on x_right. `stretch` widens the pixels; whatever width is still
+    missing after that is added as even letter-spacing."""
+    sy = cap_height / _CAP_UNITS
+    sx = sy * stretch
+    adv = [_GLYPHS[_CMAP[ord(c)]].width * sx for c in text]
+    first_l, last_r = _ink(text[0])[0] * sx, _ink(text[-1])[1] * sx
+    natural = sum(adv[:-1]) - first_l + last_r
+    gap = (x_right - x_left - natural) / max(1, len(text) - 1)
+    x = x_left - first_l
     baseline = cy + cap_height / 2
     for c, a in zip(text, adv):
-        _GLYPHS[_CMAP[ord(c)]].draw(_GlyphOutline(pen, x, baseline, scale))
+        _GLYPHS[_CMAP[ord(c)]].draw(_GlyphOutline(pen, x, baseline, sx, sy))
         x += a + gap
 
 # Cartridge in unskewed units (roughly Game Boy proportions, 280 x 320).
 X0, Y0, X1, Y1 = 150, 96, 430, 416
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
-TOP_CAP, BOTTOM_CAP = 46, 36   # cap heights of "ROM" and "RUNNER"
+# Label window spans x 182..398. RUNNER fills it exactly. ROM starts on the same left edge but ends at
+# 384: the top-right notch (x >= 396, y <= 130) would swallow the M's right stem at 398, so it stops 12
+# short of the notch, the same margin it keeps from the top edge.
+WIN_X0, WIN_X1 = 182, 398
+ROM_X0, ROM_X1 = WIN_X0, 384
+ROM_CAP, ROM_STRETCH = 42, 1.25    # ROM_STRETCH trades pixel width for letter-spacing
+RUNNER_CAP = 30.9                  # = 216 / 35 pixels, so RUNNER sits on the window edges at natural spacing
 
 def paths(T):
     """Returns the mark's path, filled even-odd (cutouts + the arrow inside the label)."""
@@ -96,9 +113,8 @@ def paths(T):
     b.arc((X0 + R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 90, 180)
     b.close()
     # the name, cut out of the shell: ROM in the top band, RUNNER in the bottom one
-    cx = (X0 + X1) / 2
-    text_cutout(b, "ROM", cx, 134, TOP_CAP)
-    text_cutout(b, "RUNNER", cx, 382, BOTTOM_CAP)
+    text_cutout(b, "ROM", ROM_X0, ROM_X1, 134, ROM_CAP, ROM_STRETCH)
+    text_cutout(b, "RUNNER", WIN_X0, WIN_X1, 382, RUNNER_CAP)
     # recessed label window, with the play arrow standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
     b.round_poly([(264, 216), (334, 260), (264, 304)], 9)

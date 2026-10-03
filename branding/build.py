@@ -1,55 +1,30 @@
-from fontTools.ttLib import TTFont
-from fontTools.pens.svgPathPen import SVGPathPen
-from fontTools.pens.transformPen import TransformPen
+"""Writes the RomRunner mark SVGs. The cartridge carries the name itself (ROM / RUNNER cut out of the
+shell in the app's own font, see geometry.py), so there are no separate wordmark logos."""
+from geometry import paths, fitted
 
 BG, FG = "#0E0A22", "#FF6B4A"
 
-font = TTFont("RussoOne.ttf")
-gs, cmap = font.getGlyphSet(), font.getBestCmap()
-upm = font["head"].unitsPerEm
-
-def text_path(s, x, baseline, size, tracking=0.02, skew=0):
-    sc, pen = size / upm, SVGPathPen(gs)
-    for ch in s:
-        g = cmap[ord(ch)]
-        gs[g].draw(TransformPen(pen, (sc, 0, -skew * sc, -sc, x, baseline)))
-        x += gs[g].width * sc + tracking * size
-    return pen.getCommands(), x
-
-from geometry import paths, fitted
-
-def mark(color, uid=""):
+def mark(color):
     body = paths(fitted(512, 440))
     return f'<g fill="{color}"><path fill-rule="evenodd" d="{body}"/></g>'
 
 def svg(vb, body):
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}">{body}</svg>\n'
 
-def nested(x, y, s, color, uid):
-    return f'<svg x="{x}" y="{y}" width="{s}" height="{s}" viewBox="0 0 512 512">{mark(color, uid)}</svg>'
+def nested(x, y, s, color):
+    return f'<svg x="{x}" y="{y}" width="{s}" height="{s}" viewBox="0 0 512 512">{mark(color)}</svg>'
 
 def write(name, body): open(name, "w").write(body)
 
-write("mark.svg", svg("0 0 512 512", mark(FG, "m")))
-write("mark-reversed.svg", svg("0 0 512 512", mark(BG, "r")))  # for use on FG-colored backgrounds
-write("app-icon.svg", svg("0 0 512 512", f'<rect width="512" height="512" rx="112" fill="{BG}"/>{nested(66, 66, 380, FG, "a")}'))
-
-d, xend = text_path("ROMRUNNER", 318, 250, 150)
-W = int(xend + 40)
-# Both horizontal files are transparent now (the opaque one used to carry the dark BG panel); the
-# "-transparent" name is kept so anything already pointing at it keeps working.
-for name in ["logo-horizontal.svg", "logo-horizontal-transparent.svg"]:
-    write(name, svg(f"0 0 {W} 400", f'{nested(0, 55, 290, FG, "h")}<path d="{d}" fill="{FG}"/>'))
-
-d, xend = text_path("ROMRUNNER", 40, 520, 110)
-W = int(xend + 60)
-write("logo-stacked.svg", svg(f"0 0 {W} 580", f'{nested(W//2 - 200, 20, 400, FG, "s")}<path d="{d}" fill="{FG}"/>'))
+write("mark.svg", svg("0 0 512 512", mark(FG)))
+write("mark-reversed.svg", svg("0 0 512 512", mark(BG)))  # for use on FG-colored backgrounds
+write("app-icon.svg", svg("0 0 512 512", f'<rect width="512" height="512" rx="112" fill="{BG}"/>{nested(66, 66, 380, FG)}'))
 
 # preview page (SVGs inlined so it renders anywhere)
-def inl(f, w, style=""): return open(f).read().replace("<svg ", f'<svg width="{w}" style="{style}" ', 1)
+def inl(f, w): return open(f).read().replace("<svg ", f'<svg width="{w}" ', 1)
 write("preview.html", f'''<!doctype html><html><head><meta charset="utf-8"><title>RomRunner Logo</title>
 <style>body{{margin:0;background:{BG}}}.row{{display:flex;gap:40px;align-items:center;justify-content:center;padding:40px;flex-wrap:wrap}}.fg{{background:{FG}}}</style></head><body>
-<div class="row">{inl("logo-horizontal.svg", 860)}</div>
-<div class="row">{inl("app-icon.svg", 220)}{inl("app-icon.svg", 96)}{inl("app-icon.svg", 48)}{inl("app-icon.svg", 24)}{inl("logo-stacked.svg", 300)}</div>
+<div class="row">{inl("mark.svg", 360)}</div>
+<div class="row">{inl("app-icon.svg", 220)}{inl("app-icon.svg", 96)}{inl("app-icon.svg", 48)}{inl("app-icon.svg", 24)}</div>
 <div class="row fg">{inl("mark-reversed.svg", 200)}</div>
 </body></html>''')
