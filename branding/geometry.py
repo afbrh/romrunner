@@ -170,7 +170,7 @@ NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
 WIN_X0, WIN_X1 = 182, 398
 ROM_X0, ROM_X1 = WIN_X0, 376
 ROM_CAP, ROM_BOLD, ROM_GAP = 44, 1.5, 9   # total height; extra stroke weight per side; gap between letters
-RUNNER_CAP = 30.9                  # = 216 / 35 pixels, so RUNNER sits on the window edges at natural spacing
+RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP = 30.9, 1.0, 6.3   # same treatment as ROM, scaled to its smaller size
 
 def paths(T):
     """Returns the mark's path, filled even-odd (cutouts + the arrow inside the label)."""
@@ -184,7 +184,7 @@ def paths(T):
     b.close()
     # the name, cut out of the shell: ROM in the top band, RUNNER in the bottom one
     pixel_text_cutout(b, "ROM", ROM_X0, ROM_X1, 134, ROM_CAP, ROM_BOLD, ROM_GAP)
-    text_cutout(b, "RUNNER", WIN_X0, WIN_X1, 382, RUNNER_CAP)
+    pixel_text_cutout(b, "RUNNER", WIN_X0, WIN_X1, 382, RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP)
     # recessed label window, with the play arrow standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
     b.round_poly([(264, 216), (334, 260), (264, 304)], 9)
