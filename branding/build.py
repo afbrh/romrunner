@@ -19,8 +19,8 @@ def text_path(s, x, baseline, size, tracking=0.02, skew=-0.18):
 from geometry import paths, fitted
 
 def mark(color, uid=""):
-    body, bars = paths(fitted(512, 470))
-    return f'<g fill="{color}"><path fill-rule="evenodd" d="{body}"/><path d="{bars}"/></g>'
+    body = paths(fitted(512, 440))
+    return f'<g fill="{color}"><path fill-rule="evenodd" d="{body}"/></g>'
 
 def svg(vb, body):
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}">{body}</svg>\n'
