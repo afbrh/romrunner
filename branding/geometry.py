@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fontTools.pens.basePen import BasePen
 from fontTools.pens.boundsPen import BoundsPen
+from fontTools.pens.recordingPen import RecordingPen
 from fontTools.ttLib import TTFont
 
 def _fmt(p): return f"{p[0]:.2f},{p[1]:.2f}"
@@ -91,6 +92,75 @@ def text_cutout(pen, text, x_left, x_right, cy, cap_height, stretch=1.0):
         _GLYPHS[_CMAP[ord(c)]].draw(_GlyphOutline(pen, x, baseline, sx, sy))
         x += a + gap
 
+
+def _glyph_cells(ch):
+    """The glyph as a set of (col, row) pixels (row 0 = top), read from the outline: each pixel is 125
+    font units, the glyph starts one pixel in, and a pixel is ink if its centre is inside the shape."""
+    rp = RecordingPen(); _GLYPHS[_CMAP[ord(ch)]].draw(rp)
+    loops, cur = [], []
+    for op, args in rp.value:
+        if op in ("moveTo", "lineTo"): cur.append(args[0])
+        elif op == "closePath": loops.append(cur); cur = []
+        else: raise ValueError(f"{ch}: curved glyph outline, expected a pixel font")
+    def inside(x, y):
+        hit = False
+        for loop in loops:
+            for (x0, y0), (x1, y1) in zip(loop, loop[1:] + loop[:1]):
+                if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0): hit = not hit
+        return hit
+    ink_l, ink_r = _ink(ch)
+    cols = round((ink_r - ink_l) / 125)
+    return cols, {(c, 4 - r) for c in range(cols) for r in range(5)
+                  if inside(ink_l + (c + .5) * 125, (r + .5) * 125)}
+
+def _union_loops(rects):
+    """Boundary loops of the union of axis-aligned rects [(x0, y0, x1, y1)], so overlapping or touching
+    rects merge into one outline (counters come out as separate inner loops)."""
+    xs = sorted({v for r in rects for v in (r[0], r[2])}); ys = sorted({v for r in rects for v in (r[1], r[3])})
+    filled = {(i, j) for i in range(len(xs) - 1) for j in range(len(ys) - 1)
+              if any(r[0] <= xs[i] and xs[i + 1] <= r[2] and r[1] <= ys[j] and ys[j + 1] <= r[3] for r in rects)}
+    edges = {}
+    for i, j in filled:
+        x0, x1, y0, y1 = xs[i], xs[i + 1], ys[j], ys[j + 1]
+        if (i, j - 1) not in filled: edges.setdefault((x0, y0), []).append((x1, y0))   # top, left->right
+        if (i + 1, j) not in filled: edges.setdefault((x1, y0), []).append((x1, y1))   # right, down
+        if (i, j + 1) not in filled: edges.setdefault((x1, y1), []).append((x0, y1))   # bottom, right->left
+        if (i - 1, j) not in filled: edges.setdefault((x0, y1), []).append((x0, y0))   # left, up
+    loops = []
+    while edges:
+        start = next(iter(edges)); pts = [start]; p = start
+        while True:
+            nxt = edges[p].pop()
+            if not edges[p]: del edges[p]
+            if nxt == start: break
+            pts.append(nxt); p = nxt
+        # drop collinear points so straight runs are single segments
+        n = len(pts)
+        loops.append([pts[k] for k in range(n)
+                      if (pts[k][0] - pts[k - 1][0]) * (pts[(k + 1) % n][1] - pts[k][1])
+                      != (pts[k][1] - pts[k - 1][1]) * (pts[(k + 1) % n][0] - pts[k][0])])
+    return loops
+
+def pixel_text_cutout(pen, text, x_left, x_right, cy, cap_height, bold, gap):
+    """Pixel-font text cut out like text_cutout, but emboldened: every font pixel is grown outward by
+    `bold` on all sides (so strokes get 2*bold thicker), and letters sit exactly `gap` apart. The text
+    spans x_left..x_right and is cap_height tall in total, bold included; pixel width/height are
+    solved from that, so thicker strokes eat into the letter shapes rather than the overall size."""
+    glyphs = [_glyph_cells(c) for c in text]
+    cols = sum(g[0] for g in glyphs)
+    pw = (x_right - x_left - 2 * bold * len(text) - gap * (len(text) - 1)) / cols
+    ph = (cap_height - 2 * bold) / 5
+    top = cy - cap_height / 2 + bold
+    x = x_left + bold
+    for ncols, cells in glyphs:
+        rects = [(x + c * pw - bold, top + r * ph - bold, x + (c + 1) * pw + bold, top + (r + 1) * ph + bold)
+                 for c, r in cells]
+        for loop in _union_loops(rects):
+            pen.move(loop[0])
+            for p in loop[1:]: pen.line(p)
+            pen.close()
+        x += ncols * pw + 2 * bold + gap
+
 # Cartridge in unskewed units (roughly Game Boy proportions, 280 x 320).
 X0, Y0, X1, Y1 = 150, 96, 430, 416
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
@@ -99,7 +169,7 @@ NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
 # well short of the notch (20 units, tuned by eye).
 WIN_X0, WIN_X1 = 182, 398
 ROM_X0, ROM_X1 = WIN_X0, 376
-ROM_CAP, ROM_STRETCH = 44, 1.35    # ROM_STRETCH trades pixel width for letter-spacing
+ROM_CAP, ROM_BOLD, ROM_GAP = 44, 1.5, 9   # total height; extra stroke weight per side; gap between letters
 RUNNER_CAP = 30.9                  # = 216 / 35 pixels, so RUNNER sits on the window edges at natural spacing
 
 def paths(T):
@@ -113,7 +183,7 @@ def paths(T):
     b.arc((X0 + R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 90, 180)
     b.close()
     # the name, cut out of the shell: ROM in the top band, RUNNER in the bottom one
-    text_cutout(b, "ROM", ROM_X0, ROM_X1, 134, ROM_CAP, ROM_STRETCH)
+    pixel_text_cutout(b, "ROM", ROM_X0, ROM_X1, 134, ROM_CAP, ROM_BOLD, ROM_GAP)
     text_cutout(b, "RUNNER", WIN_X0, WIN_X1, 382, RUNNER_CAP)
     # recessed label window, with the play arrow standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
