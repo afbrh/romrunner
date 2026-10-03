@@ -39,6 +39,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.model.Game
@@ -65,6 +66,7 @@ fun PlatformsContent(
     repository: LibraryRepository,
     installState: EmulatorInstallState,
     onSetUpPrimeHack: () -> Unit,
+    onSetUpEdenDriver: () -> Unit,
     onDualScreenSupportChanged: () -> Unit,
     onRomsFolderChanged: () -> Unit
 ) {
@@ -104,6 +106,10 @@ fun PlatformsContent(
     }
     val primeHackProfile = remember { PrimeHackControls.detectProfile() }
     val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null }
+    val edenInstalled = remember(installCheckTick, installState.refreshTick) {
+        EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)
+    }
+    val edenDriverApplied = remember(installState.refreshTick) { repository.isEdenDriverApplied() }
     val anyMissing = remember(visibleRecommendedEmulators, installCheckTick, installState.refreshTick) {
         visibleRecommendedEmulators.any { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
     }
@@ -231,6 +237,38 @@ fun PlatformsContent(
                         text = if (primeHackLinked) "${primeHackProfile.label} — Loaded" else "Set up",
                         style = LocalTextStyle.current.copy(shadow = primeHackGlow),
                         color = primeHackColor,
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+
+        if (edenInstalled && EdenGpuDriver.isEligible()) {
+            item {
+                val edenInteractionSource = rememberFocusInteractionSource()
+                val edenGlow = edenInteractionSource.glowShadow()
+                val edenColor = edenInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = edenInteractionSource,
+                            indication = null,
+                            onClick = onSetUpEdenDriver
+                        )
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Eden graphics driver",
+                        style = LocalTextStyle.current.copy(shadow = edenGlow),
+                        color = edenColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = if (edenDriverApplied) "Turnip — Installed" else "Set up",
+                        style = LocalTextStyle.current.copy(shadow = edenGlow),
+                        color = edenColor,
                         textAlign = TextAlign.End
                     )
                 }

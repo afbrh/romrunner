@@ -34,6 +34,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,10 +54,14 @@ import androidx.compose.ui.res.painterResource
 import com.noryan.romrunner.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
@@ -68,6 +73,8 @@ import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
+import com.noryan.romrunner.ui.components.EdenRestartDialog
+import com.noryan.romrunner.ui.components.EdenSetupDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
 import com.noryan.romrunner.ui.components.PrimeHackSetupDialog
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
@@ -132,6 +139,9 @@ fun LibraryScreen(
         }
     }
 
+    var showEdenPrompt by remember { mutableStateOf(false) }
+    var showEdenRestartPrompt by remember { mutableStateOf(false) }
+
     // PrimeHack controller profile: the folder grant comes from the system picker, opened right on
     // PrimeHack's own folder (see PrimeHackControls).
     fun applyPrimeHackProfile(treeUri: Uri) {
@@ -164,14 +174,72 @@ fun LibraryScreen(
         if (granted != null) applyPrimeHackProfile(granted) else primeHackPicker.launch(PrimeHackControls.pickerInitialUri())
     }
     var showPrimeHackPrompt by remember { mutableStateOf(false) }
-    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games) {
-        if (emulatorInstallState.isInstallingAll) return@LaunchedEffect
+    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showEdenPrompt) {
+        if (emulatorInstallState.isInstallingAll || showEdenPrompt) return@LaunchedEffect
         if (repository.isPrimeHackSetupPrompted() || repository.getPrimeHackFolderUri() != null) return@LaunchedEffect
         if (PrimeHackControls.detectProfile() == null) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == PrimeHackControls.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)) return@LaunchedEffect
         repository.markPrimeHackSetupPrompted()
         showPrimeHackPrompt = true
+    }
+
+    // Eden graphics driver (see EdenGpuDriver): same one-time folder grant as PrimeHack above.
+    fun applyEdenDriver(treeUri: Uri, quiet: Boolean) {
+        scope.launch {
+            when (val result = EdenGpuDriver.apply(context, treeUri)) {
+                is EdenGpuDriver.Result.Applied -> {
+                    repository.setEdenDriverApplied(true)
+                    showEdenRestartPrompt = true
+                }
+                is EdenGpuDriver.Result.Failed ->
+                    if (!quiet) Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+            }
+            emulatorInstallState.bumpRefresh()
+        }
+    }
+    val edenPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (!EdenGpuDriver.isEdenTree(uri)) {
+            Toast.makeText(context, "That isn't Eden's folder — open the menu and choose \"Eden\".", Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        repository.setEdenFolderUri(uri.toString())
+        applyEdenDriver(uri, quiet = false)
+    }
+    fun setUpEdenDriver() {
+        val granted = repository.getEdenFolderUri()?.let { Uri.parse(it) }
+        if (granted != null) applyEdenDriver(granted, quiet = false) else edenPicker.launch(EdenGpuDriver.pickerInitialUri())
+    }
+    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt) {
+        if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt) return@LaunchedEffect
+        if (repository.isEdenSetupPrompted() || repository.getEdenFolderUri() != null) return@LaunchedEffect
+        if (!EdenGpuDriver.isEligible()) return@LaunchedEffect
+        if (neededEmulators.none { it.packageName == EdenGpuDriver.PACKAGE }) return@LaunchedEffect
+        if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
+        repository.markEdenSetupPrompted()
+        showEdenPrompt = true
+    }
+    // If the grant was given before Eden had ever been opened (so it had no settings file yet), finish
+    // the job quietly the next time RomRunner comes back to the foreground.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var resumeTick by remember { mutableStateOf(0) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) resumeTick++ }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resumeTick) {
+        val granted = repository.getEdenFolderUri()?.let { Uri.parse(it) } ?: return@LaunchedEffect
+        if (repository.isEdenDriverApplied() || !EdenGpuDriver.isEligible()) return@LaunchedEffect
+        if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
+        applyEdenDriver(granted, quiet = true)
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -338,6 +406,7 @@ fun LibraryScreen(
                         repository = repository,
                         installState = emulatorInstallState,
                         onSetUpPrimeHack = { setUpPrimeHack() },
+                        onSetUpEdenDriver = { setUpEdenDriver() },
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
                         onRomsFolderChanged = { viewModel.rescanAll(context) }
                     )
@@ -370,6 +439,29 @@ fun LibraryScreen(
                 viewModel.renameGame(game, newTitle)
                 renameGame = null
             }
+        )
+    }
+
+    if (showEdenRestartPrompt) {
+        EdenRestartDialog(
+            onOpenAppInfo = {
+                showEdenRestartPrompt = false
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${EdenGpuDriver.PACKAGE}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            },
+            onDone = { showEdenRestartPrompt = false }
+        )
+    }
+
+    if (showEdenPrompt) {
+        EdenSetupDialog(
+            onYes = {
+                showEdenPrompt = false
+                setUpEdenDriver()
+            },
+            onNotNow = { showEdenPrompt = false }
         )
     }
 

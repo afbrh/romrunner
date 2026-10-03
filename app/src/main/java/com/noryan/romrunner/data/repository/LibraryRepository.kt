@@ -167,6 +167,21 @@ class LibraryRepository(
         if (uri != null && !settings.emulatorSetupPrompted) settings.emulatorSetupPending = true
     }
 
+    fun getEdenFolderUri(): String? = settings.edenFolderUri
+    fun setEdenFolderUri(uri: String?) {
+        settings.edenFolderUri = uri
+    }
+
+    fun isEdenSetupPrompted(): Boolean = settings.edenSetupPrompted
+    fun markEdenSetupPrompted() {
+        settings.edenSetupPrompted = true
+    }
+
+    fun isEdenDriverApplied(): Boolean = settings.edenDriverApplied
+    fun setEdenDriverApplied(value: Boolean) {
+        settings.edenDriverApplied = value
+    }
+
     fun getPrimeHackFolderUri(): String? = settings.primeHackFolderUri
     fun setPrimeHackFolderUri(uri: String?) {
         settings.primeHackFolderUri = uri
