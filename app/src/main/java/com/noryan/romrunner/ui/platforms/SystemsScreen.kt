@@ -39,6 +39,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
@@ -66,7 +67,8 @@ fun SystemsContent(
     repository: LibraryRepository,
     installState: EmulatorInstallState,
     onSetUpPrimeHack: () -> Unit,
-    onSetUpEdenDriver: () -> Unit
+    onSetUpEdenDriver: () -> Unit,
+    onSetUpCemu: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -97,6 +99,10 @@ fun SystemsContent(
         EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)
     }
     val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null }
+    val cemuInstalled = remember(installCheckTick, installState.refreshTick) {
+        EmulatorLauncher.isPackageInstalled(context, CemuSetup.PACKAGE)
+    }
+    val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null }
     val edenInstalled = remember(installCheckTick, installState.refreshTick) {
         EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)
     }
@@ -132,6 +138,38 @@ fun SystemsContent(
                         text = if (primeHackLinked) "Loaded" else "Set up",
                         style = LocalTextStyle.current.copy(shadow = primeHackGlow),
                         color = primeHackColor,
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+
+        if (cemuInstalled) {
+            item {
+                val cemuInteractionSource = rememberFocusInteractionSource()
+                val cemuGlow = cemuInteractionSource.glowShadow()
+                val cemuColor = cemuInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = cemuInteractionSource,
+                            indication = null,
+                            onClick = onSetUpCemu
+                        )
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Cemu setup",
+                        style = LocalTextStyle.current.copy(shadow = cemuGlow),
+                        color = cemuColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = if (cemuLinked) "Loaded" else "Set up",
+                        style = LocalTextStyle.current.copy(shadow = cemuGlow),
+                        color = cemuColor,
                         textAlign = TextAlign.End
                     )
                 }

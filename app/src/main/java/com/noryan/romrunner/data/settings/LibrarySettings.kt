@@ -61,6 +61,16 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_EDEN_SETUP_PROMPTED, false)
         set(value) = prefs.edit().putBoolean(KEY_EDEN_SETUP_PROMPTED, value).apply()
 
+    /** The folder grant for Cemu's own user directory (see CemuSetup), if the user gave one. */
+    var cemuFolderUri: String?
+        get() = prefs.getString(KEY_CEMU_FOLDER_URI, null)
+        set(value) = prefs.edit().putString(KEY_CEMU_FOLDER_URI, value).apply()
+
+    /** True once the user has declined the "set up Cemu?" prompt, so it isn't offered again by itself. */
+    var cemuSetupPrompted: Boolean
+        get() = prefs.getBoolean(KEY_CEMU_SETUP_PROMPTED, false)
+        set(value) = prefs.edit().putBoolean(KEY_CEMU_SETUP_PROMPTED, value).apply()
+
     /** True once the Turnip driver has actually been written into Eden (needs Eden opened once first). */
     var edenDriverApplied: Boolean
         get() = prefs.getBoolean(KEY_EDEN_DRIVER_APPLIED, false)
@@ -74,6 +84,8 @@ class LibrarySettings(context: Context) {
         private const val KEY_DUAL_SCREEN_SUPPORT_ENABLED = "dual_screen_support_enabled"
         private const val KEY_EMULATOR_SETUP_PROMPTED = "emulator_setup_prompted"
         private const val KEY_EMULATOR_SETUP_PENDING = "emulator_setup_pending"
+        private const val KEY_CEMU_FOLDER_URI = "cemu_folder_uri"
+        private const val KEY_CEMU_SETUP_PROMPTED = "cemu_setup_prompted"
         private const val KEY_EDEN_FOLDER_URI = "eden_folder_uri"
         private const val KEY_EDEN_SETUP_PROMPTED = "eden_setup_prompted"
         private const val KEY_EDEN_DRIVER_APPLIED = "eden_driver_applied"

@@ -185,6 +185,16 @@ class LibraryRepository(
         if (uri != null && !settings.emulatorSetupPrompted) settings.emulatorSetupPending = true
     }
 
+    fun getCemuFolderUri(): String? = settings.cemuFolderUri
+    fun setCemuFolderUri(uri: String?) {
+        settings.cemuFolderUri = uri
+    }
+
+    fun isCemuSetupPrompted(): Boolean = settings.cemuSetupPrompted
+    fun markCemuSetupPrompted() {
+        settings.cemuSetupPrompted = true
+    }
+
     fun getEdenFolderUri(): String? = settings.edenFolderUri
     fun setEdenFolderUri(uri: String?) {
         settings.edenFolderUri = uri

@@ -72,3 +72,30 @@ fun EdenOpenFirstDialog(
         dismissButton = { TextButton(onClick = onLater) { Text("Later") } }
     )
 }
+
+/**
+ * Shown after RomRunner has changed a setting that [appName] only reads when its process starts. RomRunner's
+ * own folder access to the app is what starts that process in the background, so it has already read its
+ * settings by the time they're written. Android doesn't let a normal app stop another app's process
+ * (confirmed on-device: every kill is refused), so the user has to.
+ */
+@Composable
+fun ForceStopDialog(
+    appName: String,
+    what: String,
+    onOpenAppInfo: () -> Unit,
+    onDone: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text("One last step") },
+        text = {
+            Text(
+                "$appName's $what is set up. $appName has to be fully restarted once to start using it.\n\n" +
+                    "Tap \"Open $appName settings\", then tap \"Force stop\" and OK."
+            )
+        },
+        confirmButton = { TextButton(onClick = onOpenAppInfo) { Text("Open $appName settings") } },
+        dismissButton = { TextButton(onClick = onDone) { Text("Done") } }
+    )
+}

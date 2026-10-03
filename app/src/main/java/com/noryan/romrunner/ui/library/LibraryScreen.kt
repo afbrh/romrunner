@@ -63,6 +63,7 @@ import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.InstalledApp
+import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.launch.RetroArchLauncher
@@ -73,7 +74,7 @@ import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
-import com.noryan.romrunner.ui.components.EdenRestartDialog
+import com.noryan.romrunner.ui.components.ForceStopDialog
 import com.noryan.romrunner.ui.components.EdenOpenFirstDialog
 import com.noryan.romrunner.ui.components.FolderAccessDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
@@ -142,7 +143,8 @@ fun LibraryScreen(
 
     var showEdenPrompt by remember { mutableStateOf(false) }
     var showPrimeHackPrompt by remember { mutableStateOf(false) }
-    var showEdenRestartPrompt by remember { mutableStateOf(false) }
+    // The app (label, package, what was set up) the user must Force stop once so it re-reads new settings.
+    var forceStopApp by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     var showEdenOpenFirst by remember { mutableStateOf(false) }
     // Each folder walkthrough is offered automatically at most once per app run (so cancelling the
     // file picker can't make it nag), and only stops being offered for good once the folder is
@@ -193,13 +195,61 @@ fun LibraryScreen(
         showPrimeHackPrompt = true
     }
 
+    // Cemu controller profile and Wii U key files (see CemuSetup): same one-time folder grant.
+    var showCemuPrompt by remember { mutableStateOf(false) }
+    var cemuOfferedThisRun by remember { mutableStateOf(false) }
+    fun applyCemuSetup(treeUri: Uri) {
+        scope.launch {
+            val message = when (val result = CemuSetup.apply(context, treeUri, repository.getBiosKeysFolderUri()?.let { Uri.parse(it) })) {
+                is CemuSetup.Result.Applied -> {
+                    forceStopApp = Triple("Cemu", CemuSetup.PACKAGE, "controls")
+                    buildString {
+                        append(if (result.controller != null) "Set up Cemu's controls for the ${result.controller}." else "No controller was connected, so Cemu's controls weren't set up.")
+                        if (result.copiedFiles.isNotEmpty()) append(" Copied ${result.copiedFiles.joinToString(", ")}.")
+                    }
+                }
+                is CemuSetup.Result.Failed -> result.message
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            emulatorInstallState.bumpRefresh()
+        }
+    }
+    val cemuPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (!CemuSetup.isCemuTree(uri)) {
+            Toast.makeText(context, "That wasn't Cemu's folder — let's try again.", Toast.LENGTH_LONG).show()
+            showCemuPrompt = true
+            return@rememberLauncherForActivityResult
+        }
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        repository.setCemuFolderUri(uri.toString())
+        applyCemuSetup(uri)
+    }
+    fun setUpCemu() {
+        val granted = repository.getCemuFolderUri()?.let { Uri.parse(it) }
+        if (granted != null) applyCemuSetup(granted) else showCemuPrompt = true
+    }
+    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showEdenPrompt) {
+        if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showEdenPrompt) return@LaunchedEffect
+        if (cemuOfferedThisRun || repository.isCemuSetupPrompted() || repository.getCemuFolderUri() != null) return@LaunchedEffect
+        if (neededEmulators.none { it.packageName == CemuSetup.PACKAGE }) return@LaunchedEffect
+        if (!EmulatorLauncher.isPackageInstalled(context, CemuSetup.PACKAGE)) return@LaunchedEffect
+        cemuOfferedThisRun = true
+        showCemuPrompt = true
+    }
+
     // Eden graphics driver (see EdenGpuDriver): same one-time folder grant as PrimeHack above.
     fun applyEdenDriver(treeUri: Uri, quiet: Boolean) {
         scope.launch {
             when (val result = EdenGpuDriver.apply(context, treeUri)) {
                 is EdenGpuDriver.Result.Applied -> {
                     repository.setEdenDriverApplied(true)
-                    showEdenRestartPrompt = true
+                    forceStopApp = Triple("Eden", EdenGpuDriver.PACKAGE, "graphics driver")
                 }
                 is EdenGpuDriver.Result.NotOpenedYet -> if (!quiet) showEdenOpenFirst = true
                 is EdenGpuDriver.Result.Failed ->
@@ -422,7 +472,8 @@ fun LibraryScreen(
                         repository = repository,
                         installState = emulatorInstallState,
                         onSetUpPrimeHack = { setUpPrimeHack() },
-                        onSetUpEdenDriver = { setUpEdenDriver() }
+                        onSetUpEdenDriver = { setUpEdenDriver() },
+                        onSetUpCemu = { setUpCemu() }
                     )
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
@@ -461,16 +512,35 @@ fun LibraryScreen(
         )
     }
 
-    if (showEdenRestartPrompt) {
-        EdenRestartDialog(
+    forceStopApp?.let { (label, packageName, what) ->
+        ForceStopDialog(
+            appName = label,
+            what = what,
             onOpenAppInfo = {
-                showEdenRestartPrompt = false
+                forceStopApp = null
                 context.startActivity(
-                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${EdenGpuDriver.PACKAGE}"))
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 )
             },
-            onDone = { showEdenRestartPrompt = false }
+            onDone = { forceStopApp = null }
+        )
+    }
+
+    if (showCemuPrompt) {
+        FolderAccessDialog(
+            title = "Set up Cemu",
+            why = "RomRunner can set up Cemu's controls for this device's built-in controller, which Cemu doesn't do " +
+                "by itself, and copy over any Wii U key files from your BIOS/Keys folder. It needs permission to write to Cemu's folder.",
+            appName = "Cemu",
+            onChooseFolder = {
+                showCemuPrompt = false
+                cemuPicker.launch(CemuSetup.pickerInitialUri())
+            },
+            onNotNow = {
+                showCemuPrompt = false
+                repository.markCemuSetupPrompted()
+            }
         )
     }
 
