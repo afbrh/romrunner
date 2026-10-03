@@ -12,7 +12,7 @@ import kotlinx.coroutines.withContext
 /**
  * Sets PrimeHack up for this handheld: installs the community controller profiles for AYN Odin/Thor
  * and Retroid Pocket (so both show up in PrimeHack's profile list, with the one that matches this
- * device made active), and writes the graphics defaults we settled on while getting PrimeHack running
+ * device made active, plus the matching GameCube pad mapping), and writes the graphics defaults we settled on while getting PrimeHack running
  * well on this hardware. The two profiles are the ones PrimeHack-Android publishes as assets of its
  * "Controller_config_files" release; RomRunner ships its own copies (assets/primehack/), so this works
  * offline and doesn't depend on that release staying up.
@@ -81,6 +81,11 @@ object PrimeHackControls {
                 val wiimoteIni = config.findFile("WiimoteNew.ini")
                 val existing = wiimoteIni?.let { readText(context, it) }.orEmpty()
                 writeText(context, config, "WiimoteNew.ini", replaceSection(existing, "Wiimote1", body))
+
+                // The profiles above only cover the Wii Remote, and PrimeHack has no default button
+                // bindings at all for GameCube pad 1, so GameCube discs would ignore the controller.
+                val device = Regex("""(?m)^Device\s*=\s*(.+)$""").find(loadProfile(context, profile))?.groupValues?.get(1)?.trim()
+                if (device != null) editIni(context, config, "GCPadNew.ini") { ini -> withGameCubePad(ini, device) }
             }
 
             editIni(context, config, "Dolphin.ini") { ini ->
@@ -123,6 +128,43 @@ object PrimeHackControls {
             out = setIniValue(out, "Video_Settings", "AspectRatio", "1")
             setIniValue(out, "Video_Settings", "wideScreenHack", "True")
         }
+    }
+
+    /**
+     * Merges a GameCube pad mapping for this handheld into `[GCPad1]` of [ini], leaving any other keys
+     * (PrimeHack's own `PrimeHack/Mode`, other pads) alone. Settled on-device with the real controller:
+     * the face buttons are mapped by physical position (the handheld's bottom button reports
+     * BUTTON_B and its right one BUTTON_A), L2/R2 need both the click and the analog axis (22/23 on
+     * this hardware) or the triggers never reach full power, and Z has no natural equivalent so it
+     * goes on either bumper.
+     */
+    private fun withGameCubePad(ini: String, device: String): String {
+        val mapping = listOf(
+            "Device" to device,
+            "Buttons/A" to "`Button A`",
+            "Buttons/B" to "`Button B`",
+            "Buttons/X" to "`Button Y`",
+            "Buttons/Y" to "`Button X`",
+            "Buttons/Start" to "`Start`",
+            "Buttons/Z" to "`Button L1` | `Button R1`",
+            "Triggers/L" to "`Button L2`",
+            "Triggers/R" to "`Button R2`",
+            "Triggers/L-Analog" to "`Axis 23+`",
+            "Triggers/R-Analog" to "`Axis 22+`",
+            "D-Pad/Up" to "`Up`",
+            "D-Pad/Down" to "`Down`",
+            "D-Pad/Left" to "`Left`",
+            "D-Pad/Right" to "`Right`",
+            "Main Stick/Up" to "`Axis 1-`",
+            "Main Stick/Down" to "`Axis 1+`",
+            "Main Stick/Left" to "`Axis 0-`",
+            "Main Stick/Right" to "`Axis 0+`",
+            "C-Stick/Up" to "`Axis 14-`",
+            "C-Stick/Down" to "`Axis 14+`",
+            "C-Stick/Left" to "`Axis 11-`",
+            "C-Stick/Right" to "`Axis 11+`"
+        )
+        return mapping.fold(ini) { acc, (key, value) -> setIniValue(acc, "GCPad1", key, value) }
     }
 
     private fun loadProfile(context: Context, profile: DeviceProfile): String =
