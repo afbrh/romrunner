@@ -11,6 +11,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.noryan.romrunner.ui.navigation.RomRunnerNavHost
 import com.noryan.romrunner.ui.secondscreen.DualScreenController
+import com.noryan.romrunner.ui.secondscreen.SecondScreenState
 import com.noryan.romrunner.ui.theme.RomRunnerTheme
 
 class MainActivity : ComponentActivity() {
@@ -42,9 +43,23 @@ class MainActivity : ComponentActivity() {
         dualScreenController.attach()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Back in front, so whatever game was running is over (or never started): the second
+        // screen's logo slides back up out of the "slot".
+        SecondScreenState.gameEnded()
+    }
+
     override fun onStop() {
-        dualScreenController.detach()
+        // While a game is running the logo stays on the second screen (peeking out of its bottom
+        // edge), even though RomRunner itself is no longer visible.
+        if (!SecondScreenState.gameRunning.value) dualScreenController.detach()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        dualScreenController.detach()
+        super.onDestroy()
     }
 
     // Keeps the status bar hidden for RomRunner's own library/settings UI. Swipe-to-reveal

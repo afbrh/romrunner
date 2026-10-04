@@ -90,6 +90,7 @@ import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 import com.noryan.romrunner.ui.apps.AppsContent
 import com.noryan.romrunner.ui.platforms.PlatformsContent
 import com.noryan.romrunner.ui.platforms.SystemsContent
+import com.noryan.romrunner.ui.secondscreen.SecondScreenState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -568,6 +569,7 @@ fun LibraryScreen(
                     is RetroArchLauncher.Prepared.Ready -> {
                         context.startActivity(prepared.intent)
                         GameFocus.reassertAfterLaunch(context)
+                        SecondScreenState.gameStarted()
                         viewModel.markPlayed(game)
                     }
                     is RetroArchLauncher.Prepared.NeedsFirstRun -> {
@@ -589,6 +591,7 @@ fun LibraryScreen(
             try {
                 context.startActivity(intent)
                 GameFocus.reassertAfterLaunch(context)
+                SecondScreenState.gameStarted()
                 viewModel.markPlayed(game)
             } catch (e: ActivityNotFoundException) {
                 Toast.makeText(
@@ -616,6 +619,7 @@ fun LibraryScreen(
         try {
             context.startActivity(intent)
             GameFocus.reassertAfterLaunch(context)
+            SecondScreenState.gameStarted()
             viewModel.markPlayed(game)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(context, "Couldn't open ${game.title} with that app.", Toast.LENGTH_LONG).show()
