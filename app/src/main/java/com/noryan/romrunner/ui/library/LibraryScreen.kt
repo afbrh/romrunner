@@ -569,7 +569,7 @@ fun LibraryScreen(
                     is RetroArchLauncher.Prepared.Ready -> {
                         context.startActivity(prepared.intent)
                         GameFocus.reassertAfterLaunch(context)
-                        SecondScreenState.gameStarted(game.title)
+                        SecondScreenState.gameStarted(game.title, "RetroArch")
                         viewModel.markPlayed(game)
                     }
                     is RetroArchLauncher.Prepared.NeedsFirstRun -> {
@@ -591,7 +591,7 @@ fun LibraryScreen(
             try {
                 context.startActivity(intent)
                 GameFocus.reassertAfterLaunch(context)
-                SecondScreenState.gameStarted(game.title)
+                SecondScreenState.gameStarted(game.title, target?.let { EmulatorLauncher.labelFor(it.packageName) }.orEmpty())
                 viewModel.markPlayed(game)
             } catch (e: ActivityNotFoundException) {
                 Toast.makeText(
@@ -619,7 +619,7 @@ fun LibraryScreen(
         try {
             context.startActivity(intent)
             GameFocus.reassertAfterLaunch(context)
-            SecondScreenState.gameStarted(game.title)
+            SecondScreenState.gameStarted(game.title, EmulatorLauncher.labelFor(packageName))
             viewModel.markPlayed(game)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(context, "Couldn't open ${game.title} with that app.", Toast.LENGTH_LONG).show()

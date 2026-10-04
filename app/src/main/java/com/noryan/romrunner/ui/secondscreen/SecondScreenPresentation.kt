@@ -50,7 +50,8 @@ class SecondScreenPresentation(
                 RomRunnerTheme(darkTheme = true) {
                     val gameRunning by SecondScreenState.gameRunning.collectAsState()
                     val title by SecondScreenState.title.collectAsState()
-                    SecondScreenLogo(gameRunning = gameRunning, gameTitle = title)
+                    val emulator by SecondScreenState.emulator.collectAsState()
+                    SecondScreenLogo(gameRunning = gameRunning, gameTitle = title, emulatorName = emulator)
                 }
             }
         }

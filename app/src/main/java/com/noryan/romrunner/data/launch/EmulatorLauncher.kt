@@ -27,8 +27,13 @@ object EmulatorLauncher {
         "dev.twilitrealm.dusk" to "Dusklight",
         "org.ppsspp.ppsspp" to "PPSSPP",
         "com.flycast.emulator" to "Flycast",
-        "com.retroarch" to "RetroArch"
+        "com.retroarch" to "RetroArch",
+        "info.cemu.cemu" to "Cemu"
     )
+
+    /** The emulator's display name (RetroArch's variant packages included), or "" for an app we don't know by name. */
+    fun labelFor(packageName: String): String =
+        KNOWN_APP_LABELS[packageName] ?: if (packageName.startsWith("com.retroarch")) "RetroArch" else ""
 
     data class Target(
         val packageName: String,

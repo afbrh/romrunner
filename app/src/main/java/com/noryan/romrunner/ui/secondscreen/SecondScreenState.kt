@@ -18,8 +18,13 @@ object SecondScreenState {
     /** The running game's title, shown as "Now Playing"; stays at its last value after the game ends so it can fade out. */
     val title: StateFlow<String> = _title
 
-    fun gameStarted(gameTitle: String) {
+    private val _emulator = MutableStateFlow("")
+    /** The emulator the game runs in ("" if unknown); like [title], kept after the game ends. */
+    val emulator: StateFlow<String> = _emulator
+
+    fun gameStarted(gameTitle: String, emulatorName: String) {
         _title.value = gameTitle
+        _emulator.value = emulatorName
         _gameRunning.value = true
     }
 
