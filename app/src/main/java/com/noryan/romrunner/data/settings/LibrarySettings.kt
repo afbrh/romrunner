@@ -69,6 +69,16 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_ARMSX2_WIZARD_SHOWN, false)
         set(value) = prefs.edit().putBoolean(KEY_ARMSX2_WIZARD_SHOWN, value).apply()
 
+    /** True once Azahar has been opened on its first-run setup by RomRunner (it can't tell when that's finished, so it's offered once). */
+    var azaharWizardShown: Boolean
+        get() = prefs.getBoolean(KEY_AZAHAR_WIZARD_SHOWN, false)
+        set(value) = prefs.edit().putBoolean(KEY_AZAHAR_WIZARD_SHOWN, value).apply()
+
+    /** True once RomRunner has written its renderer defaults into Azahar's config.ini (see AzaharSetup.applyDefaults). */
+    var azaharDefaultsApplied: Boolean
+        get() = prefs.getBoolean(KEY_AZAHAR_DEFAULTS_APPLIED, false)
+        set(value) = prefs.edit().putBoolean(KEY_AZAHAR_DEFAULTS_APPLIED, value).apply()
+
     /** The folder grant for RetroArch's own data folder (see RetroArchLauncher), if the user gave one. */
     var retroArchFolderUri: String?
         get() = prefs.getString(KEY_RETROARCH_FOLDER_URI, null)
@@ -104,6 +114,8 @@ class LibrarySettings(context: Context) {
         private const val KEY_STORAGE_ACCESS_ASKED = "storage_access_asked"
         private const val KEY_EDEN_SETUP_PROMPTED = "eden_setup_prompted"
         private const val KEY_ARMSX2_WIZARD_SHOWN = "armsx2_wizard_shown"
+        private const val KEY_AZAHAR_WIZARD_SHOWN = "azahar_wizard_shown"
+        private const val KEY_AZAHAR_DEFAULTS_APPLIED = "azahar_defaults_applied"
         private const val KEY_RETROARCH_FOLDER_URI = "retroarch_folder_uri"
         private const val KEY_RETROARCH_SETUP_PROMPTED = "retroarch_setup_prompted"
         private const val KEY_CEMU_FOLDER_URI = "cemu_folder_uri"

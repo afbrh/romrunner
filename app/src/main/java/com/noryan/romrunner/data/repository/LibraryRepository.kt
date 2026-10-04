@@ -208,6 +208,16 @@ class LibraryRepository(
         settings.armsx2WizardShown = true
     }
 
+    fun isAzaharWizardShown(): Boolean = settings.azaharWizardShown
+    fun markAzaharWizardShown() {
+        settings.azaharWizardShown = true
+    }
+
+    fun isAzaharDefaultsApplied(): Boolean = settings.azaharDefaultsApplied
+    fun markAzaharDefaultsApplied() {
+        settings.azaharDefaultsApplied = true
+    }
+
     fun getRetroArchFolderUri(): String? = settings.retroArchFolderUri
     fun setRetroArchFolderUri(uri: String?) {
         settings.retroArchFolderUri = uri
