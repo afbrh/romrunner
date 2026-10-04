@@ -6,7 +6,6 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.noryan.romrunner.data.launch.SystemOrder
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
@@ -39,7 +38,7 @@ class LibraryViewModel(private val repository: LibraryRepository) : ViewModel() 
         message,
         romsRootUri
     ) { platforms, games, scanning, msg, rootUri ->
-        LibraryUiState(platforms, SystemOrder.sort(games, platforms), scanning, msg, rootUri)
+        LibraryUiState(platforms, games, scanning, msg, rootUri)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),

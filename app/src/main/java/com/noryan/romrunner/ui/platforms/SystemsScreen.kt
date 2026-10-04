@@ -45,6 +45,7 @@ import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
+import com.noryan.romrunner.data.launch.SystemOrder
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
@@ -97,7 +98,7 @@ fun SystemsContent(
     val games by repository.observeGames().collectAsStateWithLifecycle(initialValue = emptyList())
     val platforms by repository.observePlatforms().collectAsStateWithLifecycle(initialValue = emptyList())
     val visibleRecommendedEmulators = remember(games, platforms) {
-        RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) }
+        SystemOrder.sortEmulators(RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) })
     }
     val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null || repository.isSetUp("primehack") }
     val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null || repository.isSetUp("cemu") }

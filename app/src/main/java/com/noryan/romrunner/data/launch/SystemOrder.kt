@@ -1,45 +1,28 @@
 package com.noryan.romrunner.data.launch
 
-import com.noryan.romrunner.data.model.Game
-import com.noryan.romrunner.data.model.Platform
-
 /**
- * The order the library lists games in: grouped by system in the sequence below (the order
- * the user wants their systems to read in), with every other system after them. Games within a
- * system stay in title order (the sort is stable and the games arrive title-sorted).
+ * The order systems read in on the Systems tab. Each row there is an emulator app, so rows are
+ * ordered by the first of their systems; RetroArch's one row covers every system from GameBoy
+ * through PlayStation (its own label lists them in this same order, see RETROARCH_SYSTEM_LABELS),
+ * so it leads. Anything not listed here (a future app) goes after, in its existing order.
+ *
+ * GameBoy, NES, SNES, Genesis / Master System / Game Gear, 32X, N64, PlayStation (all RetroArch),
+ * then Dreamcast, PSP, DS, 3DS, GameCube / Wii, PS2, Wii U, Switch, Twilight Princess.
  */
 object SystemOrder {
-    /** Platform names, in listing order. Twilight Princess is its own entry: it plays in Dusklight rather than PrimeHack. */
-    private val PLATFORMS = listOf(
-        "GameBoy (Color + Advance)",
-        "NES",
-        "SNES",
-        "Sega Genesis",
-        "Sega Master System",
-        "Sega Game Gear",
-        "Sega 32X",
-        "Nintendo 64",
-        "PlayStation",
-        "Dreamcast",
-        "PSP",
-        "Nintendo DS",
-        "Nintendo 3DS",
-        "GameCube / Wii",
-        "PlayStation 2",
-        "Wii U",
-        "Nintendo Switch"
+    private val EMULATOR_PACKAGES = listOf(
+        "com.retroarch",
+        "com.flycast.emulator",
+        "org.ppsspp.ppsspp",
+        "me.magnum.melondualds",
+        "org.azahar_emu.azahar",
+        "org.dolphinemu.primehack",
+        "com.armsx2",
+        "info.cemu.cemu",
+        "dev.eden.eden_emulator",
+        "dev.twilitrealm.dusk"
     )
-    private val TWILIGHT_PRINCESS_RANK = PLATFORMS.size
-    private val OTHERS_RANK = PLATFORMS.size + 1
 
-    fun rank(platform: Platform?, game: Game): Int {
-        if (platform == null) return OTHERS_RANK
-        if (GameLaunchOverrides.find(game.title, platform.name) != null) return TWILIGHT_PRINCESS_RANK
-        return PLATFORMS.indexOf(platform.name).takeIf { it >= 0 } ?: OTHERS_RANK
-    }
-
-    fun sort(games: List<Game>, platforms: List<Platform>): List<Game> {
-        val byId = platforms.associateBy { it.id }
-        return games.sortedBy { rank(byId[it.platformId], it) }
-    }
+    fun sortEmulators(emulators: List<RecommendedEmulator>): List<RecommendedEmulator> =
+        emulators.sortedBy { EMULATOR_PACKAGES.indexOf(it.packageName).takeIf { i -> i >= 0 } ?: EMULATOR_PACKAGES.size }
 }
