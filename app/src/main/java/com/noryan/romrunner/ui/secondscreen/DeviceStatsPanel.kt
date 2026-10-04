@@ -1,5 +1,10 @@
 package com.noryan.romrunner.ui.secondscreen
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -73,17 +79,21 @@ fun DeviceStatsPanel(modifier: Modifier = Modifier, level: () -> Float = { 1f })
         }
 
         s.tempC?.let { temp ->
-            // Chips run hot by design (80+ °C under load is normal), the battery doesn't, so each gets its own scale.
-            val fraction = if (s.tempIsChip) (temp - 40f) / 60f else (temp - 25f) / 25f
+            // The bar runs from empty at 20 °C to full at 90 °C. Chips run hot by design (80+ °C under load is
+            // normal) and the battery doesn't, so a battery reading (the fallback) gets its own, cooler scale.
+            val fraction = if (s.tempIsChip) (temp - 20f) / 70f else (temp - 25f) / 25f
+            val (warm, hot, danger) = if (s.tempIsChip) Triple(55f, 75f, 85f) else Triple(33f, 40f, 45f)
             val label = when {
                 s.thermalStatus >= 4 -> "CRITICAL"
                 s.thermalStatus == 3 -> "THROTTLING"
-                fraction < 0.33f -> "COOL"
-                fraction < 0.6f -> "WARM"
-                fraction < 0.8f -> "HOT"
-                else -> "VERY HOT"
+                temp < warm -> "COOL"
+                temp < hot -> "WARM"
+                temp < danger -> "HOT"
+                else -> "DANGER"
             }
-            StatRow("TEMP", String.format(Locale.US, "%s %.0fC", label, temp)) {
+            // Red and flashing for anything past hot: over the danger temperature, or Android itself throttling.
+            val alarm = label == "DANGER" || label == "THROTTLING" || label == "CRITICAL"
+            StatRow("TEMP", String.format(Locale.US, "%s %.0fC", label, temp), valueColor = if (alarm) Danger else null, flash = alarm) {
                 SegmentBar(fraction, heatColor(fraction), level)
             }
         }
@@ -105,13 +115,34 @@ private fun gb(bytes: Long) = String.format(Locale.US, "%.1f", bytes / 1_073_741
 private val StatStyle = TextStyle(fontFamily = Silkscreen, fontSize = 14.sp)
 
 @Composable
-private fun StatRow(label: String, value: String, height: Dp = 30.dp, meter: @Composable RowScope.() -> Unit) {
+private fun StatRow(
+    label: String,
+    value: String,
+    height: Dp = 30.dp,
+    valueColor: Color? = null,
+    flash: Boolean = false,
+    meter: @Composable RowScope.() -> Unit
+) {
     Row(modifier = Modifier.fillMaxWidth().height(height), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = StatStyle, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), modifier = Modifier.width(64.dp))
         Box(modifier = Modifier.weight(1f).height(if (height > 30.dp) height else 18.dp)) {
             Row { meter() }
         }
-        Text(value, style = StatStyle, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.End, modifier = Modifier.width(150.dp))
+        val blink = if (flash) {
+            rememberInfiniteTransition(label = "alarm").animateFloat(
+                initialValue = 1f,
+                targetValue = 0.15f,
+                animationSpec = infiniteRepeatable(tween(450), RepeatMode.Reverse),
+                label = "alarmAlpha"
+            ).value
+        } else 1f
+        Text(
+            value,
+            style = StatStyle,
+            color = valueColor ?: MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(150.dp).alpha(blink)
+        )
     }
 }
 
