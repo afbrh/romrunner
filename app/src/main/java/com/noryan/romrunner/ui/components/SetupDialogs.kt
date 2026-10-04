@@ -36,30 +36,3 @@ fun ForceStopDialog(
     )
 }
 
-/**
- * Offered once, just before the first batch of emulator downloads: lets RomRunner look in Downloads for
- * emulator APKs that are already there. Android only shows an app the files it downloaded itself during
- * the current install, so seeing the rest takes the "All files access" setting, which only the user can
- * switch on.
- */
-@Composable
-fun StorageAccessDialog(
-    onAllow: () -> Unit,
-    onSkip: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onSkip,
-        title = { Text("Reuse downloaded emulators?") },
-        text = {
-            Text(
-                "If you already have these emulators in your Downloads folder, RomRunner can install those instead of " +
-                    "downloading them again.\n\n" +
-                    "For that, Android needs you to switch on \"Allow access to manage all files\" for RomRunner. " +
-                    "Tap \"Open settings\", turn it on, then come back."
-            )
-        },
-        confirmButton = { TextButton(onClick = onAllow) { Text("Open settings") } },
-        dismissButton = { TextButton(onClick = onSkip) { Text("Just download") } }
-    )
-}
-

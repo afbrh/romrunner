@@ -75,7 +75,6 @@ import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
-import com.noryan.romrunner.ui.components.StorageAccessDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
@@ -124,7 +123,6 @@ fun LibraryScreen(
     // Shared with the Settings tab so its rows show live progress for installs started from here.
     val emulatorInstallState = remember { EmulatorInstallState() }
     var showEmulatorSetupPrompt by remember { mutableStateOf(false) }
-    var showStorageAccessPrompt by remember { mutableStateOf(false) }
     // Set while the user is in Android's "all files access" settings, so the install-all they asked for
     // continues once they return to RomRunner.
     var installAllAfterStorageAccess by remember { mutableStateOf(false) }
@@ -611,29 +609,17 @@ fun LibraryScreen(
                 if (android.os.Environment.isExternalStorageManager() || repository.isStorageAccessAsked()) {
                     startInstallAll()
                 } else {
-                    showStorageAccessPrompt = true
+                    // Straight to Android's "all files access" screen (lets RomRunner reuse emulator APKs
+                    // already in Downloads); the install-all carries on when the user comes back.
+                    repository.markStorageAccessAsked()
+                    installAllAfterStorageAccess = true
+                    context.startActivity(
+                        Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
                 }
             },
             onNotNow = { showEmulatorSetupPrompt = false }
-        )
-    }
-
-    if (showStorageAccessPrompt) {
-        StorageAccessDialog(
-            onAllow = {
-                showStorageAccessPrompt = false
-                repository.markStorageAccessAsked()
-                installAllAfterStorageAccess = true
-                context.startActivity(
-                    Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            },
-            onSkip = {
-                showStorageAccessPrompt = false
-                repository.markStorageAccessAsked()
-                startInstallAll()
-            }
         )
     }
 
