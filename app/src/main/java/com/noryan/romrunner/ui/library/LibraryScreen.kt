@@ -77,7 +77,6 @@ import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.StorageAccessDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
-import com.noryan.romrunner.ui.components.FolderAccessDialog
 import com.noryan.romrunner.ui.components.PickFolderGuideDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
@@ -584,16 +583,13 @@ fun LibraryScreen(
     }
 
     if (showCemuPrompt) {
-        FolderAccessDialog(
-            title = "Set up Cemu",
-            why = "RomRunner can set up Cemu's controls for this device's built-in controller, which Cemu doesn't do " +
-                "by itself, and copy over any Wii U key files from your Roms/BIOS folder. It needs permission to write to Cemu's folder.",
+        PickFolderGuideDialog(
             appName = "Cemu",
-            onChooseFolder = {
+            onOpen = {
                 showCemuPrompt = false
                 cemuPicker.launch(CemuSetup.pickerInitialUri())
             },
-            onNotNow = {
+            onCancel = {
                 showCemuPrompt = false
                 repository.markCemuSetupPrompted()
             }
@@ -615,18 +611,13 @@ fun LibraryScreen(
     }
 
     if (showPrimeHackPrompt) {
-        val profileLabel = PrimeHackControls.detectProfile()?.label
-        FolderAccessDialog(
-            title = "Set up PrimeHack",
-            why = "RomRunner can add the Odin and Retroid controller profiles to PrimeHack" +
-                (if (profileLabel != null) " (using the one for your $profileLabel)" else "") +
-                " and apply the graphics settings that run best on this device. It needs permission to write to PrimeHack's folder.",
+        PickFolderGuideDialog(
             appName = "Prime Hack",
-            onChooseFolder = {
+            onOpen = {
                 showPrimeHackPrompt = false
                 primeHackPicker.launch(PrimeHackControls.pickerInitialUri())
             },
-            onNotNow = {
+            onCancel = {
                 showPrimeHackPrompt = false
                 repository.markPrimeHackSetupPrompted()
             }
