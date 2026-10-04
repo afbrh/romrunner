@@ -161,6 +161,59 @@ def pixel_text_cutout(pen, text, x_left, x_right, cy, cap_height, bold, gap):
             pen.close()
         x += ncols * pw + 2 * bold + gap
 
+# ---- Skull and crossbones: a pixel-art jolly roger (21 x 18 cells), drawn in the same pixel idiom as the
+# lettering. A play on the name: ROM RUNNER ~ rum runner. ----
+_SKULL = [
+    "..#######..",
+    ".#########.",
+    "###########",
+    "#ooo###ooo#",   # 'o' = eye sockets and nose, left empty
+    "#ooo###ooo#",
+    "##o#####o##",
+    "###########",
+    ".####o####.",
+    "..#######..",
+    "..#.#.#.#..",   # teeth
+]
+_SKULL_LEFT = 5          # skull's left column in the 21-wide grid
+_GRID_W, _GRID_H = 21, 18
+
+def _skull_crossbones_cells():
+    skull = {(_SKULL_LEFT + x, y) for y, row in enumerate(_SKULL) for x, c in enumerate(row) if c == "#"}
+    # everything inside the skull's outline (its eye holes included), to carve a one-cell gap around it so
+    # the bones read as passing behind
+    outline = {(_SKULL_LEFT + x, y) for y, row in enumerate(_SKULL) for x in range(len(row))
+               if "#" in row[:x + 1] and "#" in row[x:]}
+    gap = {(x + dx, y + dy) for x, y in outline for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
+
+    def bone(x0, y0, x1, y1):
+        cells = set()
+        for i in range(x1 - x0 + 1):
+            y = round(y0 + (y1 - y0) * i / (x1 - x0))
+            cells |= {(x0 + i, y + t) for t in (-1, 0, 1)}
+        return cells
+
+    def forked_end(x, y, s):
+        # a wider end plus two knobs with a notch between them, pointing outward (s = -1 left, +1 right)
+        return {(x, y - 2), (x, y + 2), (x + s, y - 2), (x + s, y - 1), (x + s, y + 1), (x + s, y + 2)}
+
+    mirror = lambda cells: {(_GRID_W - 1 - x, y) for x, y in cells}
+    one = bone(1, 7, 19, 15)                       # top-left to bottom-right; its mirror is the other bone
+    bones = one | forked_end(1, 7, -1) | forked_end(19, 15, 1)
+    bones |= mirror(bones)
+    return {c for c in (bones - gap) | skull if 0 <= c[0] < _GRID_W and 0 <= c[1] < _GRID_H}
+
+def skull_crossbones(pen, cx, cy, cell):
+    """Skull and crossbones centred on (cx, cy), each pixel `cell` units square, as merged outlines (eye
+    sockets and the notches in the bone ends come out as inner loops, so even-odd fill leaves them open)."""
+    x0, y0 = cx - _GRID_W * cell / 2, cy - _GRID_H * cell / 2
+    rects = [(x0 + x * cell, y0 + y * cell, x0 + (x + 1) * cell, y0 + (y + 1) * cell)
+             for x, y in _skull_crossbones_cells()]
+    for loop in _union_loops(rects):
+        pen.move(loop[0])
+        for pt in loop[1:]: pen.line(pt)
+        pen.close()
+
 # Cartridge in unskewed units (roughly Game Boy proportions, 280 x 320).
 X0, Y0, X1, Y1 = 150, 96, 430, 416
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
@@ -173,7 +226,7 @@ ROM_CAP, ROM_BOLD, ROM_GAP = 44, 2.0, 9   # total height; extra stroke weight pe
 RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP = 30.9, 1.5, 6.3   # same treatment as ROM, scaled to its smaller size
 
 def paths(T):
-    """Returns the mark's path, filled even-odd (cutouts + the arrow inside the label)."""
+    """Returns the mark's path, filled even-odd (cutouts + the skull and crossbones inside the label)."""
     b = Pen(T)
     # shell, clockwise from top-left
     b.arc((X0 + R_TOP, Y0 + R_TOP), R_TOP, 180, 270, start=True)
@@ -185,9 +238,9 @@ def paths(T):
     # the name, cut out of the shell: ROM in the top band, RUNNER in the bottom one
     pixel_text_cutout(b, "ROM", ROM_X0, ROM_X1, 134, ROM_CAP, ROM_BOLD, ROM_GAP)
     pixel_text_cutout(b, "RUNNER", WIN_X0, WIN_X1, 382, RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP)
-    # recessed label window, with the play arrow standing solid inside it
+    # recessed label window, with a skull and crossbones standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
-    b.round_poly([(264, 216), (334, 260), (264, 304)], 9)
+    skull_crossbones(b, 290, 260, 9)
 
     return b.d
 
