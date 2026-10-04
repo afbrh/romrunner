@@ -11,7 +11,8 @@ import java.util.zip.ZipInputStream
  * Sets Eden (Nintendo Switch) up for this handheld, through the same one-time folder permission
  * [EdenGpuDriver] already uses:
  *  - installs the user's Switch keys (`prod.keys`, `title.keys`) and firmware from their Roms/BIOS folder;
- *  - hides Eden's on-screen touch controls (Eden also auto-hides them while a gamepad is connected);
+ *  - hides Eden's on-screen touch controls (Eden also auto-hides them while a gamepad is connected) and
+ *    its performance-stats and device-info overlays, all of which Eden shows by default;
  *  - installs the Turnip graphics driver on handhelds that need it (see [EdenGpuDriver]).
  *
  * Controls are deliberately left to Eden: on first launch it maps the connected gamepad by itself, and
@@ -58,11 +59,12 @@ object EdenSetup {
 
             val existing = context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { it.readText() }
                 ?: error("couldn't read Eden's settings")
-            EdenGpuDriver.writeConfig(
-                context, configDir, configFile,
-                EdenGpuDriver.withSetting(existing, "Overlay", "show_input_overlay", "false")
-            )
-            summary += "Hid Eden's on-screen controls."
+            // All three default to on. show_performance_overlay is the master switch for the FPS / frame
+            // time / build and driver info lines, and show_soc_overlay is Eden's "Device Info Overlay".
+            val overlaysOff = listOf("show_input_overlay", "show_performance_overlay", "show_soc_overlay")
+                .fold(existing) { ini, key -> EdenGpuDriver.withSetting(ini, "Overlay", key, "false") }
+            EdenGpuDriver.writeConfig(context, configDir, configFile, overlaysOff)
+            summary += "Hid Eden's on-screen controls and stats overlays."
 
             if (EdenGpuDriver.isEligible()) {
                 when (val driver = EdenGpuDriver.apply(context, treeUri)) {
