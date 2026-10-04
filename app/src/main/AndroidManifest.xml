@@ -55,6 +55,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+<!-- Invisible and short-lived: see GameFocus. Its own empty task affinity keeps it out of
+     RomRunner's task, so closing it drops straight back to the game underneath. -->
+<activity
+    android:name=".FocusKickActivity"
+    android:exported="false"
+    android:excludeFromRecents="true"
+    android:noHistory="true"
+    android:taskAffinity=""
+    android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 
 </manifest>

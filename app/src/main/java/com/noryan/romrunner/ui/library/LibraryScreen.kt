@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.GameFocus
 import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.EdenSetup
 import com.noryan.romrunner.data.launch.EmulatorFolders
@@ -546,6 +547,7 @@ fun LibraryScreen(
                 when (val prepared = RetroArchLauncher.prepare(context, platform, game, repository.getRetroArchFolderUri()?.let { Uri.parse(it) })) {
                     is RetroArchLauncher.Prepared.Ready -> {
                         context.startActivity(prepared.intent)
+                        GameFocus.reassertAfterLaunch(context)
                         viewModel.markPlayed(game)
                     }
                     is RetroArchLauncher.Prepared.NeedsFirstRun -> {
@@ -565,6 +567,7 @@ fun LibraryScreen(
         val intent = EmulatorLauncher.buildIntent(context, platform, game)
         try {
             context.startActivity(intent)
+            GameFocus.reassertAfterLaunch(context)
             viewModel.markPlayed(game)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(
@@ -579,6 +582,7 @@ fun LibraryScreen(
         val intent = EmulatorLauncher.buildIntentForPackage(context, platform, game, packageName)
         try {
             context.startActivity(intent)
+            GameFocus.reassertAfterLaunch(context)
             viewModel.markPlayed(game)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(context, "Couldn't open ${game.title} with that app.", Toast.LENGTH_LONG).show()
