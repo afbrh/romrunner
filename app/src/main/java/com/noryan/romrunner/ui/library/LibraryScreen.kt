@@ -87,6 +87,7 @@ import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 import com.noryan.romrunner.ui.apps.AppsContent
 import com.noryan.romrunner.ui.platforms.PlatformsContent
 import com.noryan.romrunner.ui.platforms.SystemsContent
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private data class MissingAppRequest(val platform: Platform, val game: Game, val target: EmulatorLauncher.Target)
@@ -127,10 +128,21 @@ fun LibraryScreen(
     // Set while the user is in Android's "all files access" settings, so the install-all they asked for
     // continues once they return to RomRunner.
     var installAllAfterStorageAccess by remember { mutableStateOf(false) }
+    // Same idea for the "install unknown apps" screen that follows it.
+    var waitingForInstallPermission by remember { mutableStateOf(false) }
     val neededEmulators = remember(state.games, state.platforms) {
         RECOMMENDED_EMULATORS.filter { it.isNeeded(state.platforms, state.games) }
     }
-    fun startInstallAll() {
+    fun startInstallAll(askForInstallPermission: Boolean = true) {
+        if (askForInstallPermission && !context.packageManager.canRequestPackageInstalls()) {
+            // "Install unknown apps" has to be on for RomRunner, or each install first shows a "you're not allowed" box
+            // that sends the user to Settings. Ask for it up front instead: RomRunner returns by itself once it's on.
+            waitingForInstallPermission = true
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
+            )
+            return
+        }
         // Jump to Systems so the per-emulator progress is visible while it works.
         selectedTab = HomeTab.SYSTEMS
         scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
@@ -448,6 +460,33 @@ fun LibraryScreen(
         if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
         applyEdenSetup(granted, quiet = true)
     }
+    // While the user is on Android's "all files access" screen, watch for the switch going on and bring RomRunner
+    // back to the front by itself, so the install prompts that follow open over RomRunner and not over Settings.
+    // Settings is started inside RomRunner's own task (no NEW_TASK, see the launch below), which is what lets an
+    // app that is in the background pull itself forward; CLEAR_TOP also closes the Settings screen on the way.
+    LaunchedEffect(installAllAfterStorageAccess) {
+        if (!installAllAfterStorageAccess) return@LaunchedEffect
+        while (!android.os.Environment.isExternalStorageManager()) delay(300)
+        context.startActivity(
+            Intent(context, com.noryan.romrunner.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
+    }
+    LaunchedEffect(waitingForInstallPermission) {
+        if (!waitingForInstallPermission) return@LaunchedEffect
+        while (!context.packageManager.canRequestPackageInstalls()) delay(300)
+        context.startActivity(
+            Intent(context, com.noryan.romrunner.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
+    }
+    // Back from "install unknown apps" (switched on or not): go ahead and install. If the user backed out
+    // without allowing it, the system's own prompt still handles it, so don't ask a second time.
+    LaunchedEffect(resumeTick) {
+        if (!waitingForInstallPermission) return@LaunchedEffect
+        waitingForInstallPermission = false
+        startInstallAll(askForInstallPermission = false)
+    }
     // Back from Android's "all files access" settings (granted or not): carry on with the install-all.
     LaunchedEffect(resumeTick) {
         if (!installAllAfterStorageAccess) return@LaunchedEffect
@@ -692,7 +731,6 @@ fun LibraryScreen(
                     installAllAfterStorageAccess = true
                     context.startActivity(
                         Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     )
                 }
             },
