@@ -78,6 +78,7 @@ import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.StorageAccessDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
 import com.noryan.romrunner.ui.components.FolderAccessDialog
+import com.noryan.romrunner.ui.components.PickFolderGuideDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
 import com.noryan.romrunner.ui.components.RenameDialog
@@ -151,8 +152,10 @@ fun LibraryScreen(
         }
     }
 
-    // True while the file picker for Eden's folder is up, so no other setup prompt opens over it.
+    // True from the heads-up before Eden's folder picker until the picker closes, so no other setup
+    // prompt opens over it. [showEdenPickerGuide] is just the heads-up part of that.
     var edenPickerOpen by remember { mutableStateOf(false) }
+    var showEdenPickerGuide by remember { mutableStateOf(false) }
     var showPrimeHackPrompt by remember { mutableStateOf(false) }
     // The app (label, package) the user must Force stop once so it re-reads the settings just written.
     var forceStopApp by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -324,12 +327,7 @@ fun LibraryScreen(
     }
     launchEdenPicker = {
         edenPickerOpen = true
-        Toast.makeText(
-            context,
-            "Eden setup: tap the menu (top left), choose \"Eden\", then \"Use this folder\" and \"Allow\".",
-            Toast.LENGTH_LONG
-        ).show()
-        edenPicker.launch(EdenGpuDriver.pickerInitialUri())
+        showEdenPickerGuide = true
     }
     fun setUpEdenDriver() {
         val granted = repository.getEdenFolderUri()?.let { Uri.parse(it) }
@@ -598,6 +596,20 @@ fun LibraryScreen(
             onNotNow = {
                 showCemuPrompt = false
                 repository.markCemuSetupPrompted()
+            }
+        )
+    }
+
+    if (showEdenPickerGuide) {
+        PickFolderGuideDialog(
+            appName = "Eden",
+            onOpen = {
+                showEdenPickerGuide = false
+                edenPicker.launch(EdenGpuDriver.pickerInitialUri())
+            },
+            onCancel = {
+                showEdenPickerGuide = false
+                edenPickerOpen = false
             }
         )
     }
