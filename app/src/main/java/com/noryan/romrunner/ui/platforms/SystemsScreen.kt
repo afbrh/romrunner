@@ -60,8 +60,8 @@ private val NotInstalledRed = Color(0xFFFF6B6B)
 
 /**
  * The Systems tab: everything that's specific to a game system's emulator — a row per system in the
- * library, plus the one-off setup rows for PrimeHack's
- * controller profile and Eden's graphics driver. General app settings live in [PlatformsContent].
+ * library, showing its app (tap to install or open it) and, for the apps that have one, its one-time setup
+ * (PrimeHack, Cemu, Eden, RetroArch) on the same line. General app settings live in [PlatformsContent].
  */
 @Composable
 fun SystemsContent(
@@ -97,152 +97,21 @@ fun SystemsContent(
     val visibleRecommendedEmulators = remember(games, platforms) {
         RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) }
     }
-    val primeHackInstalled = remember(installCheckTick, installState.refreshTick) {
-        EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)
-    }
     val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null }
-    val cemuInstalled = remember(installCheckTick, installState.refreshTick) {
-        EmulatorLauncher.isPackageInstalled(context, CemuSetup.PACKAGE)
-    }
     val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null }
-    val retroArchInstalled = remember(installCheckTick, installState.refreshTick) {
-        EmulatorLauncher.isPackageInstalled(context, "com.retroarch")
-    }
     val retroArchLinked = remember(installState.refreshTick) { repository.getRetroArchFolderUri() != null }
-    val edenInstalled = remember(installCheckTick, installState.refreshTick) {
-        EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)
-    }
     val edenDriverApplied = remember(installState.refreshTick) { repository.isEdenDriverApplied() }
 
+    // The emulators that have a one-time setup, as: whether it's done, and what to run to do it. Shown on the
+    // system's own row, next to the app, once the app is installed.
+    val setups: Map<String, Pair<Boolean, () -> Unit>> = mapOf(
+        PrimeHackControls.PACKAGE to (primeHackLinked to onSetUpPrimeHack),
+        CemuSetup.PACKAGE to (cemuLinked to onSetUpCemu),
+        EdenGpuDriver.PACKAGE to (edenDriverApplied to onSetUpEdenDriver),
+        "com.retroarch" to (retroArchLinked to onSetUpRetroArch)
+    )
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        if (primeHackInstalled) {
-            item {
-                val primeHackInteractionSource = rememberFocusInteractionSource()
-                val primeHackGlow = primeHackInteractionSource.glowShadow()
-                val primeHackColor = primeHackInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = primeHackInteractionSource,
-                            indication = null,
-                            onClick = onSetUpPrimeHack
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "PrimeHack setup",
-                        style = LocalTextStyle.current.copy(shadow = primeHackGlow),
-                        color = primeHackColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (primeHackLinked) "Loaded" else "Set up",
-                        style = LocalTextStyle.current.copy(shadow = primeHackGlow),
-                        color = primeHackColor,
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-
-        if (retroArchInstalled) {
-            item {
-                val raInteractionSource = rememberFocusInteractionSource()
-                val raGlow = raInteractionSource.glowShadow()
-                val raColor = raInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = raInteractionSource,
-                            indication = null,
-                            onClick = onSetUpRetroArch
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "RetroArch setup",
-                        style = LocalTextStyle.current.copy(shadow = raGlow),
-                        color = raColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (retroArchLinked) "Loaded" else "Set up",
-                        style = LocalTextStyle.current.copy(shadow = raGlow),
-                        color = raColor,
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-
-        if (cemuInstalled) {
-            item {
-                val cemuInteractionSource = rememberFocusInteractionSource()
-                val cemuGlow = cemuInteractionSource.glowShadow()
-                val cemuColor = cemuInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = cemuInteractionSource,
-                            indication = null,
-                            onClick = onSetUpCemu
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Cemu setup",
-                        style = LocalTextStyle.current.copy(shadow = cemuGlow),
-                        color = cemuColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (cemuLinked) "Loaded" else "Set up",
-                        style = LocalTextStyle.current.copy(shadow = cemuGlow),
-                        color = cemuColor,
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-
-        if (edenInstalled) {
-            item {
-                val edenInteractionSource = rememberFocusInteractionSource()
-                val edenGlow = edenInteractionSource.glowShadow()
-                val edenColor = edenInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = edenInteractionSource,
-                            indication = null,
-                            onClick = onSetUpEdenDriver
-                        )
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Eden setup",
-                        style = LocalTextStyle.current.copy(shadow = edenGlow),
-                        color = edenColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (edenDriverApplied) "Loaded" else "Set up",
-                        style = LocalTextStyle.current.copy(shadow = edenGlow),
-                        color = edenColor,
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-
         visibleRecommendedEmulators.forEach { emulator ->
             item(key = emulator.packageName) {
                 val isInstalled = remember(emulator.packageName, installCheckTick, installState.refreshTick) {
@@ -286,6 +155,18 @@ fun SystemsContent(
                             scope.launch { installState.installOne(context, emulator) }
                         }
                     )
+                    setups[emulator.packageName]?.takeIf { isInstalled }?.let { (done, run) ->
+                        Text(
+                            text = buildAnnotatedString {
+                                append("Setup — ")
+                                if (done) withStyle(SpanStyle(color = InstalledGreen)) { append("Loaded") }
+                                else withStyle(SpanStyle(color = NotInstalledRed)) { append("Set up") }
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.padding(start = 32.dp).clickable(onClick = run)
+                        )
+                    }
                 }
             }
         }
