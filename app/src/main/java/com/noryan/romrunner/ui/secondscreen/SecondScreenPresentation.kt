@@ -49,7 +49,8 @@ class SecondScreenPresentation(
             setContent {
                 RomRunnerTheme(darkTheme = true) {
                     val gameRunning by SecondScreenState.gameRunning.collectAsState()
-                    SecondScreenLogo(gameRunning = gameRunning)
+                    val title by SecondScreenState.title.collectAsState()
+                    SecondScreenLogo(gameRunning = gameRunning, gameTitle = title)
                 }
             }
         }

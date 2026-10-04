@@ -3,20 +3,34 @@ package com.noryan.romrunner.ui.secondscreen
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.R
 import kotlin.math.roundToInt
 
@@ -27,7 +41,7 @@ import kotlin.math.roundToInt
  * empty margin around the cartridge, hence the viewport constants.
  */
 @Composable
-fun SecondScreenLogo(gameRunning: Boolean = false) {
+fun SecondScreenLogo(gameRunning: Boolean = false, gameTitle: String = "") {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -58,6 +72,33 @@ fun SecondScreenLogo(gameRunning: Boolean = false) {
                 .offset { IntOffset(0, top.roundToInt()) }
                 .size(markSize)
         )
+
+        AnimatedVisibility(
+            visible = gameRunning,
+            enter = fadeIn(tween(600, delayMillis = 250)) + slideInVertically(tween(600, delayMillis = 250)) { -it / 2 },
+            exit = fadeOut(tween(400)) + slideOutVertically(tween(400)) { -it / 2 },
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 56.dp)
+            ) {
+                Text(
+                    text = "NOW PLAYING",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = gameTitle,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
