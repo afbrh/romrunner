@@ -78,6 +78,7 @@ import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
+import com.noryan.romrunner.ui.components.OpenTreeWithPrompt
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
 import com.noryan.romrunner.ui.components.RenameDialog
 import com.noryan.romrunner.ui.components.glowColor
@@ -187,7 +188,7 @@ fun LibraryScreen(
     }
     lateinit var launchPrimeHackPicker: () -> Unit
     val primeHackPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
+        OpenTreeWithPrompt("Set up PrimeHack")
     ) { uri ->
         showPrimeHackPrompt = false
         if (uri == null) {
@@ -246,7 +247,7 @@ fun LibraryScreen(
     }
     lateinit var launchCemuPicker: () -> Unit
     val cemuPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
+        OpenTreeWithPrompt("Set up Cemu")
     ) { uri ->
         showCemuPrompt = false
         if (uri == null) {
@@ -302,7 +303,7 @@ fun LibraryScreen(
     }
     lateinit var launchRetroArchPicker: () -> Unit
     val retroArchPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
+        OpenTreeWithPrompt("Set up RetroArch")
     ) { uri ->
         retroArchPickerOpen = false
         if (uri == null) {
@@ -410,7 +411,7 @@ fun LibraryScreen(
     }
     lateinit var launchEdenPicker: () -> Unit
     val edenPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
+        OpenTreeWithPrompt("Set up Eden")
     ) { uri ->
         edenPickerOpen = false
         if (uri == null) {
