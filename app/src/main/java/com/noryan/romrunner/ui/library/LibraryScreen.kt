@@ -59,7 +59,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.noryan.romrunner.data.fps.FpsMonitor
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.GameFocus
@@ -570,7 +569,7 @@ fun LibraryScreen(
                     is RetroArchLauncher.Prepared.Ready -> {
                         context.startActivity(prepared.intent)
                         GameFocus.reassertAfterLaunch(context)
-                        SecondScreenState.gameStarted(game.title, "RetroArch", "com.retroarch")
+                        SecondScreenState.gameStarted(game.title, "RetroArch")
                         viewModel.markPlayed(game)
                     }
                     is RetroArchLauncher.Prepared.NeedsFirstRun -> {
@@ -588,12 +587,11 @@ fun LibraryScreen(
             return
         }
         fun startBuilt() {
-            target?.let { FpsMonitor.prepare(it.packageName) }
             val intent = EmulatorLauncher.buildIntent(context, platform, game)
             try {
                 context.startActivity(intent)
                 GameFocus.reassertAfterLaunch(context)
-                SecondScreenState.gameStarted(game.title, target?.let { EmulatorLauncher.labelFor(it.packageName) }.orEmpty(), target?.packageName.orEmpty())
+                SecondScreenState.gameStarted(game.title, target?.let { EmulatorLauncher.labelFor(it.packageName) }.orEmpty())
                 viewModel.markPlayed(game)
             } catch (e: ActivityNotFoundException) {
                 Toast.makeText(
@@ -617,12 +615,11 @@ fun LibraryScreen(
     }
 
     fun launchWithChosenApp(platform: Platform, game: Game, packageName: String) {
-        FpsMonitor.prepare(packageName)
         val intent = EmulatorLauncher.buildIntentForPackage(context, platform, game, packageName)
         try {
             context.startActivity(intent)
             GameFocus.reassertAfterLaunch(context)
-            SecondScreenState.gameStarted(game.title, EmulatorLauncher.labelFor(packageName), packageName)
+            SecondScreenState.gameStarted(game.title, EmulatorLauncher.labelFor(packageName))
             viewModel.markPlayed(game)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(context, "Couldn't open ${game.title} with that app.", Toast.LENGTH_LONG).show()

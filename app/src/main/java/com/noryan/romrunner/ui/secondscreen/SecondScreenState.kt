@@ -1,6 +1,5 @@
 package com.noryan.romrunner.ui.secondscreen
 
-import com.noryan.romrunner.data.fps.FpsMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -23,15 +22,13 @@ object SecondScreenState {
     /** The emulator the game runs in ("" if unknown); like [title], kept after the game ends. */
     val emulator: StateFlow<String> = _emulator
 
-    fun gameStarted(gameTitle: String, emulatorName: String, packageName: String) {
-        FpsMonitor.start(packageName)
+    fun gameStarted(gameTitle: String, emulatorName: String) {
         _title.value = gameTitle
         _emulator.value = emulatorName
         _gameRunning.value = true
     }
 
     fun gameEnded() {
-        FpsMonitor.stop()
         _gameRunning.value = false
     }
 }

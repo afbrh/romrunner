@@ -20,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,7 +37,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.noryan.romrunner.data.fps.FpsMonitor
 import com.noryan.romrunner.ui.theme.Silkscreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -68,14 +66,6 @@ fun DeviceStatsPanel(modifier: Modifier = Modifier, level: () -> Float = { 1f })
     val accent = MaterialTheme.colorScheme.primary
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 48.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Only for emulators that can report it (see FpsMonitor); appears once the first reading arrives.
-        val fps by FpsMonitor.fps.collectAsState()
-        fps?.let { value ->
-            StatRow("FPS", String.format(Locale.US, "%.1f FPS", value)) {
-                SegmentBar(value / 60f, accent, level)
-            }
-        }
-
         s.cpuUsage?.let { usage ->
             val clock = s.cpuTopKhz?.let { String.format(Locale.US, " %.2f GHZ", it / 1_000_000f) }.orEmpty()
             StatRow("CPU", "${(usage * 100).roundToInt()}%$clock") {
