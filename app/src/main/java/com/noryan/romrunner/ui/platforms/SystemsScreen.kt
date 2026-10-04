@@ -69,7 +69,8 @@ fun SystemsContent(
     installState: EmulatorInstallState,
     onSetUpPrimeHack: () -> Unit,
     onSetUpEdenDriver: () -> Unit,
-    onSetUpCemu: () -> Unit
+    onSetUpCemu: () -> Unit,
+    onSetUpRetroArch: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -104,6 +105,10 @@ fun SystemsContent(
         EmulatorLauncher.isPackageInstalled(context, CemuSetup.PACKAGE)
     }
     val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null }
+    val retroArchInstalled = remember(installCheckTick, installState.refreshTick) {
+        EmulatorLauncher.isPackageInstalled(context, "com.retroarch")
+    }
+    val retroArchLinked = remember(installState.refreshTick) { repository.getRetroArchFolderUri() != null }
     val edenInstalled = remember(installCheckTick, installState.refreshTick) {
         EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)
     }
@@ -136,6 +141,38 @@ fun SystemsContent(
                         text = if (primeHackLinked) "Loaded" else "Set up",
                         style = LocalTextStyle.current.copy(shadow = primeHackGlow),
                         color = primeHackColor,
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+
+        if (retroArchInstalled) {
+            item {
+                val raInteractionSource = rememberFocusInteractionSource()
+                val raGlow = raInteractionSource.glowShadow()
+                val raColor = raInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = raInteractionSource,
+                            indication = null,
+                            onClick = onSetUpRetroArch
+                        )
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "RetroArch setup",
+                        style = LocalTextStyle.current.copy(shadow = raGlow),
+                        color = raColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = if (retroArchLinked) "Loaded" else "Set up",
+                        style = LocalTextStyle.current.copy(shadow = raGlow),
+                        color = raColor,
                         textAlign = TextAlign.End
                     )
                 }

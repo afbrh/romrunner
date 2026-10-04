@@ -270,11 +270,70 @@ fun LibraryScreen(
         launchCemuPicker()
     }
 
+    // RetroArch (see RetroArchLauncher): one folder grant on its data folder lets RomRunner install the cores
+    // and its own config (RGUI menu, hotkeys, quit on close). Same hands-off picker flow as the others.
+    var retroArchPickerOpen by remember { mutableStateOf(false) }
+    var retroArchOfferedThisRun by remember { mutableStateOf(false) }
+    fun applyRetroArchSetup(treeUri: Uri) {
+        scope.launch {
+            val systems = state.games.mapNotNull { g -> state.platforms.find { it.id == g.platformId }?.name }.distinct()
+            val cores = RetroArchLauncher.retroArchPlatforms(systems)
+            Toast.makeText(context, "Setting up RetroArch…", Toast.LENGTH_SHORT).show()
+            val message = when (val result = RetroArchLauncher.setUp(context, treeUri, cores)) {
+                is RetroArchLauncher.SetupResult.Done -> "RetroArch is set up: RGUI menu, hotkeys, quit on close" +
+                    if (result.coresInstalled.isNotEmpty()) ", and cores installed (${result.coresInstalled.joinToString(", ")})." else "."
+                is RetroArchLauncher.SetupResult.Failed -> result.message
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            emulatorInstallState.bumpRefresh()
+        }
+    }
+    lateinit var launchRetroArchPicker: () -> Unit
+    val retroArchPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        retroArchPickerOpen = false
+        if (uri == null) {
+            repository.markRetroArchSetupPrompted()
+            return@rememberLauncherForActivityResult
+        }
+        if (!RetroArchLauncher.isRetroArchTree(context, uri)) {
+            Toast.makeText(context, "That wasn't RetroArch's folder — choose \"RetroArch\" in the menu (top left).", Toast.LENGTH_LONG).show()
+            launchRetroArchPicker()
+            return@rememberLauncherForActivityResult
+        }
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        repository.setRetroArchFolderUri(uri.toString())
+        applyRetroArchSetup(uri)
+    }
+    launchRetroArchPicker = {
+        val start = RetroArchLauncher.pickerInitialUri(context)
+        if (start != null) {
+            retroArchPickerOpen = true
+            retroArchPicker.launch(start)
+        }
+    }
+    fun setUpRetroArch() {
+        val granted = repository.getRetroArchFolderUri()?.let { Uri.parse(it) }
+        if (granted != null) applyRetroArchSetup(granted) else launchRetroArchPicker()
+    }
+    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showCemuPrompt, edenPickerOpen) {
+        if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showCemuPrompt || edenPickerOpen) return@LaunchedEffect
+        if (retroArchOfferedThisRun || repository.isRetroArchSetupPrompted() || repository.getRetroArchFolderUri() != null) return@LaunchedEffect
+        if (neededEmulators.none { it.packageName == "com.retroarch" }) return@LaunchedEffect
+        if (!EmulatorLauncher.isPackageInstalled(context, "com.retroarch")) return@LaunchedEffect
+        retroArchOfferedThisRun = true
+        launchRetroArchPicker()
+    }
+
     // ARMSX2 can't be set up from outside (see Armsx2Setup), so once it's installed just open it on its
     // first-run wizard with a hint of what to pick. Offered once, after the other setups are out of the way.
     var armsx2OfferedThisRun by remember { mutableStateOf(false) }
-    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showCemuPrompt, edenPickerOpen) {
-        if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showCemuPrompt || edenPickerOpen) return@LaunchedEffect
+    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showCemuPrompt, edenPickerOpen, retroArchPickerOpen) {
+        if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showCemuPrompt || edenPickerOpen || retroArchPickerOpen) return@LaunchedEffect
         if (armsx2OfferedThisRun || repository.isArmsx2WizardShown()) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == Armsx2Setup.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, Armsx2Setup.PACKAGE)) return@LaunchedEffect
@@ -426,7 +485,7 @@ fun LibraryScreen(
         }
         if (RetroArchLauncher.handles(platform)) {
             scope.launch {
-                when (val prepared = RetroArchLauncher.prepare(context, platform, game)) {
+                when (val prepared = RetroArchLauncher.prepare(context, platform, game, repository.getRetroArchFolderUri()?.let { Uri.parse(it) })) {
                     is RetroArchLauncher.Prepared.Ready -> {
                         context.startActivity(prepared.intent)
                         viewModel.markPlayed(game)
@@ -566,7 +625,8 @@ fun LibraryScreen(
                         installState = emulatorInstallState,
                         onSetUpPrimeHack = { setUpPrimeHack() },
                         onSetUpEdenDriver = { setUpEdenDriver() },
-                        onSetUpCemu = { setUpCemu() }
+                        onSetUpCemu = { setUpCemu() },
+                        onSetUpRetroArch = { setUpRetroArch() }
                     )
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,

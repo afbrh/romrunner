@@ -205,6 +205,16 @@ class LibraryRepository(
         settings.armsx2WizardShown = true
     }
 
+    fun getRetroArchFolderUri(): String? = settings.retroArchFolderUri
+    fun setRetroArchFolderUri(uri: String?) {
+        settings.retroArchFolderUri = uri
+    }
+
+    fun isRetroArchSetupPrompted(): Boolean = settings.retroArchSetupPrompted
+    fun markRetroArchSetupPrompted() {
+        settings.retroArchSetupPrompted = true
+    }
+
     fun isCemuSetupPrompted(): Boolean = settings.cemuSetupPrompted
     fun markCemuSetupPrompted() {
         settings.cemuSetupPrompted = true
