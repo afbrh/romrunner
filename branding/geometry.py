@@ -1,4 +1,4 @@
-"""RomRunner mark geometry: an upright Game Boy-style cartridge.
+"""RomRunner mark geometry: an upright Game Boy-style cartridge with grip ridges, a down arrow and A/B buttons.
 Single source for both the SVG logos (build.py) and the Android vector icon (android_icon.py).
 Everything is emitted as plain M/L/C/Z paths, because Android VectorDrawable supports neither
 transforms like skew nor masks. Cutouts rely on even-odd filling."""
@@ -161,80 +161,65 @@ def pixel_text_cutout(pen, text, x_left, x_right, cy, cap_height, bold, gap):
             pen.close()
         x += ncols * pw + 2 * bold + gap
 
-# ---- Skull and crossbones: a pixel-art jolly roger (21 x 18 cells), drawn in the same pixel idiom as the
-# lettering. A play on the name: ROM RUNNER ~ rum runner. ----
-_SKULL = [
-    "..#######..",
-    ".#########.",
-    "###########",
-    "#ooo###ooo#",   # 'o' = eye sockets and nose, left empty
-    "#ooo###ooo#",
-    "##o#####o##",
-    "###########",
-    ".####o####.",
-    "..#######..",
-    "..#.#.#.#..",   # teeth
-]
-_SKULL_LEFT = 5          # skull's left column in the 21-wide grid
-_GRID_W, _GRID_H = 21, 18
+# ---- Window art: the A and B buttons of a Game Boy, drawn as pixel circles (9 x 9 cells), each with an
+# "R" cut out of it in the same pixel font as the app. B sits lower-left and A upper-right, on the slight
+# upward slope the real buttons have. ----
+_CIRCLE_ROWS = [5, 7, 9, 9, 9, 9, 9, 7, 5]     # width of each row of a 9-cell pixel circle (all centred)
+_CIRCLE_D = 9
+_B_AT, _A_AT = (0, 4), (11, 0)                  # top-left cell of each circle: A is 11 across and 4 up from B
+_ART_W, _ART_H = 20, 13                         # cells covered by both circles together
 
-def _art_cells(with_bones):
-    """The window art as (cells, grid width, grid height): the skull alone, or the skull over crossed bones."""
-    skull = {(_SKULL_LEFT + x, y) for y, row in enumerate(_SKULL) for x, c in enumerate(row) if c == "#"}
-    # everything inside the skull's outline (its eye holes included), to carve a one-cell gap around it so
-    # the bones read as passing behind
-    outline = {(_SKULL_LEFT + x, y) for y, row in enumerate(_SKULL) for x in range(len(row))
-               if "#" in row[:x + 1] and "#" in row[x:]}
-    gap = {(x + dx, y + dy) for x, y in outline for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
+def _circle_cells(ox, oy):
+    return {(ox + (_CIRCLE_D - w) // 2 + i, oy + r) for r, w in enumerate(_CIRCLE_ROWS) for i in range(w)}
 
-    def bone(x0, y0, x1, y1):
-        cells = set()
-        for i in range(x1 - x0 + 1):
-            y = round(y0 + (y1 - y0) * i / (x1 - x0))
-            cells |= {(x0 + i, y + t) for t in (-1, 0, 1)}
-        return cells
+def ab_buttons(pen, cx, cy, cell):
+    """The A/B buttons centred on (cx, cy), each pixel `cell` units square. Each circle is one outline; the
+    R inside it is a set of outlines inside that one, so the even-odd fill leaves the letter open."""
+    x0, y0 = cx - _ART_W * cell / 2, cy - _ART_H * cell / 2
+    r_cols, r_cells = _glyph_cells("R")
+    r_left = (_CIRCLE_D - r_cols + 1) // 2           # leans the letter a half cell right: its weight is on the left
+    r_top = (_CIRCLE_D - 5) // 2
+    def rect(c, r): return (x0 + c * cell, y0 + r * cell, x0 + (c + 1) * cell, y0 + (r + 1) * cell)
+    for ox, oy in (_B_AT, _A_AT):
+        disc = _circle_cells(ox, oy)
+        letter = {(ox + r_left + c, oy + r_top + r) for c, r in r_cells}
+        for loop in _union_loops([rect(*c) for c in disc]):
+            pen.move((loop[0][0], loop[0][1]))
+            for pt in loop[1:]: pen.line(pt)
+            pen.close()
+        for loop in _union_loops([rect(*c) for c in letter]):
+            pen.move((loop[0][0], loop[0][1]))
+            for pt in loop[1:]: pen.line(pt)
+            pen.close()
 
-    def forked_end(x, y, s):
-        # a wider end plus two knobs with a notch between them, pointing outward (s = -1 left, +1 right)
-        return {(x, y - 2), (x, y + 2), (x + s, y - 2), (x + s, y - 1), (x + s, y + 1), (x + s, y + 2)}
-
-    if not with_bones:
-        w = len(_SKULL[0])
-        return {(x - _SKULL_LEFT, y) for x, y in skull}, w, len(_SKULL)
-    mirror = lambda cells: {(_GRID_W - 1 - x, y) for x, y in cells}
-    one = bone(1, 7, 19, 15)                       # top-left to bottom-right; its mirror is the other bone
-    bones = one | forked_end(1, 7, -1) | forked_end(19, 15, 1)
-    bones |= mirror(bones)
-    return {c for c in (bones - gap) | skull if 0 <= c[0] < _GRID_W and 0 <= c[1] < _GRID_H}, _GRID_W, _GRID_H
-
-def window_art(pen, cx, cy, cell, with_bones):
-    """The skull (with or without the crossbones) centred on (cx, cy), each pixel `cell` units square, as merged
-    outlines (eye sockets and the notches in the bone ends come out as inner loops, so even-odd fill leaves them open)."""
-    cells, w, h = _art_cells(with_bones)
-    x0, y0 = cx - w * cell / 2, cy - h * cell / 2
-    rects = [(x0 + x * cell, y0 + y * cell, x0 + (x + 1) * cell, y0 + (y + 1) * cell) for x, y in cells]
+def down_arrow(pen, cx, cy, cell):
+    """The small down-pointing triangle moulded into the bottom of a Game Boy cartridge, as a pixel triangle."""
+    widths = [9, 7, 5, 3, 1]
+    h = len(widths) * cell
+    rects = []
+    for r, w in enumerate(widths):
+        x = cx - w * cell / 2
+        rects.append((x, cy - h / 2 + r * cell, x + w * cell, cy - h / 2 + (r + 1) * cell))
     for loop in _union_loops(rects):
         pen.move(loop[0])
         for pt in loop[1:]: pen.line(pt)
         pen.close()
 
-# What stands in the label window: the skull on its own (bigger), or the skull over crossed bones.
-SKULL_ONLY = True
+def grip_ridges(pen, x0, x1, ys, thickness):
+    """Horizontal grip grooves across the top of the cartridge, as rounded slots cut into the shell."""
+    for y in ys:
+        pen.rrect(x0, y - thickness / 2, x1 - x0, thickness, thickness / 2)
 
 # Cartridge in unskewed units (roughly Game Boy proportions, 280 x 320).
 X0, Y0, X1, Y1 = 150, 96, 430, 416
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
-# Label window spans x 182..398. RUNNER fills it exactly. ROM starts on the same left edge, and stops short of
-# the top-right notch (its vertical edge is at x = X1 - NOTCH = 396) by the same margin it starts in from the
-# cartridge's left edge, so the gap on either side of ROM matches (32 units each).
+# Label window spans x 182..398 (y 172..348).
 WIN_X0, WIN_X1 = 182, 398
-ROM_X0 = WIN_X0
-ROM_X1 = (X1 - NOTCH) - (ROM_X0 - X0)
-ROM_CAP, ROM_BOLD, ROM_GAP = 44, 2.0, 9   # total height; extra stroke weight per side; gap between letters
-RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP = 30.9, 1.5, 6.3   # same treatment as ROM, scaled to its smaller size
+RIDGE_X0, RIDGE_X1 = 182, X1 - NOTCH - 16        # stops short of the top-right notch by the same margin it starts in
+RIDGE_YS, RIDGE_T = (120, 134, 148), 8
 
 def paths(T):
-    """Returns the mark's path, filled even-odd (cutouts + the skull and crossbones inside the label)."""
+    """Returns the mark's path, filled even-odd (cutouts + the A/B buttons inside the label)."""
     b = Pen(T)
     # shell, clockwise from top-left
     b.arc((X0 + R_TOP, Y0 + R_TOP), R_TOP, 180, 270, start=True)
@@ -243,13 +228,12 @@ def paths(T):
     b.arc((X1 - R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 0, 90)
     b.arc((X0 + R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 90, 180)
     b.close()
-    # the name, cut out of the shell: ROM in the top band, RUNNER in the bottom one
-    pixel_text_cutout(b, "ROM", ROM_X0, ROM_X1, 134, ROM_CAP, ROM_BOLD, ROM_GAP)
-    pixel_text_cutout(b, "RUNNER", WIN_X0, WIN_X1, 382, RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP)
-    # recessed label window, with the skull (and crossbones) standing solid inside it
+    # grip ridges along the top, and the little down arrow along the bottom, cut out of the shell
+    grip_ridges(b, RIDGE_X0, RIDGE_X1, RIDGE_YS, RIDGE_T)
+    down_arrow(b, (WIN_X0 + WIN_X1) / 2, 382, 8)
+    # recessed label window, with the A and B buttons standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
-    if SKULL_ONLY: window_art(b, 290, 260, 15, with_bones=False)
-    else: window_art(b, 290, 260, 9, with_bones=True)
+    ab_buttons(b, 290, 260, 9)
 
     return b.d
 
