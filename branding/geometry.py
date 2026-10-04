@@ -213,10 +213,17 @@ def grip_ridges(pen, x0, x1, ys, thickness):
 # Cartridge in unskewed units (Game Boy proportions: 57 x 65.5 mm).
 X0, Y0, X1, Y1 = 150, 96, 430, 418   # 280 x 322: the real cartridge's 57 x 65.5 mm proportions
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
-# Label window spans x 182..398 (y 172..348).
-WIN_X0, WIN_X1 = 182, 398
+# Real-world sizes, in mm, mapped onto the cartridge's 280 x 322 units (57 x 65.5 mm), so the label window is the
+# real sticker's size and sits where it does on a cartridge: 42 x 37 mm with a 1.5 mm corner radius, centred left to
+# right (7.5 mm each side). Its distance from the top edge, 17 mm, is an estimate from photos of the cartridge.
+MM = (X1 - X0) / 57
+LABEL_W, LABEL_H, LABEL_R, LABEL_TOP = 42 * MM, 37 * MM, 1.5 * MM, 17 * MM
+WIN_X0, WIN_X1 = X0 + (57 - 42) / 2 * MM, X1 - (57 - 42) / 2 * MM
+WIN_Y0 = Y0 + LABEL_TOP
+WIN_Y1 = WIN_Y0 + LABEL_H
 RIDGE_X0, RIDGE_X1 = 182, X1 - NOTCH - 16        # stops short of the top-right notch by the same margin it starts in
-RIDGE_YS, RIDGE_T = (120, 134, 148), 8
+RIDGE_MID = (Y0 + WIN_Y0) / 2                       # the grip ridges are centred in the band above the label
+RIDGE_YS, RIDGE_T = (RIDGE_MID - 14, RIDGE_MID, RIDGE_MID + 14), 8
 
 def paths(T):
     """Returns the mark's path, filled even-odd (cutouts + the A/B buttons inside the label)."""
@@ -232,10 +239,10 @@ def paths(T):
     b.close()
     # grip ridges along the top, and the little down arrow along the bottom, cut out of the shell
     grip_ridges(b, RIDGE_X0, RIDGE_X1, RIDGE_YS, RIDGE_T)
-    down_arrow(b, (WIN_X0 + WIN_X1) / 2, (172 + 176 + Y1) / 2, 8)   # centred in the band below the window
+    down_arrow(b, (WIN_X0 + WIN_X1) / 2, (WIN_Y1 + Y1) / 2, 7)   # centred in the band below the window
     # recessed label window, with the A and B buttons standing solid inside it
-    b.rrect(182, 172, 216, 176, 18)
-    ab_buttons(b, 290, 260, 9)
+    b.rrect(WIN_X0, WIN_Y0, LABEL_W, LABEL_H, LABEL_R)
+    ab_buttons(b, (WIN_X0 + WIN_X1) / 2, (WIN_Y0 + WIN_Y1) / 2, 9)
 
     return b.d
 
