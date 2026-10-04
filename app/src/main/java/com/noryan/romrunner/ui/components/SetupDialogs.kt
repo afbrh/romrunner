@@ -63,30 +63,3 @@ fun StorageAccessDialog(
     )
 }
 
-/**
- * A short heads-up shown right before Android's folder picker for [appName]. The picker ignores where we
- * ask it to start (it opens on whatever folder was used last, often the user's ROMs folder, with a big
- * "Use this folder" button that would pick the wrong thing), and a toast is too short-lived and gets cut
- * off, so the one non-obvious step is spelled out here. One button: there is nothing to decide.
- */
-@Composable
-fun PickFolderGuideDialog(
-    appName: String,
-    onOpen: () -> Unit,
-    onCancel: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text("Choose $appName's folder") },
-        text = {
-            Column {
-                Text("1.  Tap the menu (three lines, top left).")
-                Spacer(Modifier.height(4.dp))
-                Text("2.  Choose \"$appName\" in the list.")
-                Spacer(Modifier.height(4.dp))
-                Text("3.  Tap \"Use this folder\", then \"Allow\".")
-            }
-        },
-        confirmButton = { TextButton(onClick = onOpen) { Text("Open") } }
-    )
-}

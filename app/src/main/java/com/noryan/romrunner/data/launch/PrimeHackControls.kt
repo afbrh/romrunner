@@ -54,8 +54,12 @@ object PrimeHackControls {
         }
     }
 
-    /** Where the system folder picker should open: PrimeHack's own root, so the user just confirms it. */
-    fun pickerInitialUri(): Uri = DocumentsContract.buildDocumentUri(PROVIDER_AUTHORITY, "root")
+    /**
+     * Where the system folder picker should open: PrimeHack's own root, so the user just confirms it.
+     * Has to be a *root* address: the picker ignores a document or tree address for providers like this
+     * one (tested on-device), which don't implement findDocumentPath, but does open on a root.
+     */
+    fun pickerInitialUri(): Uri = DocumentsContract.buildRootUri(PROVIDER_AUTHORITY, "root")
 
     /** True if [treeUri] really is PrimeHack's folder, not some other folder the user picked by mistake. */
     fun isPrimeHackTree(treeUri: Uri): Boolean = treeUri.authority == PROVIDER_AUTHORITY

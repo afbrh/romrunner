@@ -55,6 +55,11 @@ class LibrarySettings(context: Context) {
         get() = prefs.getString(KEY_EDEN_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_EDEN_FOLDER_URI, value).apply()
 
+    /** True once the user has backed out of Eden's folder picker, so it isn't opened again by itself. */
+    var edenSetupPrompted: Boolean
+        get() = prefs.getBoolean(KEY_EDEN_SETUP_PROMPTED, false)
+        set(value) = prefs.edit().putBoolean(KEY_EDEN_SETUP_PROMPTED, value).apply()
+
     /** The folder grant for Cemu's own user directory (see CemuSetup), if the user gave one. */
     var cemuFolderUri: String?
         get() = prefs.getString(KEY_CEMU_FOLDER_URI, null)
@@ -78,6 +83,7 @@ class LibrarySettings(context: Context) {
         private const val KEY_EMULATOR_SETUP_PROMPTED = "emulator_setup_prompted"
         private const val KEY_EMULATOR_SETUP_PENDING = "emulator_setup_pending"
         private const val KEY_STORAGE_ACCESS_ASKED = "storage_access_asked"
+        private const val KEY_EDEN_SETUP_PROMPTED = "eden_setup_prompted"
         private const val KEY_CEMU_FOLDER_URI = "cemu_folder_uri"
         private const val KEY_CEMU_SETUP_PROMPTED = "cemu_setup_prompted"
         private const val KEY_EDEN_FOLDER_URI = "eden_folder_uri"

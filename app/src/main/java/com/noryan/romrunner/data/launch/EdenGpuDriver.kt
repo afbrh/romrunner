@@ -48,7 +48,7 @@ object EdenGpuDriver {
     fun isEligible(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ELIGIBLE_SOC.matches(Build.SOC_MODEL.trim().uppercase())
 
-    fun pickerInitialUri(): Uri = DocumentsContract.buildDocumentUri(AUTHORITY, "root")
+    fun pickerInitialUri(): Uri = DocumentsContract.buildRootUri(AUTHORITY, "root")
 
     fun isEdenTree(treeUri: Uri): Boolean = treeUri.authority == AUTHORITY
 

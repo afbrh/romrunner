@@ -195,6 +195,11 @@ class LibraryRepository(
         settings.cemuFolderUri = uri
     }
 
+    fun isEdenSetupPrompted(): Boolean = settings.edenSetupPrompted
+    fun markEdenSetupPrompted() {
+        settings.edenSetupPrompted = true
+    }
+
     fun isCemuSetupPrompted(): Boolean = settings.cemuSetupPrompted
     fun markCemuSetupPrompted() {
         settings.cemuSetupPrompted = true

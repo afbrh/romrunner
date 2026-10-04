@@ -35,7 +35,7 @@ object CemuSetup {
         data class Failed(val message: String) : Result
     }
 
-    fun pickerInitialUri(): Uri = DocumentsContract.buildDocumentUri(AUTHORITY, "root")
+    fun pickerInitialUri(): Uri = DocumentsContract.buildRootUri(AUTHORITY, "root")
 
     fun isCemuTree(treeUri: Uri): Boolean = treeUri.authority == AUTHORITY
 
