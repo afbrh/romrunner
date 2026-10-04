@@ -8,16 +8,18 @@ import android.os.BatteryManager
 import android.os.PowerManager
 import java.io.File
 
-/** One CPU core's current and maximum clock, in kHz. A core that's asleep reports a current of 0. */
-data class CpuCore(val currentKhz: Long, val maxKhz: Long)
+/** One CPU core's current and maximum clock, in kHz, and its relative processing capacity (big cores count for more than little ones). */
+private data class CpuCore(val currentKhz: Long, val maxKhz: Long, val capacity: Float)
 
 /**
  * A snapshot of the device's own vitals, shown on the second screen while a game runs. Only things any
  * app is allowed to read; anything this device won't hand over comes back null and its meter is hidden.
  */
 data class DeviceStats(
-    /** Null when the clocks can't be read on this device. */
-    val cpuCores: List<CpuCore>?,
+    /** Overall CPU use, 0 (idle) to 1 (every core flat out); null when this device won't let us measure it. */
+    val cpuUsage: Float?,
+    /** The fastest core's current clock in kHz; null when the clocks can't be read. */
+    val cpuTopKhz: Long?,
     val memoryUsedBytes: Long,
     val memoryTotalBytes: Long,
     /** The hottest chip (CPU/GPU) temperature, or the battery's when the chip sensors can't be read; null if neither can. */
@@ -38,6 +40,16 @@ object DeviceStatsSampler {
         val memory = ActivityManager.MemoryInfo().also {
             (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it)
         }
+        val cores = readCores()
+        // The real thing (time the cores spent busy) when /proc/stat can be read, else how hard the cores are clocked.
+        val cpuUsage = readCpuLoad()
+        val clockUsage = cores?.let { all ->
+            // A sleeping core (clock 0) isn't part of the answer; each awake core counts by its capacity.
+            val awake = all.filter { it.currentKhz > 0 }
+            val capacity = awake.sumOf { it.capacity.toDouble() }
+            if (capacity <= 0) null
+            else (awake.sumOf { it.capacity * it.currentKhz.toDouble() / it.maxKhz } / capacity).toFloat().coerceIn(0f, 1f)
+        }
         val chipTemp = readChipTempC()
         val batteryTemp = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
@@ -45,7 +57,8 @@ object DeviceStatsSampler {
         val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
 
         return DeviceStats(
-            cpuCores = readCores(),
+            cpuUsage = cpuUsage ?: clockUsage,
+            cpuTopKhz = cores?.maxOfOrNull { it.currentKhz },
             memoryUsedBytes = memory.totalMem - memory.availMem,
             memoryTotalBytes = memory.totalMem,
             tempC = chipTemp ?: batteryTemp,
@@ -76,10 +89,35 @@ object DeviceStatsSampler {
         val cores = (0 until count).map { i ->
             val current = readKhz("$CPU_DIR/cpu$i/cpufreq/scaling_cur_freq")
             val max = maxClocks[i] ?: readKhz("$CPU_DIR/cpu$i/cpufreq/cpuinfo_max_freq")?.also { maxClocks[i] = it }
-            if (max == null || max <= 0) null else CpuCore(current ?: 0L, max)
+            if (max == null || max <= 0) null else CpuCore(current ?: 0L, max, capacityOf(i, max))
         }
         // Cores whose max can't be read are skipped; if none can, the clocks aren't available here.
         return cores.filterNotNull().takeIf { it.isNotEmpty() }
+    }
+
+    /** The kernel's own per-core capacity rating where it publishes one (1024 = the biggest core), else the core's top clock. */
+    private fun capacityOf(core: Int, maxKhz: Long): Float {
+        val rated = runCatching { File("$CPU_DIR/cpu$core/cpu_capacity").readText().trim().toFloat() }.getOrNull()
+        return rated?.takeIf { it > 0 } ?: maxKhz.toFloat()
+    }
+
+    private var lastBusy = -1L
+    private var lastTotal = -1L
+
+    /** Share of CPU time spent busy since the previous call (so null on the first one), from /proc/stat's summary line. */
+    private fun readCpuLoad(): Float? {
+        val fields = runCatching {
+            File("/proc/stat").useLines { lines -> lines.first { it.startsWith("cpu ") } }
+                .trim().split(Regex("\\s+")).drop(1).map { it.toLong() }
+        }.getOrNull() ?: return null
+        if (fields.size < 5) return null
+        val total = fields.take(8).sum()
+        val idle = fields[3] + fields[4] // idle + iowait
+        val busy = total - idle
+        val load = if (lastTotal >= 0 && total > lastTotal) ((busy - lastBusy).toFloat() / (total - lastTotal)).coerceIn(0f, 1f) else null
+        lastBusy = busy
+        lastTotal = total
+        return load
     }
 
     private fun readKhz(path: String): Long? = runCatching { File(path).readText().trim().toLongOrNull() }.getOrNull()

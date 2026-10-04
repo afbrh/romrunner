@@ -49,7 +49,7 @@ private const val RefreshMillis = 1000L
 private const val Segments = 24
 
 /**
- * Memory, temperature and CPU-clock meters for the second screen, refreshed every second while shown.
+ * CPU-use, memory and temperature meters for the second screen, refreshed every second while shown.
  * [level] scales every bar (1 = the real readings, 0 = all empty), so the whole panel can drain and refill.
  */
 @Composable
@@ -66,10 +66,10 @@ fun DeviceStatsPanel(modifier: Modifier = Modifier, level: () -> Float = { 1f })
     val accent = MaterialTheme.colorScheme.primary
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 48.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        s.cpuCores?.let { cores ->
-            val topGhz = cores.maxOf { it.currentKhz } / 1_000_000f
-            StatRow("CPU", String.format(Locale.US, "%.2f GHZ", topGhz), height = 44.dp) {
-                CoreBars(cores, accent, level)
+        s.cpuUsage?.let { usage ->
+            val clock = s.cpuTopKhz?.let { String.format(Locale.US, " %.2f GHZ", it / 1_000_000f) }.orEmpty()
+            StatRow("CPU", "${(usage * 100).roundToInt()}%$clock") {
+                SegmentBar(usage, accent, level)
             }
         }
 
@@ -163,22 +163,6 @@ private fun RowScope.SegmentBar(fraction: Float, fill: Color, level: () -> Float
                 topLeft = Offset(i * (width + gap), 0f),
                 size = Size(width, size.height)
             )
-        }
-    }
-}
-
-/** One vertical bar per CPU core, as tall as that core's current clock is of its maximum. */
-@Composable
-private fun RowScope.CoreBars(cores: List<CpuCore>, fill: Color, level: () -> Float) {
-    val track = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)
-    Canvas(modifier = Modifier.weight(1f).fillMaxSize()) {
-        val gap = 6.dp.toPx()
-        val width = (size.width - gap * (cores.size - 1)) / cores.size
-        cores.forEachIndexed { i, core ->
-            val x = i * (width + gap)
-            drawRect(color = track, topLeft = Offset(x, 0f), size = Size(width, size.height))
-            val h = size.height * (core.currentKhz.toFloat() / core.maxKhz).coerceIn(0f, 1f) * level().coerceIn(0f, 1f)
-            drawRect(color = fill, topLeft = Offset(x, size.height - h), size = Size(width, h))
         }
     }
 }
