@@ -92,7 +92,8 @@ object EmulatorLauncher {
             if (realPath != null) {
                 return Intent().apply {
                     component = ComponentName(target.packageName, launch.activity)
-                    putExtra(launch.extraKey, (launch.argsBeforeRomPath + realPath).toTypedArray())
+                    val setupArgs = if (target.packageName == DusklightSetup.PACKAGE) DusklightSetup.extraArgs(context) else emptyList()
+                    putExtra(launch.extraKey, (setupArgs + launch.argsBeforeRomPath + realPath).toTypedArray())
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
             }
