@@ -31,7 +31,7 @@ object CemuSetup {
 
     sealed interface Result {
         /** [controller] is the name of the gamepad the profile was written for, or null if none was connected. */
-        data class Applied(val controller: String?, val copiedFiles: List<String>) : Result
+        data class Applied(val controller: String?, val copiedFiles: List<String>, val direct: Boolean) : Result
         data class Failed(val message: String) : Result
     }
 
@@ -40,9 +40,9 @@ object CemuSetup {
     fun isCemuTree(treeUri: Uri): Boolean = treeUri.authority == AUTHORITY
 
     /** Blocking I/O, run on IO. [romsFolderUri] is the user's Roms/BIOS folder, searched for the key files. */
-    suspend fun apply(context: Context, treeUri: Uri, romsFolderUri: Uri?): Result = withContext(Dispatchers.IO) {
+    suspend fun apply(context: Context, treeUri: Uri?, romsFolderUri: Uri?): Result = withContext(Dispatchers.IO) {
         try {
-            val root = DocumentFile.fromTreeUri(context, treeUri)
+            val root = EmulatorFolders.open(context, PACKAGE, treeUri)
                 ?: return@withContext Result.Failed("Couldn't open Cemu's folder.")
 
             val controller = Gamepad.primary()
@@ -63,7 +63,7 @@ object CemuSetup {
                     copied += name
                 }
             }
-            Result.Applied(controller?.name, copied)
+            Result.Applied(controller?.name, copied, EmulatorFolders.isDirect(root))
         } catch (e: Exception) {
             Result.Failed("Couldn't write to Cemu's folder: ${e.message ?: "unknown error"}")
         }
@@ -75,7 +75,7 @@ object CemuSetup {
      */
     private fun writeFile(context: Context, dir: DocumentFile, name: String, bytes: ByteArray) {
         dir.findFile(name)?.delete()
-        val file = dir.createFile("application/octet-stream", name) ?: error("couldn't create $name")
+        val file = EmulatorFolders.createNamedFile(dir, name) ?: error("couldn't create $name")
         context.contentResolver.openOutputStream(file.uri, "wt")?.use { it.write(bytes) } ?: error("couldn't write $name")
     }
 

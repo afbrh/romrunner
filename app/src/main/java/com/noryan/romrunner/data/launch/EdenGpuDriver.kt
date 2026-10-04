@@ -38,9 +38,6 @@ object EdenGpuDriver {
     sealed interface Result {
         data object Applied : Result
 
-        /** Eden has never been opened, so it hasn't written its settings file yet; nothing is wrong, it just has to run once. */
-        data object NotOpenedYet : Result
-
         data class Failed(val message: String) : Result
     }
 
@@ -52,30 +49,38 @@ object EdenGpuDriver {
 
     fun isEdenTree(treeUri: Uri): Boolean = treeUri.authority == AUTHORITY
 
+    /**
+     * Eden's `config` folder and `config.ini` inside [root], creating either if Eden hasn't yet (it writes its own the
+     * first time it runs). A config holding only some settings is fine: Eden reads each setting separately and falls
+     * back to its default for the rest, and fills in the whole file when it next saves.
+     */
+    internal fun ensureConfig(root: DocumentFile): Pair<DocumentFile, DocumentFile> {
+        val dir = root.findFile("config")?.takeIf { it.isDirectory } ?: root.createDirectory("config") ?: error("couldn't create config")
+        val file = dir.findFile("config.ini") ?: EmulatorFolders.createNamedFile(dir, "config.ini") ?: error("couldn't create config.ini")
+        return dir to file
+    }
+
     /** Blocking I/O, run on IO. Safe to call repeatedly: it re-selects the same driver each time. */
-    suspend fun apply(context: Context, treeUri: Uri): Result = withContext(Dispatchers.IO) {
+    suspend fun apply(context: Context, root: DocumentFile): Result = withContext(Dispatchers.IO) {
         if (!isEligible()) return@withContext Result.Failed("This device doesn't need a custom Eden graphics driver.")
         try {
-            val root = DocumentFile.fromTreeUri(context, treeUri)
-                ?: return@withContext Result.Failed("Couldn't open Eden's folder.")
-            val configFile = root.findFile("config")?.findFile("config.ini")
-                ?: return@withContext Result.NotOpenedYet
+            val (configDir, configFile) = ensureConfig(root)
 
             val (driverName, driverFile) = fetchDriver(context)
                 ?: return@withContext Result.Failed("Couldn't download the Turnip graphics driver.")
 
             val driversDir = root.findFile("gpu_drivers")?.takeIf { it.isDirectory }
                 ?: root.createDirectory("gpu_drivers") ?: error("couldn't create gpu_drivers")
-            val target = driversDir.findFile(driverName) ?: driversDir.createFile("application/zip", driverName)
+            // "application/octet-stream" on purpose: a zip type makes a plain-file folder add a second ".zip".
+            val target = driversDir.findFile(driverName) ?: EmulatorFolders.createNamedFile(driversDir, driverName)
                 ?: error("couldn't create $driverName")
             context.contentResolver.openOutputStream(target.uri, "wt")?.use { out ->
                 driverFile.inputStream().use { it.copyTo(out) }
             } ?: error("couldn't write $driverName")
 
             val driverPath = "${Environment.getExternalStorageDirectory().path}/Android/data/$PACKAGE/files/gpu_drivers/$driverName"
-            val existing = context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { it.readText() }
-                ?: error("couldn't read Eden's settings")
-            writeConfig(context, root.findFile("config")!!, configFile, withDriverPath(existing, driverPath))
+            val existing = context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            writeConfig(context, configDir, configFile, withDriverPath(existing, driverPath))
             Result.Applied
         } catch (e: Exception) {
             Result.Failed("Couldn't set up Eden's graphics driver: ${e.message ?: "unknown error"}")
@@ -93,7 +98,7 @@ object EdenGpuDriver {
                 ?: error("couldn't write Eden's settings")
         } catch (e: Exception) {
             configFile.delete()
-            val recreated = configDir.createFile("application/octet-stream", "config.ini") ?: error("couldn't recreate Eden's settings")
+            val recreated = EmulatorFolders.createNamedFile(configDir, "config.ini") ?: error("couldn't recreate Eden's settings")
             context.contentResolver.openOutputStream(recreated.uri, "wt")?.bufferedWriter()?.use { it.write(text) }
                 ?: error("couldn't write Eden's settings")
         }

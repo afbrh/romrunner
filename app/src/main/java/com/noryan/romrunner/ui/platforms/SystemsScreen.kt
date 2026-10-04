@@ -97,9 +97,9 @@ fun SystemsContent(
     val visibleRecommendedEmulators = remember(games, platforms) {
         RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) }
     }
-    val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null }
-    val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null }
-    val retroArchLinked = remember(installState.refreshTick) { repository.getRetroArchFolderUri() != null }
+    val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null || repository.isSetUp("primehack") }
+    val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null || repository.isSetUp("cemu") }
+    val retroArchLinked = remember(installState.refreshTick) { repository.getRetroArchFolderUri() != null || repository.isSetUp("retroarch") }
     val edenDriverApplied = remember(installState.refreshTick) { repository.isEdenDriverApplied() }
 
     // The emulators that have a one-time setup, as: whether it's done, and what to run to do it. Shown on the

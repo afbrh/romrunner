@@ -190,6 +190,9 @@ class LibraryRepository(
         settings.storageAccessAsked = true
     }
 
+    fun isSetUp(key: String): Boolean = settings.isSetUp(key)
+    fun markSetUp(key: String) = settings.markSetUp(key)
+
     fun getCemuFolderUri(): String? = settings.cemuFolderUri
     fun setCemuFolderUri(uri: String?) {
         settings.cemuFolderUri = uri

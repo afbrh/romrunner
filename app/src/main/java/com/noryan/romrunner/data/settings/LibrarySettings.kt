@@ -40,6 +40,10 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_STORAGE_ACCESS_ASKED, false)
         set(value) = prefs.edit().putBoolean(KEY_STORAGE_ACCESS_ASKED, value).apply()
 
+    /** Whether [key]'s emulator ("primehack", "cemu", "eden", "retroarch") has been set up by writing straight into its folder, with no folder grant. */
+    fun isSetUp(key: String): Boolean = prefs.getBoolean("setup_done_$key", false)
+    fun markSetUp(key: String) = prefs.edit().putBoolean("setup_done_$key", true).apply()
+
     /** The folder grant for PrimeHack's own user directory (see PrimeHackControls), if the user gave one. */
     var primeHackFolderUri: String?
         get() = prefs.getString(KEY_PRIMEHACK_FOLDER_URI, null)

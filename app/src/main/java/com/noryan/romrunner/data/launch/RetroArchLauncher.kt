@@ -13,6 +13,7 @@ import android.content.ContentUris
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
+import java.io.File
 import android.widget.Toast
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
@@ -163,7 +164,7 @@ object RetroArchLauncher {
             val root = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext SetupResult.Failed("Couldn't open RetroArch's folder.")
             writeConfig(context, root, dataDir(context, pkg), overwrite = true)
             writeShaderPreset(context, root, dataDir(context, pkg))
-            ensureControllerBinds(context, root)
+            ensureControllerBinds(context, root, pkg)
             val installed = platformNames.mapNotNull { CORE_BY_PLATFORM[it] }.distinct().onEach { installCore(context, root, it) }
             SetupResult.Done(installed)
         } catch (e: Exception) {
@@ -179,7 +180,7 @@ object RetroArchLauncher {
         val existing = files.findFile(CONFIG_NAME)
         if (existing != null && !overwrite) return
         existing?.delete()
-        val file = files.createFile("application/octet-stream", CONFIG_NAME) ?: error("couldn't create $CONFIG_NAME")
+        val file = EmulatorFolders.createNamedFile(files, CONFIG_NAME) ?: error("couldn't create $CONFIG_NAME")
         context.contentResolver.openOutputStream(file.uri, "wt")?.use { it.write(configText(context, dataDir).toByteArray()) } ?: error("couldn't write $CONFIG_NAME")
     }
 
@@ -191,7 +192,7 @@ object RetroArchLauncher {
     private fun writeShaderPreset(context: Context, root: DocumentFile, dataDir: String) {
         val dir = ensureDir(ensureDir(root, "files"), MGBA_PRESET_DIR)
         if (dir.findFile("$MGBA_PRESET_DIR.glslp") != null) return
-        val file = dir.createFile("application/octet-stream", "$MGBA_PRESET_DIR.glslp") ?: error("couldn't create the mGBA shader preset")
+        val file = EmulatorFolders.createNamedFile(dir, "$MGBA_PRESET_DIR.glslp") ?: error("couldn't create the mGBA shader preset")
         context.contentResolver.openOutputStream(file.uri, "wt")?.use {
             it.write("#reference \"$dataDir/$MGBA_SHADER\"\n".toByteArray())
         } ?: error("couldn't write the mGBA shader preset")
@@ -201,29 +202,32 @@ object RetroArchLauncher {
     private val HOTKEY_BIND = Regex("""^input_[a-z0-9_]+_(btn|axis)$""")
 
     /**
-     * Pre-maps controller 1 to this device's own gamepad by copying the bindings of the matching profile in
-     * RetroArch's autoconfig folder (the "Odin Controller" ones on the Thor, Retroid's on a Retroid) into the
-     * config as player 1 binds, so the mapping doesn't depend on RetroArch finding and matching the profile
-     * itself. A no-op until RetroArch has unpacked its autoconfig folder (it does on its first run), until
-     * a gamepad is connected, or once the config already holds binds.
+     * The player-1 bindings for this device's own gamepad, copied from the matching profile that ships inside the
+     * RetroArch app ("Odin Controller" on the Thor, Retroid's on a Retroid). Read straight from RetroArch's APK, which
+     * any app can read, so it needs no folder access and doesn't wait for RetroArch to have unpacked its own copy.
+     * Putting them in the config means the mapping doesn't depend on RetroArch finding and matching the profile
+     * itself. Empty if no gamepad is connected or no profile matches (RetroArch's own matching still applies then).
      */
-    private fun ensureControllerBinds(context: Context, root: DocumentFile) {
-        val configFile = root.findFile("files")?.findFile(CONFIG_NAME) ?: return
-        val config = context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { it.readText() } ?: return
-        if ("input_player1_b_btn" in config) return
-
-        val pad = Gamepad.primary() ?: return
-        val profiles = root.findFile("autoconfig")?.findFile("android")?.listFiles()?.filter { it.name?.endsWith(".cfg") == true } ?: return
-        val candidates = profiles.mapNotNull { file ->
-            val text = context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() } ?: return@mapNotNull null
-            val values = text.lineSequence().mapNotNull { Regex("""^\s*([a-z0-9_]+)\s*=\s*"(.*)"\s*$""").find(it)?.destructured }
-                .associate { (k, v) -> k to v }
-            if (!values["input_device"].equals(pad.name, ignoreCase = true)) null else values
-        }
+    private fun controllerBinds(context: Context, packageName: String): List<Pair<String, String>> {
+        val pad = Gamepad.primary() ?: return emptyList()
+        val apk = try { context.packageManager.getApplicationInfo(packageName, 0).sourceDir } catch (e: Exception) { return emptyList() }
+        val line = Regex("""^\s*([a-z0-9_]+)\s*=\s*"(.*)"\s*$""")
+        val candidates = try {
+            java.util.zip.ZipFile(apk).use { zip ->
+                zip.entries().asSequence()
+                    .filter { it.name.startsWith("assets/autoconfig/android/") && it.name.endsWith(".cfg") }
+                    .mapNotNull { entry ->
+                        val values = zip.getInputStream(entry).bufferedReader().readLines()
+                            .mapNotNull { line.find(it)?.destructured }.associate { (k, v) -> k to v }
+                        if (values["input_device"].equals(pad.name, ignoreCase = true)) values else null
+                    }
+                    .toList()
+            }
+        } catch (e: Exception) { return emptyList() }
         // Two profiles can share a device name (e.g. the Odin's normal and Xbox modes): the product id tells them apart.
-        val profile = candidates.firstOrNull { it["input_product_id"] == pad.productId.toString() } ?: candidates.firstOrNull() ?: return
+        val profile = candidates.firstOrNull { it["input_product_id"] == pad.productId.toString() } ?: candidates.firstOrNull() ?: return emptyList()
 
-        val binds = profile.mapNotNull { (key, value) ->
+        return profile.mapNotNull { (key, value) ->
             when {
                 key.endsWith("_label") -> null
                 PLAYER_BIND.matches(key) -> "input_player1_${key.removePrefix("input_")}" to value
@@ -231,9 +235,75 @@ object RetroArchLauncher {
                 else -> null
             }
         }
+    }
+
+    /** Grant route: adds the controller binds to RomRunner's own config once, leaving anything already in it alone. */
+    private fun ensureControllerBinds(context: Context, root: DocumentFile, packageName: String) {
+        val configFile = root.findFile("files")?.findFile(CONFIG_NAME) ?: return
+        val config = context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { it.readText() } ?: return
+        if ("input_player1_b_btn" in config) return
+        val binds = controllerBinds(context, packageName)
         if (binds.isEmpty()) return
         val text = config.trimEnd() + "\n" + binds.joinToString("\n") { (k, v) -> "$k = \"$v\"" } + "\n"
         context.contentResolver.openOutputStream(configFile.uri, "wt")?.use { it.write(text.toByteArray()) }
+    }
+
+    // ---- Direct route: RomRunner has All files access and writes RetroArch's own settings file itself ----
+
+    /** True when RomRunner can write RetroArch's external files folder straight through the file system (see [EmulatorFolders]). */
+    fun canSetUpDirectly(context: Context): Boolean {
+        val pkg = EmulatorLauncher.installedPackageFor(context, RETROARCH_PACKAGE) ?: return false
+        return EmulatorFolders.canUseDirectly(pkg)
+    }
+
+    /** Sets [config]'s `key = "value"` lines, replacing a key that's already there and adding the rest, and leaves every other line alone. */
+    private fun mergeConfig(config: String, entries: List<Pair<String, String>>): String {
+        var text = config
+        for ((key, value) in entries) {
+            val line = Regex("(?m)^\\s*${Regex.escape(key)}\\s*=.*$")
+            val replacement = "$key = \"$value\""
+            text = if (line.containsMatchIn(text)) text.replace(line, Regex.escapeReplacement(replacement)) else text.trimEnd() + "\n" + replacement + "\n"
+        }
+        return text
+    }
+
+    /**
+     * Writes RomRunner's settings into RetroArch's own `retroarch.cfg` (in its external files folder, which RetroArch
+     * reads first), merged into whatever is already there, plus the mGBA shader preset beside it. With this in place the
+     * ordinary sideload launch picks it all up, so no folder grant is needed.
+     */
+    private fun applyDirectConfig(context: Context, packageName: String) {
+        val dir = EmulatorFolders.directDir(packageName)
+        if (!dir.isDirectory) dir.mkdirs()
+        val base = dataDir(context, packageName)
+        val entries = configText(context, base).lineSequence()
+            .mapNotNull { Regex("""^\s*([a-z0-9_]+)\s*=\s*"(.*)"\s*$""").find(it)?.destructured }
+            .map { (k, v) -> k to v }.toList() + controllerBinds(context, packageName)
+        val config = File(dir, "retroarch.cfg")
+        config.writeText(mergeConfig(if (config.exists()) config.readText() else "", entries))
+
+        val presetDir = File(dir, MGBA_PRESET_DIR).apply { mkdirs() }
+        val preset = File(presetDir, "$MGBA_PRESET_DIR.glslp")
+        if (!preset.exists()) preset.writeText("#reference \"$base/$MGBA_SHADER\"\n")
+    }
+
+    /** Re-applies the direct config if RetroArch has replaced it with one that lacks RomRunner's settings (e.g. it wrote its own default first). */
+    private fun ensureDirectConfig(context: Context, packageName: String) {
+        val config = File(EmulatorFolders.directDir(packageName), "retroarch.cfg")
+        if (config.exists() && Regex("""(?m)^menu_driver\s*=\s*"rgui"""").containsMatchIn(config.readText())) return
+        applyDirectConfig(context, packageName)
+    }
+
+    /** Direct setup: the config and preset above, plus the libretro cores for [platformNames] downloaded ahead of time. Blocking I/O. */
+    suspend fun setUpDirect(context: Context, platformNames: Collection<String>): SetupResult = withContext(Dispatchers.IO) {
+        try {
+            val pkg = EmulatorLauncher.installedPackageFor(context, RETROARCH_PACKAGE) ?: return@withContext SetupResult.Failed("RetroArch isn't installed.")
+            applyDirectConfig(context, pkg)
+            val cores = platformNames.mapNotNull { CORE_BY_PLATFORM[it] }.distinct().onEach { ensureCore(context, "${it}_libretro_android.so") }
+            SetupResult.Done(cores)
+        } catch (e: Exception) {
+            SetupResult.Failed("Couldn't set up RetroArch: ${e.message ?: "unknown error"}")
+        }
     }
 
     /** Puts the libretro core [coreName] in RetroArch's own cores folder (a core can only be loaded from there, not from shared storage). */
@@ -244,7 +314,7 @@ object RetroArchLauncher {
         ensureCore(context, fileName)
         val source = coreUri(context, fileName) ?: error("downloaded core vanished")
         coresDir.findFile(fileName)?.delete()
-        val target = coresDir.createFile("application/octet-stream", fileName) ?: error("couldn't create $fileName")
+        val target = EmulatorFolders.createNamedFile(coresDir, fileName) ?: error("couldn't create $fileName")
         context.contentResolver.openInputStream(source)?.use { input ->
             context.contentResolver.openOutputStream(target.uri, "wt")?.use { input.copyTo(it) } ?: error("couldn't write $fileName")
         } ?: error("couldn't read the downloaded core")
@@ -296,7 +366,7 @@ object RetroArchLauncher {
                 val base = dataDir(context, retroArchPackage)
                 writeConfig(context, root, base, overwrite = false)
                 writeShaderPreset(context, root, base)
-                ensureControllerBinds(context, root)
+                ensureControllerBinds(context, root, retroArchPackage)
                 return@withContext Prepared.Ready(Intent().apply {
                     component = ComponentName(retroArchPackage, RETRO_ACTIVITY)
                     putExtra("LIBRETRO", "$base/cores/${coreName}_libretro_android.so")
@@ -307,6 +377,12 @@ object RetroArchLauncher {
             } catch (e: Exception) {
                 // Fall through to the plain sideload launch below: the game still plays, just with RetroArch's own settings.
             }
+        }
+
+        // No folder grant: if RomRunner can write RetroArch's settings directly, make sure they're in place; the
+        // sideload launch below then starts the game with them.
+        if (folderUri == null && EmulatorFolders.canUseDirectly(retroArchPackage)) {
+            runCatching { ensureDirectConfig(context, retroArchPackage) }
         }
 
         val corePath = try {

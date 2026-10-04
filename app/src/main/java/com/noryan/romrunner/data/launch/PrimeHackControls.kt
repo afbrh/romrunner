@@ -69,10 +69,10 @@ object PrimeHackControls {
      * (where PrimeHack's profile list reads them), this device's profile as the active Wii Remote 1
      * mapping in Config/WiimoteNew.ini, and the graphics defaults. Blocking I/O, run on IO.
      */
-    suspend fun apply(context: Context, treeUri: Uri): Result = withContext(Dispatchers.IO) {
+    suspend fun apply(context: Context, treeUri: Uri?): Result = withContext(Dispatchers.IO) {
         val profile = detectProfile()
         try {
-            val root = DocumentFile.fromTreeUri(context, treeUri)
+            val root = EmulatorFolders.open(context, PACKAGE, treeUri)
                 ?: return@withContext Result.Failed("Couldn't open PrimeHack's folder.")
             val config = root.ensureDir("Config")
 
@@ -209,7 +209,7 @@ object PrimeHackControls {
 
     /** Replaces the file named [name] under [dir] (creating it if needed) with [text]. */
     private fun writeText(context: Context, dir: DocumentFile, name: String, text: String) {
-        val file = dir.findFile(name) ?: dir.createFile("application/octet-stream", name) ?: error("couldn't create $name")
+        val file = dir.findFile(name) ?: EmulatorFolders.createNamedFile(dir, name) ?: error("couldn't create $name")
         // "wt" truncates; plain "w" can leave stale bytes after a shorter rewrite.
         context.contentResolver.openOutputStream(file.uri, "wt")?.bufferedWriter()?.use { it.write(text) }
             ?: error("couldn't write $name")

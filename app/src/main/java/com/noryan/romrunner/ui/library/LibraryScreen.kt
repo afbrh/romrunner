@@ -63,6 +63,7 @@ import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.EdenSetup
+import com.noryan.romrunner.data.launch.EmulatorFolders
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.Armsx2Setup
 import com.noryan.romrunner.data.launch.CemuSetup
@@ -171,14 +172,18 @@ fun LibraryScreen(
     var primeHackOfferedThisRun by remember { mutableStateOf(false) }
     var edenOfferedThisRun by remember { mutableStateOf(false) }
 
-    // PrimeHack setup (controller profiles + graphics defaults): the folder grant comes from the
-    // system picker, opened right on PrimeHack's own folder (see PrimeHackControls).
-    fun applyPrimeHackProfile(treeUri: Uri) {
+    // Each emulator setup below runs silently when RomRunner can write the emulator's folder directly (All files
+    // access, see EmulatorFolders), and otherwise falls back to the one-time system folder picker.
+    // PrimeHack setup (controller profiles + graphics defaults): [treeUri] is null for the direct route.
+    fun applyPrimeHackProfile(treeUri: Uri?) {
         scope.launch {
             val message = when (val result = PrimeHackControls.apply(context, treeUri)) {
-                is PrimeHackControls.Result.Applied -> result.profile
-                    ?.let { "Set up PrimeHack: loaded the ${it.label} controller profile and graphics settings." }
-                    ?: "Set up PrimeHack's graphics settings and added the controller profiles."
+                is PrimeHackControls.Result.Applied -> {
+                    repository.markSetUp("primehack")
+                    result.profile
+                        ?.let { "Set up PrimeHack: loaded the ${it.label} controller profile and graphics settings." }
+                        ?: "Set up PrimeHack's graphics settings and added the controller profiles."
+                }
                 is PrimeHackControls.Result.Failed -> result.message
             }
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
@@ -214,25 +219,31 @@ fun LibraryScreen(
     }
     fun setUpPrimeHack() {
         val granted = repository.getPrimeHackFolderUri()?.let { Uri.parse(it) }
-        if (granted != null) applyPrimeHackProfile(granted) else launchPrimeHackPicker()
+        if (EmulatorFolders.canUseDirectly(PrimeHackControls.PACKAGE)) applyPrimeHackProfile(null)
+        else if (granted != null) applyPrimeHackProfile(granted) else launchPrimeHackPicker()
     }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, edenPickerOpen) {
         if (emulatorInstallState.isInstallingAll || edenPickerOpen) return@LaunchedEffect
-        if (primeHackOfferedThisRun || repository.isPrimeHackSetupPrompted() || repository.getPrimeHackFolderUri() != null) return@LaunchedEffect
+        val direct = EmulatorFolders.canUseDirectly(PrimeHackControls.PACKAGE)
+        if (primeHackOfferedThisRun || repository.isSetUp("primehack") || repository.getPrimeHackFolderUri() != null ||
+            (!direct && repository.isPrimeHackSetupPrompted())) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == PrimeHackControls.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, PrimeHackControls.PACKAGE)) return@LaunchedEffect
         primeHackOfferedThisRun = true
-        launchPrimeHackPicker()
+        if (direct) applyPrimeHackProfile(null) else launchPrimeHackPicker()
     }
 
     // Cemu controller profile and Wii U key files (see CemuSetup): same one-time folder grant.
     var showCemuPrompt by remember { mutableStateOf(false) }
     var cemuOfferedThisRun by remember { mutableStateOf(false) }
-    fun applyCemuSetup(treeUri: Uri) {
+    fun applyCemuSetup(treeUri: Uri?) {
         scope.launch {
             val message = when (val result = CemuSetup.apply(context, treeUri, repository.getRootFolderUri()?.let { Uri.parse(it) })) {
                 is CemuSetup.Result.Applied -> {
-                    forceStopApp = "Cemu" to CemuSetup.PACKAGE
+                    repository.markSetUp("cemu")
+                    // Cemu reads its controller profile when its process starts. Writing straight into its folder
+                    // doesn't start it, so nothing to restart; a folder grant does, hence the Force stop step.
+                    if (!result.direct) forceStopApp = "Cemu" to CemuSetup.PACKAGE
                     buildString {
                         append(if (result.controller != null) "Set up Cemu's controls for the ${result.controller}." else "No controller was connected, so Cemu's controls weren't set up.")
                         if (result.copiedFiles.isNotEmpty()) append(" Copied ${result.copiedFiles.joinToString(", ")}.")
@@ -271,31 +282,36 @@ fun LibraryScreen(
     }
     fun setUpCemu() {
         val granted = repository.getCemuFolderUri()?.let { Uri.parse(it) }
-        if (granted != null) applyCemuSetup(granted) else launchCemuPicker()
+        if (EmulatorFolders.canUseDirectly(CemuSetup.PACKAGE)) applyCemuSetup(null)
+        else if (granted != null) applyCemuSetup(granted) else launchCemuPicker()
     }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, edenPickerOpen) {
         if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || edenPickerOpen) return@LaunchedEffect
-        if (cemuOfferedThisRun || repository.isCemuSetupPrompted() || repository.getCemuFolderUri() != null) return@LaunchedEffect
+        val direct = EmulatorFolders.canUseDirectly(CemuSetup.PACKAGE)
+        if (cemuOfferedThisRun || repository.isSetUp("cemu") || repository.getCemuFolderUri() != null ||
+            (!direct && repository.isCemuSetupPrompted())) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == CemuSetup.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, CemuSetup.PACKAGE)) return@LaunchedEffect
         cemuOfferedThisRun = true
-        launchCemuPicker()
+        if (direct) applyCemuSetup(null) else launchCemuPicker()
     }
 
     // RetroArch (see RetroArchLauncher): one folder grant on its data folder lets RomRunner install the cores
     // and its own config (RGUI menu, hotkeys, quit on close). Same hands-off picker flow as the others.
     var retroArchPickerOpen by remember { mutableStateOf(false) }
     var retroArchOfferedThisRun by remember { mutableStateOf(false) }
-    fun applyRetroArchSetup(treeUri: Uri) {
+    fun applyRetroArchSetup(treeUri: Uri?) {
         scope.launch {
             val systems = state.games.mapNotNull { g -> state.platforms.find { it.id == g.platformId }?.name }.distinct()
             val cores = RetroArchLauncher.retroArchPlatforms(systems)
             Toast.makeText(context, "Setting up RetroArch…", Toast.LENGTH_SHORT).show()
-            val message = when (val result = RetroArchLauncher.setUp(context, treeUri, cores)) {
+            val outcome = if (treeUri == null) RetroArchLauncher.setUpDirect(context, cores) else RetroArchLauncher.setUp(context, treeUri, cores)
+            val message = when (val result = outcome) {
                 is RetroArchLauncher.SetupResult.Done -> "RetroArch is set up: RGUI menu, hotkeys, quit on close" +
-                    if (result.coresInstalled.isNotEmpty()) ", and cores installed (${result.coresInstalled.joinToString(", ")})." else "."
+                    if (result.coresInstalled.isNotEmpty()) ", and cores ready (${result.coresInstalled.joinToString(", ")})." else "."
                 is RetroArchLauncher.SetupResult.Failed -> result.message
             }
+            if (outcome is RetroArchLauncher.SetupResult.Done) repository.markSetUp("retroarch")
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
             emulatorInstallState.bumpRefresh()
         }
@@ -330,15 +346,18 @@ fun LibraryScreen(
     }
     fun setUpRetroArch() {
         val granted = repository.getRetroArchFolderUri()?.let { Uri.parse(it) }
-        if (granted != null) applyRetroArchSetup(granted) else launchRetroArchPicker()
+        if (RetroArchLauncher.canSetUpDirectly(context)) applyRetroArchSetup(null)
+        else if (granted != null) applyRetroArchSetup(granted) else launchRetroArchPicker()
     }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showCemuPrompt, edenPickerOpen) {
         if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showCemuPrompt || edenPickerOpen) return@LaunchedEffect
-        if (retroArchOfferedThisRun || repository.isRetroArchSetupPrompted() || repository.getRetroArchFolderUri() != null) return@LaunchedEffect
+        val direct = RetroArchLauncher.canSetUpDirectly(context)
+        if (retroArchOfferedThisRun || repository.isSetUp("retroarch") || repository.getRetroArchFolderUri() != null ||
+            (!direct && repository.isRetroArchSetupPrompted())) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == "com.retroarch" }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, "com.retroarch")) return@LaunchedEffect
         retroArchOfferedThisRun = true
-        launchRetroArchPicker()
+        if (direct) applyRetroArchSetup(null) else launchRetroArchPicker()
     }
 
     // ARMSX2 can't be set up from outside (see Armsx2Setup), so once it's installed just open it on its
@@ -366,7 +385,7 @@ fun LibraryScreen(
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
-    fun applyEdenSetup(treeUri: Uri, quiet: Boolean) {
+    fun applyEdenSetup(treeUri: Uri?, quiet: Boolean) {
         // The picker result and the "back in the foreground" retry below can fire together, and two
         // runs would both try to unpack the firmware.
         if (edenSetupRunning) return
@@ -380,24 +399,21 @@ fun LibraryScreen(
                 when (val result = EdenSetup.apply(context, treeUri, romsFolder)) {
                     is EdenSetup.Result.Applied -> {
                         repository.setEdenDriverApplied(true)
-                        Toast.makeText(
-                            context,
-                            result.summary.joinToString(" ") + " Last step: tap Force stop, then OK, so Eden starts using it.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        // Eden only reads some of this when its process starts, and Android won't let
-                        // RomRunner stop it, so take the user straight to the button that does.
-                        openAppInfo(EdenGpuDriver.PACKAGE)
-                    }
-                    is EdenSetup.Result.NotOpenedYet -> if (!quiet) {
-                        // Eden writes its settings file the first time it runs; open it once. The setup
-                        // finishes by itself when the user comes back to RomRunner.
-                        Toast.makeText(
-                            context,
-                            "Opening Eden once so it can create its settings — come back to RomRunner afterwards.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        context.packageManager.getLaunchIntentForPackage(EdenGpuDriver.PACKAGE)?.let { context.startActivity(it) }
+                        repository.markSetUp("eden")
+                        if (result.direct) {
+                            // Written straight into Eden's folder, which doesn't start Eden, so it reads the new
+                            // settings the next time it launches: nothing more to do.
+                            Toast.makeText(context, result.summary.joinToString(" "), Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                result.summary.joinToString(" ") + " Last step: tap Force stop, then OK, so Eden starts using it.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            // Going through Eden's folder provider started Eden's process, which has already read its
+                            // settings, and Android won't let RomRunner stop it: take the user to the button that does.
+                            openAppInfo(EdenGpuDriver.PACKAGE)
+                        }
                     }
                     is EdenSetup.Result.Failed ->
                         if (!quiet) Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
@@ -435,15 +451,18 @@ fun LibraryScreen(
     }
     fun setUpEdenDriver() {
         val granted = repository.getEdenFolderUri()?.let { Uri.parse(it) }
-        if (granted != null) applyEdenSetup(granted, quiet = false) else launchEdenPicker()
+        if (EmulatorFolders.canUseDirectly(EdenGpuDriver.PACKAGE)) applyEdenSetup(null, quiet = false)
+        else if (granted != null) applyEdenSetup(granted, quiet = false) else launchEdenPicker()
     }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt) {
         if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt) return@LaunchedEffect
-        if (edenOfferedThisRun || repository.isEdenSetupPrompted() || repository.getEdenFolderUri() != null) return@LaunchedEffect
+        val direct = EmulatorFolders.canUseDirectly(EdenGpuDriver.PACKAGE)
+        if (edenOfferedThisRun || repository.isSetUp("eden") || repository.getEdenFolderUri() != null ||
+            (!direct && repository.isEdenSetupPrompted())) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == EdenGpuDriver.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, EdenGpuDriver.PACKAGE)) return@LaunchedEffect
         edenOfferedThisRun = true
-        launchEdenPicker()
+        if (direct) applyEdenSetup(null, quiet = false) else launchEdenPicker()
     }
     // If the grant was given before Eden had ever been opened (so it had no settings file yet), finish
     // the job quietly the next time RomRunner comes back to the foreground.
