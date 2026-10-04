@@ -161,9 +161,9 @@ def pixel_text_cutout(pen, text, x_left, x_right, cy, cap_height, bold, gap):
             pen.close()
         x += ncols * pw + 2 * bold + gap
 
-# ---- Window art: the A and B buttons of a Game Boy, drawn as pixel circles (9 x 9 cells), each with an
-# "R" cut out of it in the same pixel font as the app. B sits lower-left and A upper-right, on the slight
-# upward slope the real buttons have. ----
+# ---- Window art: two R's in the app's pixel font, placed where a Game Boy's B (lower-left) and A (upper-right)
+# buttons are, on the slight upward slope the real buttons have. (The 9 x 9 cell circles that used to sit behind
+# them are gone; their grid still positions the letters.) ----
 _CIRCLE_ROWS = [5, 7, 9, 9, 9, 9, 9, 7, 5]     # width of each row of a 9-cell pixel circle (all centred)
 _CIRCLE_D = 9
 _B_AT, _A_AT = (0, 4), (11, 0)                  # top-left cell of each circle: A is 11 across and 4 up from B
@@ -173,20 +173,15 @@ def _circle_cells(ox, oy):
     return {(ox + (_CIRCLE_D - w) // 2 + i, oy + r) for r, w in enumerate(_CIRCLE_ROWS) for i in range(w)}
 
 def ab_buttons(pen, cx, cy, cell):
-    """The A/B buttons centred on (cx, cy), each pixel `cell` units square. Each circle is one outline; the
-    R inside it is a set of outlines inside that one, so the even-odd fill leaves the letter open."""
+    """The two R's, laid out where the A and B buttons are (B lower-left, A upper-right) and centred on (cx, cy),
+    each pixel `cell` units square. They stand solid in the dark label window, with no circles behind them."""
     x0, y0 = cx - _ART_W * cell / 2, cy - _ART_H * cell / 2
     r_cols, r_cells = _glyph_cells("R")
     r_left = (_CIRCLE_D - r_cols + 1) // 2           # leans the letter a half cell right: its weight is on the left
     r_top = (_CIRCLE_D - 5) // 2
     def rect(c, r): return (x0 + c * cell, y0 + r * cell, x0 + (c + 1) * cell, y0 + (r + 1) * cell)
     for ox, oy in (_B_AT, _A_AT):
-        disc = _circle_cells(ox, oy)
         letter = {(ox + r_left + c, oy + r_top + r) for c, r in r_cells}
-        for loop in _union_loops([rect(*c) for c in disc]):
-            pen.move((loop[0][0], loop[0][1]))
-            for pt in loop[1:]: pen.line(pt)
-            pen.close()
         for loop in _union_loops([rect(*c) for c in letter]):
             pen.move((loop[0][0], loop[0][1]))
             for pt in loop[1:]: pen.line(pt)
@@ -227,7 +222,7 @@ WIN_Y1 = WIN_Y0 + LABEL_H
 RIDGE_X0 = WIN_X0
 RIDGE_X1 = (X1 - NOTCH) - (WIN_X0 - X0)
 RIDGE_MID = (Y0 + WIN_Y0) / 2                       # the grip ridges are centred in the band above the label
-RIDGE_YS, RIDGE_T = (RIDGE_MID - 8, RIDGE_MID + 8), 8
+RIDGE_YS, RIDGE_T = (RIDGE_MID - 9, RIDGE_MID + 9), 10
 
 def paths(T):
     """Returns the mark's path, filled even-odd (cutouts + the A/B buttons inside the label)."""
