@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,6 +48,7 @@ import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
+import com.noryan.romrunner.ui.components.FocusGlowColor
 import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
@@ -118,6 +120,13 @@ fun SystemsContent(
                     EmulatorLauncher.isPackageInstalled(context, emulator.packageName)
                 }
                 val status = installState.statuses[emulator.packageName]
+                // The two tappable parts of the row (the app, and its setup if it has one) are separate controller
+                // targets. Whichever holds focus is drawn in the app's focus orange with a glow, and the system's
+                // name lights up too, so it's always clear which row the controller is on.
+                val appFocus = rememberFocusInteractionSource()
+                val setupFocus = rememberFocusInteractionSource()
+                val appFocused by appFocus.collectIsFocusedAsState()
+                val setupFocused by setupFocus.collectIsFocusedAsState()
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -125,6 +134,7 @@ fun SystemsContent(
                     Text(
                         emulator.rowLabel(platforms, games),
                         style = MaterialTheme.typography.bodyLarge,
+                        color = if (appFocused || setupFocused) FocusGlowColor else Color.Unspecified,
                         modifier = Modifier.weight(1f)
                     )
                     val isResolving = status != null
@@ -132,12 +142,13 @@ fun SystemsContent(
                         text = buildAnnotatedString {
                             append("${emulator.appLabel} — ")
                             when {
-                                isInstalled -> withStyle(SpanStyle(color = InstalledGreen)) { append("Installed") }
+                                isInstalled -> withStyle(SpanStyle(color = if (appFocused) FocusGlowColor else InstalledGreen)) { append("Installed") }
                                 isResolving -> append(status.orEmpty())
-                                else -> withStyle(SpanStyle(color = NotInstalledRed)) { append("Not Installed") }
+                                else -> withStyle(SpanStyle(color = if (appFocused) FocusGlowColor else NotInstalledRed)) { append("Not Installed") }
                             }
                         },
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge.copy(shadow = appFocus.glowShadow()),
+                        color = appFocus.glowColor(Color.Unspecified),
                         textAlign = TextAlign.End,
                         // Tapping "Installed" opens the app directly — RomRunner can't configure
                         // another app's own settings (sandboxed private storage, no public API for
@@ -146,7 +157,7 @@ fun SystemsContent(
                         // Tapping "Not Installed" looks up the latest stable release, downloads
                         // it, and hands it to the system installer. No action while this row's
                         // download/install is already in flight.
-                        modifier = Modifier.clickable(enabled = !isResolving) {
+                        modifier = Modifier.clickable(interactionSource = appFocus, indication = null, enabled = !isResolving) {
                             if (isInstalled) {
                                 context.packageManager.getLaunchIntentForPackage(emulator.packageName)
                                     ?.let { context.startActivity(it) }
@@ -159,12 +170,14 @@ fun SystemsContent(
                         Text(
                             text = buildAnnotatedString {
                                 append("Setup — ")
-                                if (done) withStyle(SpanStyle(color = InstalledGreen)) { append("Loaded") }
-                                else withStyle(SpanStyle(color = NotInstalledRed)) { append("Set up") }
+                                if (done) withStyle(SpanStyle(color = if (setupFocused) FocusGlowColor else InstalledGreen)) { append("Loaded") }
+                                else withStyle(SpanStyle(color = if (setupFocused) FocusGlowColor else NotInstalledRed)) { append("Set up") }
                             },
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyLarge.copy(shadow = setupFocus.glowShadow()),
+                            color = setupFocus.glowColor(Color.Unspecified),
                             textAlign = TextAlign.End,
-                            modifier = Modifier.padding(start = 32.dp).clickable(onClick = run)
+                            modifier = Modifier.padding(start = 32.dp)
+                                .clickable(interactionSource = setupFocus, indication = null, onClick = run)
                         )
                     }
                 }
