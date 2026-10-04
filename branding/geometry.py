@@ -222,9 +222,12 @@ LABEL_W, LABEL_H, LABEL_R, LABEL_TOP = 42 * MM, 37 * MM, 15, 17 * MM
 WIN_X0, WIN_X1 = X0 + (57 - 42) / 2 * MM, X1 - (57 - 42) / 2 * MM
 WIN_Y0 = Y0 + LABEL_TOP
 WIN_Y1 = WIN_Y0 + LABEL_H
-RIDGE_X0, RIDGE_X1 = 182, X1 - NOTCH - 16        # stops short of the top-right notch by the same margin it starts in
+# Two lines, centred between the cartridge's left edge and the notch's edge: they start in from the left edge by the
+# same distance the label window does (so they line up with it), and stop that far short of the notch.
+RIDGE_X0 = WIN_X0
+RIDGE_X1 = (X1 - NOTCH) - (WIN_X0 - X0)
 RIDGE_MID = (Y0 + WIN_Y0) / 2                       # the grip ridges are centred in the band above the label
-RIDGE_YS, RIDGE_T = (RIDGE_MID - 14, RIDGE_MID, RIDGE_MID + 14), 8
+RIDGE_YS, RIDGE_T = (RIDGE_MID - 8, RIDGE_MID + 8), 8
 
 def paths(T):
     """Returns the mark's path, filled even-odd (cutouts + the A/B buttons inside the label)."""
