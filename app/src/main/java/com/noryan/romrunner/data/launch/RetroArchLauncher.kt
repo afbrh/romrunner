@@ -50,17 +50,30 @@ object RetroArchLauncher {
     private const val RETRO_ACTIVITY = "com.retroarch.browser.retroactivity.RetroActivityFuture"
     private const val CONFIG_NAME = "romrunner.cfg"
 
+    /** The mGBA core's library name, which RetroArch uses as the folder name for per-core presets. */
+    private const val MGBA_PRESET_DIR = "mGBA"
+    private const val MGBA_SHADER = "shaders/shaders_glsl/handheld/lcd-grid-v2-gba-color.glslp"
+
     /**
      * RomRunner's own RetroArch config, handed to RetroArch as the CONFIGFILE extra on every launch (it's the
      * main config for that run). Written once at setup and then left alone, because RetroArch saves any change
-     * the user makes in its menus back into this file. Controls need nothing here: RetroArch ships an
-     * "Odin Controller" profile (and Retroid ones) that it applies by itself; only the hotkeys are set.
+     * the user makes in its menus back into this file.
      *
-     * quit_on_close_content is a number, not a boolean: 0 = off, 1 = quit RetroArch whenever content closes.
-     * The menu-toggle combo 4 is Start+Select; the quit combo 3 is L1+R1+Start+Select.
+     *  - Menu: RGUI, Gray Dark theme (35), no border filler, menu aspect ratio matched to this screen, and
+     *    OK/Cancel not swapped.
+     *  - Quit: quit_on_close_content is a number, not a boolean (0 = off, 1 = quit RetroArch whenever content
+     *    closes). Hotkeys: combo 4 (Start+Select) opens the menu, combo 3 (L1+R1+Start+Select) quits.
+     *  - Video: the GL driver (GLSL shader presets don't work on Vulkan) with shaders on. They only do anything
+     *    where a preset is auto-loaded, which RomRunner sets up for the mGBA core (see [writeShaderPreset]).
+     *  - Directories are pinned to RetroArch's own folders so nothing depends on how it guesses them.
+     *  - Controls: see [ensureControllerBinds]; RetroArch's own autoconfig profile is the backstop.
      */
-    private val CONFIG_TEXT = """
+    private fun configText(context: Context, dataDir: String): String = """
         menu_driver = "rgui"
+        rgui_menu_color_theme = "35"
+        rgui_border_filler_enable = "false"
+        rgui_aspect_ratio = "${menuAspectRatio(context)}"
+        menu_swap_ok_cancel_buttons = "false"
         input_overlay_enable = "false"
         quit_on_close_content = "1"
         menu_show_quit_retroarch = "true"
@@ -68,10 +81,27 @@ object RetroArchLauncher {
         input_menu_toggle_gamepad_combo = "4"
         input_quit_gamepad_combo = "3"
         input_autodetect_enable = "true"
+        video_driver = "gl"
+        video_shader_enable = "true"
+        auto_shaders_enable = "true"
+        auto_overrides_enable = "true"
+        video_shader_dir = "$dataDir/shaders"
+        joypad_autoconfig_dir = "$dataDir/autoconfig"
         savefile_directory = "/storage/emulated/0/RetroArch/saves"
         savestate_directory = "/storage/emulated/0/RetroArch/states"
         system_directory = "/storage/emulated/0/RetroArch/system"
     """.trimIndent() + "\n"
+
+    /**
+     * RGUI's "Aspect Ratio" value for this device's screen: the nearest of the ratios RGUI offers.
+     * 0 = 4:3, 1 = 16:9, 3 = 16:10, 5 = 21:9, 7 = 3:2, 9 = 5:3 (the "centred" variants sit between them).
+     */
+    private fun menuAspectRatio(context: Context): Int {
+        val metrics = context.resources.displayMetrics
+        val ratio = maxOf(metrics.widthPixels, metrics.heightPixels).toFloat() / minOf(metrics.widthPixels, metrics.heightPixels)
+        val options = mapOf(0 to 4f / 3, 1 to 16f / 9, 3 to 16f / 10, 5 to 21f / 9, 7 to 3f / 2, 9 to 5f / 3)
+        return options.minByOrNull { kotlin.math.abs(it.value - ratio) }!!.key
+    }
 
     /** The best libretro core for each RetroArch-played platform (by RomRunner platform name), without the "_libretro_android.so" suffix. */
     private val CORE_BY_PLATFORM = mapOf(
@@ -129,8 +159,11 @@ object RetroArchLauncher {
      */
     suspend fun setUp(context: Context, treeUri: Uri, platformNames: Collection<String>): SetupResult = withContext(Dispatchers.IO) {
         try {
+            val pkg = EmulatorLauncher.installedPackageFor(context, RETROARCH_PACKAGE) ?: return@withContext SetupResult.Failed("RetroArch isn't installed.")
             val root = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext SetupResult.Failed("Couldn't open RetroArch's folder.")
-            writeConfig(context, root, overwrite = true)
+            writeConfig(context, root, dataDir(context, pkg), overwrite = true)
+            writeShaderPreset(context, root, dataDir(context, pkg))
+            ensureControllerBinds(context, root)
             val installed = platformNames.mapNotNull { CORE_BY_PLATFORM[it] }.distinct().onEach { installCore(context, root, it) }
             SetupResult.Done(installed)
         } catch (e: Exception) {
@@ -141,13 +174,66 @@ object RetroArchLauncher {
     private fun ensureDir(parent: DocumentFile, name: String): DocumentFile =
         parent.findFile(name)?.takeIf { it.isDirectory } ?: parent.createDirectory(name) ?: error("couldn't create $name")
 
-    private fun writeConfig(context: Context, root: DocumentFile, overwrite: Boolean) {
+    private fun writeConfig(context: Context, root: DocumentFile, dataDir: String, overwrite: Boolean) {
         val files = ensureDir(root, "files")
         val existing = files.findFile(CONFIG_NAME)
         if (existing != null && !overwrite) return
         existing?.delete()
         val file = files.createFile("application/octet-stream", CONFIG_NAME) ?: error("couldn't create $CONFIG_NAME")
-        context.contentResolver.openOutputStream(file.uri, "wt")?.use { it.write(CONFIG_TEXT.toByteArray()) } ?: error("couldn't write $CONFIG_NAME")
+        context.contentResolver.openOutputStream(file.uri, "wt")?.use { it.write(configText(context, dataDir).toByteArray()) } ?: error("couldn't write $CONFIG_NAME")
+    }
+
+    /**
+     * Makes every game played with the mGBA core use the "LCD Grid v2 (GBA colour)" shader from RetroArch's
+     * handheld shaders. RetroArch auto-loads a preset named `<core>/<core>.glslp` from the folder holding the
+     * config file; this one just points at the shipped preset, so it also follows the shader files if RetroArch updates them.
+     */
+    private fun writeShaderPreset(context: Context, root: DocumentFile, dataDir: String) {
+        val dir = ensureDir(ensureDir(root, "files"), MGBA_PRESET_DIR)
+        if (dir.findFile("$MGBA_PRESET_DIR.glslp") != null) return
+        val file = dir.createFile("application/octet-stream", "$MGBA_PRESET_DIR.glslp") ?: error("couldn't create the mGBA shader preset")
+        context.contentResolver.openOutputStream(file.uri, "wt")?.use {
+            it.write("#reference \"$dataDir/$MGBA_SHADER\"\n".toByteArray())
+        } ?: error("couldn't write the mGBA shader preset")
+    }
+
+    private val PLAYER_BIND = Regex("""^input_((up|down|left|right|a|b|x|y|start|select|l|r|l2|r2|l3|r3|[lr]_[xy]_(plus|minus))_(btn|axis))$""")
+    private val HOTKEY_BIND = Regex("""^input_[a-z0-9_]+_(btn|axis)$""")
+
+    /**
+     * Pre-maps controller 1 to this device's own gamepad by copying the bindings of the matching profile in
+     * RetroArch's autoconfig folder (the "Odin Controller" ones on the Thor, Retroid's on a Retroid) into the
+     * config as player 1 binds, so the mapping doesn't depend on RetroArch finding and matching the profile
+     * itself. A no-op until RetroArch has unpacked its autoconfig folder (it does on its first run), until
+     * a gamepad is connected, or once the config already holds binds.
+     */
+    private fun ensureControllerBinds(context: Context, root: DocumentFile) {
+        val configFile = root.findFile("files")?.findFile(CONFIG_NAME) ?: return
+        val config = context.contentResolver.openInputStream(configFile.uri)?.bufferedReader()?.use { it.readText() } ?: return
+        if ("input_player1_b_btn" in config) return
+
+        val pad = Gamepad.primary() ?: return
+        val profiles = root.findFile("autoconfig")?.findFile("android")?.listFiles()?.filter { it.name?.endsWith(".cfg") == true } ?: return
+        val candidates = profiles.mapNotNull { file ->
+            val text = context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() } ?: return@mapNotNull null
+            val values = text.lineSequence().mapNotNull { Regex("""^\s*([a-z0-9_]+)\s*=\s*"(.*)"\s*$""").find(it)?.destructured }
+                .associate { (k, v) -> k to v }
+            if (!values["input_device"].equals(pad.name, ignoreCase = true)) null else values
+        }
+        // Two profiles can share a device name (e.g. the Odin's normal and Xbox modes): the product id tells them apart.
+        val profile = candidates.firstOrNull { it["input_product_id"] == pad.productId.toString() } ?: candidates.firstOrNull() ?: return
+
+        val binds = profile.mapNotNull { (key, value) ->
+            when {
+                key.endsWith("_label") -> null
+                PLAYER_BIND.matches(key) -> "input_player1_${key.removePrefix("input_")}" to value
+                HOTKEY_BIND.matches(key) && key != "input_menu_toggle_btn" -> key to value
+                else -> null
+            }
+        }
+        if (binds.isEmpty()) return
+        val text = config.trimEnd() + "\n" + binds.joinToString("\n") { (k, v) -> "$k = \"$v\"" } + "\n"
+        context.contentResolver.openOutputStream(configFile.uri, "wt")?.use { it.write(text.toByteArray()) }
     }
 
     /** Puts the libretro core [coreName] in RetroArch's own cores folder (a core can only be loaded from there, not from shared storage). */
@@ -207,8 +293,10 @@ object RetroArchLauncher {
             try {
                 val root = DocumentFile.fromTreeUri(context, folderUri) ?: error("couldn't open RetroArch's folder")
                 installCore(context, root, coreName)
-                writeConfig(context, root, overwrite = false)
                 val base = dataDir(context, retroArchPackage)
+                writeConfig(context, root, base, overwrite = false)
+                writeShaderPreset(context, root, base)
+                ensureControllerBinds(context, root)
                 return@withContext Prepared.Ready(Intent().apply {
                     component = ComponentName(retroArchPackage, RETRO_ACTIVITY)
                     putExtra("LIBRETRO", "$base/cores/${coreName}_libretro_android.so")

@@ -39,22 +39,13 @@ object CemuSetup {
 
     fun isCemuTree(treeUri: Uri): Boolean = treeUri.authority == AUTHORITY
 
-    /** The handheld's own gamepad if it can be recognised, else any connected physical gamepad. */
-    private fun findController(): InputDevice? {
-        val pads = InputDevice.getDeviceIds().toList().mapNotNull { InputDevice.getDevice(it) }.filter {
-            !it.isVirtual && (it.sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
-        }
-        return pads.firstOrNull { it.name.equals("Odin Controller", ignoreCase = true) || it.name.contains("Retroid", ignoreCase = true) }
-            ?: pads.firstOrNull()
-    }
-
     /** Blocking I/O, run on IO. [romsFolderUri] is the user's Roms/BIOS folder, searched for the key files. */
     suspend fun apply(context: Context, treeUri: Uri, romsFolderUri: Uri?): Result = withContext(Dispatchers.IO) {
         try {
             val root = DocumentFile.fromTreeUri(context, treeUri)
                 ?: return@withContext Result.Failed("Couldn't open Cemu's folder.")
 
-            val controller = findController()
+            val controller = Gamepad.primary()
             if (controller != null) {
                 val profiles = root.findFile("controllerProfiles")?.takeIf { it.isDirectory }
                     ?: root.createDirectory("controllerProfiles") ?: error("couldn't create controllerProfiles")
