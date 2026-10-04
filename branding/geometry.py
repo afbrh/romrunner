@@ -223,8 +223,10 @@ def paths(T):
     b = Pen(T)
     # shell, clockwise from top-left
     b.arc((X0 + R_TOP, Y0 + R_TOP), R_TOP, 180, 270, start=True)
-    # square notch cut out of the top-right corner
-    b.line((X1 - NOTCH, Y0)); b.line((X1 - NOTCH, Y0 + NOTCH)); b.line((X1, Y0 + NOTCH))
+    # notch cut out of the top-right corner, its three corners rounded to the same radius as the shell's others
+    b.arc((X1 - NOTCH - R_TOP, Y0 + R_TOP), R_TOP, -90, 0)               # shell's top edge turning down into the notch
+    b.arc((X1 - NOTCH + R_TOP, Y0 + NOTCH - R_TOP), R_TOP, 180, 90)      # inside corner of the notch (concave)
+    b.arc((X1 - R_TOP, Y0 + NOTCH + R_TOP), R_TOP, -90, 0)               # notch floor turning down the right edge
     b.arc((X1 - R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 0, 90)
     b.arc((X0 + R_BOTTOM, Y1 - R_BOTTOM), R_BOTTOM, 90, 180)
     b.close()
