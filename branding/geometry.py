@@ -178,7 +178,8 @@ _SKULL = [
 _SKULL_LEFT = 5          # skull's left column in the 21-wide grid
 _GRID_W, _GRID_H = 21, 18
 
-def _skull_crossbones_cells():
+def _art_cells(with_bones):
+    """The window art as (cells, grid width, grid height): the skull alone, or the skull over crossed bones."""
     skull = {(_SKULL_LEFT + x, y) for y, row in enumerate(_SKULL) for x, c in enumerate(row) if c == "#"}
     # everything inside the skull's outline (its eye holes included), to carve a one-cell gap around it so
     # the bones read as passing behind
@@ -197,31 +198,38 @@ def _skull_crossbones_cells():
         # a wider end plus two knobs with a notch between them, pointing outward (s = -1 left, +1 right)
         return {(x, y - 2), (x, y + 2), (x + s, y - 2), (x + s, y - 1), (x + s, y + 1), (x + s, y + 2)}
 
+    if not with_bones:
+        w = len(_SKULL[0])
+        return {(x - _SKULL_LEFT, y) for x, y in skull}, w, len(_SKULL)
     mirror = lambda cells: {(_GRID_W - 1 - x, y) for x, y in cells}
     one = bone(1, 7, 19, 15)                       # top-left to bottom-right; its mirror is the other bone
     bones = one | forked_end(1, 7, -1) | forked_end(19, 15, 1)
     bones |= mirror(bones)
-    return {c for c in (bones - gap) | skull if 0 <= c[0] < _GRID_W and 0 <= c[1] < _GRID_H}
+    return {c for c in (bones - gap) | skull if 0 <= c[0] < _GRID_W and 0 <= c[1] < _GRID_H}, _GRID_W, _GRID_H
 
-def skull_crossbones(pen, cx, cy, cell):
-    """Skull and crossbones centred on (cx, cy), each pixel `cell` units square, as merged outlines (eye
-    sockets and the notches in the bone ends come out as inner loops, so even-odd fill leaves them open)."""
-    x0, y0 = cx - _GRID_W * cell / 2, cy - _GRID_H * cell / 2
-    rects = [(x0 + x * cell, y0 + y * cell, x0 + (x + 1) * cell, y0 + (y + 1) * cell)
-             for x, y in _skull_crossbones_cells()]
+def window_art(pen, cx, cy, cell, with_bones):
+    """The skull (with or without the crossbones) centred on (cx, cy), each pixel `cell` units square, as merged
+    outlines (eye sockets and the notches in the bone ends come out as inner loops, so even-odd fill leaves them open)."""
+    cells, w, h = _art_cells(with_bones)
+    x0, y0 = cx - w * cell / 2, cy - h * cell / 2
+    rects = [(x0 + x * cell, y0 + y * cell, x0 + (x + 1) * cell, y0 + (y + 1) * cell) for x, y in cells]
     for loop in _union_loops(rects):
         pen.move(loop[0])
         for pt in loop[1:]: pen.line(pt)
         pen.close()
 
+# What stands in the label window: the skull on its own (bigger), or the skull over crossed bones.
+SKULL_ONLY = True
+
 # Cartridge in unskewed units (roughly Game Boy proportions, 280 x 320).
 X0, Y0, X1, Y1 = 150, 96, 430, 416
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
-# Label window spans x 182..398. RUNNER fills it exactly. ROM starts on the same left edge but ends at
-# 376: the top-right notch (x >= 396, y <= 130) would swallow the M's right stem at 398, so it stops
-# well short of the notch (20 units, tuned by eye).
+# Label window spans x 182..398. RUNNER fills it exactly. ROM starts on the same left edge, and stops short of
+# the top-right notch (its vertical edge is at x = X1 - NOTCH = 396) by the same margin it starts in from the
+# cartridge's left edge, so the gap on either side of ROM matches (32 units each).
 WIN_X0, WIN_X1 = 182, 398
-ROM_X0, ROM_X1 = WIN_X0, 376
+ROM_X0 = WIN_X0
+ROM_X1 = (X1 - NOTCH) - (ROM_X0 - X0)
 ROM_CAP, ROM_BOLD, ROM_GAP = 44, 2.0, 9   # total height; extra stroke weight per side; gap between letters
 RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP = 30.9, 1.5, 6.3   # same treatment as ROM, scaled to its smaller size
 
@@ -238,9 +246,10 @@ def paths(T):
     # the name, cut out of the shell: ROM in the top band, RUNNER in the bottom one
     pixel_text_cutout(b, "ROM", ROM_X0, ROM_X1, 134, ROM_CAP, ROM_BOLD, ROM_GAP)
     pixel_text_cutout(b, "RUNNER", WIN_X0, WIN_X1, 382, RUNNER_CAP, RUNNER_BOLD, RUNNER_GAP)
-    # recessed label window, with a skull and crossbones standing solid inside it
+    # recessed label window, with the skull (and crossbones) standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
-    skull_crossbones(b, 290, 260, 9)
+    if SKULL_ONLY: window_art(b, 290, 260, 15, with_bones=False)
+    else: window_art(b, 290, 260, 9, with_bones=True)
 
     return b.d
 
