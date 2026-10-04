@@ -46,8 +46,7 @@ class EmulatorInstallState {
             if (local != null) {
                 // Already downloaded earlier (or by hand): install that copy instead of fetching another.
                 statuses[pkg] = "Installing…"
-                EmulatorDownloader.launchInstaller(context, local)
-                EmulatorDownloader.awaitInstalled(context, pkg, seconds = 60)
+                EmulatorDownloader.installApk(context, local)
                 return
             }
             val downloadId = EmulatorDownloader.enqueue(context, emulator)
@@ -61,12 +60,9 @@ class EmulatorInstallState {
                 return
             }
             statuses[pkg] = "Installing…"
-            EmulatorDownloader.launchInstaller(context, downloadId)
-            // The install Intent only hands off to the system installer UI — poll PackageManager so
-            // the row flips to "Installed" the moment it actually is, without the user having to
-            // back out to RomRunner first. The resume-triggered recheck in PlatformsContent still
-            // catches a slower install after this gives up.
-            EmulatorDownloader.awaitInstalled(context, pkg, seconds = 60)
+            // Waits for the user to finish with the system's confirmation (see installApk), so the row
+            // flips to "Installed" as soon as it actually is.
+            EmulatorDownloader.runInstallerAndWait(context, downloadId, pkg)
         } finally {
             statuses.remove(pkg)
             refreshTick++

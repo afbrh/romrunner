@@ -1,13 +1,15 @@
 package com.noryan.romrunner.data.launch
 
-import android.app.Activity
-import android.app.Application
 import android.app.DownloadManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageInstaller
 import android.net.Uri
-import android.os.Bundle
 import android.os.Environment
+import androidx.core.content.ContextCompat
 import android.provider.MediaStore
 import android.content.ContentUris
 import kotlinx.coroutines.CompletableDeferred
@@ -89,20 +91,73 @@ object EmulatorDownloader {
         null
     }
 
-    /** Hands the finished download to the system installer UI. */
-    fun launchInstaller(context: Context, downloadId: Long) {
+    /**
+     * Installs the finished download and waits until the user is done with the system's confirmation. See
+     * [installApk]; returns whether the app was installed.
+     */
+    suspend fun runInstallerAndWait(context: Context, downloadId: Long, packageName: String): Boolean {
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        launchInstaller(context, downloadManager.getUriForDownloadedFile(downloadId))
+        return installApk(context, downloadManager.getUriForDownloadedFile(downloadId))
     }
 
-    /** Hands the APK at [apkUri] to the system installer UI. */
-    fun launchInstaller(context: Context, apkUri: Uri) {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+    suspend fun runInstallerAndWait(context: Context, apkUri: Uri, packageName: String): Boolean = installApk(context, apkUri)
+
+    /**
+     * Installs the APK at [apkUri] through a PackageInstaller session instead of handing the file to the system
+     * installer as a "view this file" intent. The user still gets Android's "Do you want to install this app?"
+     * confirmation (that can't be skipped), but afterwards the system doesn't show its "App installed — Done / Open"
+     * screen, which a view-intent install always does; the result comes back to RomRunner as a broadcast instead,
+     * which is also how it knows the user has finished, so installs in a batch don't stack up.
+     * Returns true once the app is installed, false if the user cancelled or it failed.
+     */
+    suspend fun installApk(context: Context, apkUri: Uri): Boolean {
+        val app = context.applicationContext
+        val installer = app.packageManager.packageInstaller
+        val sessionId = withContext(Dispatchers.IO) {
+            installer.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
+        }
+        val action = "com.noryan.romrunner.INSTALL_RESULT.$sessionId"
+        val result = CompletableDeferred<Int>()
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, intent: Intent) {
+                val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+                if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                    // The system hands back its confirmation screen to show; RomRunner is in front, so it opens over it.
+                    @Suppress("DEPRECATION")
+                    val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                    confirm?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let { c.startActivity(it) }
+                } else {
+                    result.complete(status)
+                }
             }
-        )
+        }
+        ContextCompat.registerReceiver(app, receiver, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
+        try {
+            withContext(Dispatchers.IO) {
+                installer.openSession(sessionId).use { session ->
+                    val input = app.contentResolver.openInputStream(apkUri) ?: error("couldn't read the APK")
+                    input.use { source ->
+                        session.openWrite("base.apk", 0, -1).use { out ->
+                            source.copyTo(out)
+                            session.fsync(out)
+                        }
+                    }
+                    val resultIntent = PendingIntent.getBroadcast(
+                        app, sessionId, Intent(action).setPackage(app.packageName),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                    )
+                    session.commit(resultIntent.intentSender)
+                }
+            }
+            val status = withTimeoutOrNull(10 * 60_000L) { result.await() }
+            if (status == null) runCatching { installer.abandonSession(sessionId) }
+            return status == PackageInstaller.STATUS_SUCCESS
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(sessionId) }
+            return false
+        } finally {
+            app.unregisterReceiver(receiver)
+        }
     }
 
     /** Polls PackageManager until [packageName] shows up as installed, or [seconds] pass. */
@@ -114,51 +169,4 @@ object EmulatorDownloader {
             }
             EmulatorLauncher.isPackageInstalled(context, packageName)
         }
-
-    /**
-     * Opens the system installer for [downloadId] and waits until the user is done with it, so a
-     * batch install can move on to the next app without stacking installer screens on top of each
-     * other. "Done" means RomRunner goes to the background (the installer took over) and then comes
-     * back (paused then resumed); the install itself is then confirmed with a short PackageManager poll. If the installer
-     * never appears to take over, falls back to polling for up to a minute.
-     */
-    suspend fun runInstallerAndWait(context: Context, downloadId: Long, packageName: String): Boolean {
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        return runInstallerAndWait(context, downloadManager.getUriForDownloadedFile(downloadId), packageName)
-    }
-
-    suspend fun runInstallerAndWait(context: Context, apkUri: Uri, packageName: String): Boolean {
-        val application = context.applicationContext as Application
-        val wentToBackground = CompletableDeferred<Unit>()
-        val cameBack = CompletableDeferred<Unit>()
-        val callbacks = object : Application.ActivityLifecycleCallbacks {
-            // Paused/resumed, not stopped/started: the system installer's confirm screen is a
-            // translucent dialog-style activity, so RomRunner only ever pauses behind it and never
-            // stops (confirmed on-device — waiting on "stopped" never fired and installers stacked).
-            override fun onActivityPaused(activity: Activity) {
-                wentToBackground.complete(Unit)
-            }
-
-            override fun onActivityResumed(activity: Activity) {
-                if (wentToBackground.isCompleted) cameBack.complete(Unit)
-            }
-
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-            override fun onActivityStarted(activity: Activity) {}
-            override fun onActivityStopped(activity: Activity) {}
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-            override fun onActivityDestroyed(activity: Activity) {}
-        }
-        application.registerActivityLifecycleCallbacks(callbacks)
-        try {
-            launchInstaller(context, apkUri)
-            if (withTimeoutOrNull(15_000) { wentToBackground.await() } == null) {
-                return awaitInstalled(context, packageName, seconds = 60)
-            }
-            withTimeoutOrNull(10 * 60_000L) { cameBack.await() }
-            return awaitInstalled(context, packageName, seconds = 5)
-        } finally {
-            application.unregisterActivityLifecycleCallbacks(callbacks)
-        }
-    }
 }
