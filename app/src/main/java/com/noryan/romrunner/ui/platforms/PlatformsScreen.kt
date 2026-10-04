@@ -70,9 +70,6 @@ fun PlatformsContent(
     var rootFolderUri by remember { mutableStateOf(repository.getRootFolderUri()) }
     LaunchedEffect(Unit) { rootFolderUri = repository.getRootFolderUri() }
 
-    var biosKeysFolderUri by remember { mutableStateOf(repository.getBiosKeysFolderUri()) }
-    LaunchedEffect(Unit) { biosKeysFolderUri = repository.getBiosKeysFolderUri() }
-
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
     var dualScreenSupportEnabled by remember { mutableStateOf(repository.getDualScreenSupportEnabled()) }
 
@@ -94,19 +91,6 @@ fun PlatformsContent(
         }
     }
 
-    val biosKeysFolderPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            repository.setBiosKeysFolderUri(uri.toString())
-            biosKeysFolderUri = uri.toString()
-        }
-    }
-
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item {
             val romsFolderInteractionSource = rememberFocusInteractionSource()
@@ -125,7 +109,7 @@ fun PlatformsContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "ROMs folder",
+                    "Roms/BIOS",
                     style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
                     color = romsFolderColor,
                     modifier = Modifier.weight(1f)
@@ -134,37 +118,6 @@ fun PlatformsContent(
                     text = rootFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
                     style = LocalTextStyle.current.copy(shadow = romsFolderGlow),
                     color = romsFolderColor,
-                    textAlign = TextAlign.End
-                )
-            }
-        }
-
-        item {
-            val biosFolderInteractionSource = rememberFocusInteractionSource()
-            val biosFolderGlow = biosFolderInteractionSource.glowShadow()
-            val biosFolderColor = biosFolderInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = biosFolderInteractionSource,
-                        indication = null
-                    ) {
-                        biosKeysFolderPicker.launch(biosKeysFolderUri?.let { Uri.parse(it) })
-                    }
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "BIOS/Keys/Firmware folder",
-                    style = LocalTextStyle.current.copy(shadow = biosFolderGlow),
-                    color = biosFolderColor,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = biosKeysFolderUri?.let { Uri.parse(it).lastPathSegment ?: it } ?: "Not set",
-                    style = LocalTextStyle.current.copy(shadow = biosFolderGlow),
-                    color = biosFolderColor,
                     textAlign = TextAlign.End
                 )
             }

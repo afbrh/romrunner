@@ -49,31 +49,6 @@ fun FolderAccessDialog(
 }
 
 /**
- * Eden only creates its settings file the first time it runs, and RomRunner can't set up its driver
- * without that file. The folder permission is already saved at this point and RomRunner finishes the
- * job by itself when the user comes back, so all that's needed is for Eden to be opened once.
- */
-@Composable
-fun EdenOpenFirstDialog(
-    onOpenEden: () -> Unit,
-    onLater: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onLater,
-        title = { Text("Open Eden once") },
-        text = {
-            Text(
-                "Permission saved. Eden hasn't been opened yet, so it hasn't created its settings.\n\n" +
-                    "Tap \"Open Eden\", wait for it to load, then come back to RomRunner. " +
-                    "RomRunner will finish setting up the graphics driver by itself."
-            )
-        },
-        confirmButton = { TextButton(onClick = onOpenEden) { Text("Open Eden") } },
-        dismissButton = { TextButton(onClick = onLater) { Text("Later") } }
-    )
-}
-
-/**
  * Shown after RomRunner has changed a setting that [appName] only reads when its process starts. RomRunner's
  * own folder access to the app is what starts that process in the background, so it has already read its
  * settings by the time they're written. Android doesn't let a normal app stop another app's process

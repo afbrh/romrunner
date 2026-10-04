@@ -10,12 +10,6 @@ class LibrarySettings(context: Context) {
         get() = prefs.getString(KEY_ROOT_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_ROOT_FOLDER_URI, value).apply()
 
-    /** The folder holding BIOS/keys/firmware files for emulators that need them — see
-     *  [com.noryan.romrunner.ui.platforms.PlatformsContent]'s "Recommended Emulators" auto-setup. */
-    var biosKeysFolderUri: String?
-        get() = prefs.getString(KEY_BIOS_KEYS_FOLDER_URI, null)
-        set(value) = prefs.edit().putString(KEY_BIOS_KEYS_FOLDER_URI, value).apply()
-
     /** Whether to ask Android to kill other apps' background processes right before launching a
      *  game, freeing memory for it. Default on — see [com.noryan.romrunner.data.launch.BackgroundAppCleaner]. */
     var killBackgroundAppsOnLaunch: Boolean
@@ -61,11 +55,6 @@ class LibrarySettings(context: Context) {
         get() = prefs.getString(KEY_EDEN_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_EDEN_FOLDER_URI, value).apply()
 
-    /** True once the "set up Eden's graphics driver?" prompt has been shown — offered once. */
-    var edenSetupPrompted: Boolean
-        get() = prefs.getBoolean(KEY_EDEN_SETUP_PROMPTED, false)
-        set(value) = prefs.edit().putBoolean(KEY_EDEN_SETUP_PROMPTED, value).apply()
-
     /** The folder grant for Cemu's own user directory (see CemuSetup), if the user gave one. */
     var cemuFolderUri: String?
         get() = prefs.getString(KEY_CEMU_FOLDER_URI, null)
@@ -84,7 +73,6 @@ class LibrarySettings(context: Context) {
     companion object {
         private const val PREFS_NAME = "romrunner_settings"
         private const val KEY_ROOT_FOLDER_URI = "root_folder_uri"
-        private const val KEY_BIOS_KEYS_FOLDER_URI = "bios_keys_folder_uri"
         private const val KEY_KILL_BACKGROUND_APPS_ON_LAUNCH = "kill_background_apps_on_launch"
         private const val KEY_DUAL_SCREEN_SUPPORT_ENABLED = "dual_screen_support_enabled"
         private const val KEY_EMULATOR_SETUP_PROMPTED = "emulator_setup_prompted"
@@ -93,7 +81,6 @@ class LibrarySettings(context: Context) {
         private const val KEY_CEMU_FOLDER_URI = "cemu_folder_uri"
         private const val KEY_CEMU_SETUP_PROMPTED = "cemu_setup_prompted"
         private const val KEY_EDEN_FOLDER_URI = "eden_folder_uri"
-        private const val KEY_EDEN_SETUP_PROMPTED = "eden_setup_prompted"
         private const val KEY_EDEN_DRIVER_APPLIED = "eden_driver_applied"
         private const val KEY_PRIMEHACK_FOLDER_URI = "primehack_folder_uri"
         private const val KEY_PRIMEHACK_SETUP_PROMPTED = "primehack_setup_prompted"

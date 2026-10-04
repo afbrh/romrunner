@@ -10,7 +10,7 @@ import java.util.zip.ZipInputStream
 /**
  * Sets Eden (Nintendo Switch) up for this handheld, through the same one-time folder permission
  * [EdenGpuDriver] already uses:
- *  - installs the user's Switch keys (`prod.keys`, `title.keys`) and firmware from their BIOS/Keys folder;
+ *  - installs the user's Switch keys (`prod.keys`, `title.keys`) and firmware from their Roms/BIOS folder;
  *  - hides Eden's on-screen touch controls (Eden also auto-hides them while a gamepad is connected);
  *  - installs the Turnip graphics driver on handhelds that need it (see [EdenGpuDriver]).
  *
@@ -34,18 +34,22 @@ object EdenSetup {
     }
 
     /** Blocking I/O, run on IO. Safe to repeat: keys are overwritten and firmware is skipped once installed. */
-    suspend fun apply(context: Context, treeUri: Uri, biosKeysFolderUri: Uri?): Result = withContext(Dispatchers.IO) {
+    suspend fun apply(context: Context, treeUri: Uri, romsFolderUri: Uri?): Result = withContext(Dispatchers.IO) {
         try {
             val root = DocumentFile.fromTreeUri(context, treeUri)
                 ?: return@withContext Result.Failed("Couldn't open Eden's folder.")
             val summary = mutableListOf<String>()
 
-            val source = biosKeysFolderUri?.let { DocumentFile.fromTreeUri(context, it) }
+            val source = romsFolderUri?.let { DocumentFile.fromTreeUri(context, it) }
             if (source == null) {
-                summary += "No BIOS/Keys folder is set in Settings, so Switch keys and firmware weren't installed."
+                summary += "No Roms/BIOS folder is set, so Switch keys and firmware weren't installed."
             } else {
-                summary += installKeys(context, root, source)
-                summary += installFirmware(context, root, source)
+                val files = RomsFolderFiles.find(source) { name ->
+                    name.equals("prod.keys", ignoreCase = true) || name.equals("title.keys", ignoreCase = true) ||
+                        (name.endsWith(".zip", ignoreCase = true) && name.contains("firmware", ignoreCase = true))
+                }
+                summary += installKeys(context, root, files)
+                summary += installFirmware(context, root, files)
             }
 
             val configDir = root.findFile("config")
@@ -74,12 +78,11 @@ object EdenSetup {
     }
 
     /** Copies `prod.keys` / `title.keys` into Eden's keys folder (created if Eden hasn't made it yet). */
-    private fun installKeys(context: Context, root: DocumentFile, source: DocumentFile): List<String> {
-        val available = source.listFiles()
+    private fun installKeys(context: Context, root: DocumentFile, files: List<DocumentFile>): List<String> {
         val found = listOf("prod.keys", "title.keys").mapNotNull { name ->
-            available.firstOrNull { it.isFile && it.name.equals(name, ignoreCase = true) }?.let { name to it }
+            files.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { name to it }
         }
-        if (found.none { it.first == "prod.keys" }) return listOf("No prod.keys in your BIOS/Keys folder, so Switch keys weren't installed.")
+        if (found.none { it.first == "prod.keys" }) return listOf("No prod.keys in your Roms/BIOS folder, so Switch keys weren't installed.")
         val keysDir = ensureDir(root, "keys")
         for ((name, file) in found) {
             // Delete first: creating a document over an existing name would make "prod (1).keys".
@@ -96,14 +99,14 @@ object EdenSetup {
      * Unpacks the firmware ZIP (a file with "firmware" in its name, holding the .nca files flat) into
      * `nand/system/Contents/registered`. Skipped if that folder already has firmware in it.
      */
-    private fun installFirmware(context: Context, root: DocumentFile, source: DocumentFile): List<String> {
+    private fun installFirmware(context: Context, root: DocumentFile, files: List<DocumentFile>): List<String> {
         val registered = listOf("nand", "system", "Contents", "registered").fold(root) { dir, name -> ensureDir(dir, name) }
         if (registered.listFiles().any { it.name?.endsWith(".nca", ignoreCase = true) == true }) return emptyList()
 
-        val zip = source.listFiles()
-            .filter { it.isFile && it.name?.endsWith(".zip", ignoreCase = true) == true && it.name?.contains("firmware", ignoreCase = true) == true }
+        val zip = files
+            .filter { it.name?.endsWith(".zip", ignoreCase = true) == true }
             .maxByOrNull { it.name.orEmpty() }
-            ?: return listOf("No firmware ZIP in your BIOS/Keys folder, so Switch firmware wasn't installed.")
+            ?: return listOf("No firmware ZIP in your Roms/BIOS folder, so Switch firmware wasn't installed.")
 
         var count = 0
         ZipInputStream(context.contentResolver.openInputStream(zip.uri) ?: error("couldn't read ${zip.name}")).use { zipStream ->

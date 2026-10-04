@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Sets Cemu (Wii U) up for this handheld: a Wii U Pro Controller profile that matches the built-in
- * gamepad, plus the Wii U keys and online files from the user's BIOS/Keys folder if they have any.
+ * gamepad, plus the Wii U keys and online files from the user's Roms/BIOS folder if they have any.
  *
  * Cemu doesn't map a gamepad by itself (the user has to do it by hand in its settings), and it keeps
  * its files in Android/data/info.cemu.cemu/files, which other apps can only reach through Cemu's
@@ -26,7 +26,7 @@ object CemuSetup {
     const val PACKAGE = "info.cemu.cemu"
     private const val AUTHORITY = "$PACKAGE.provider"
 
-    /** Files Cemu looks for in its own folder that the user may keep in their BIOS/Keys folder. */
+    /** Files Cemu looks for in its own folder that the user may keep in their Roms/BIOS folder. */
     private val SUPPORT_FILES = listOf("keys.txt", "otp.bin", "seeprom.bin")
 
     sealed interface Result {
@@ -48,8 +48,8 @@ object CemuSetup {
             ?: pads.firstOrNull()
     }
 
-    /** Blocking I/O, run on IO. [biosKeysFolderUri] is the user's BIOS/Keys/Firmware folder, if set. */
-    suspend fun apply(context: Context, treeUri: Uri, biosKeysFolderUri: Uri?): Result = withContext(Dispatchers.IO) {
+    /** Blocking I/O, run on IO. [romsFolderUri] is the user's Roms/BIOS folder, searched for the key files. */
+    suspend fun apply(context: Context, treeUri: Uri, romsFolderUri: Uri?): Result = withContext(Dispatchers.IO) {
         try {
             val root = DocumentFile.fromTreeUri(context, treeUri)
                 ?: return@withContext Result.Failed("Couldn't open Cemu's folder.")
@@ -62,11 +62,11 @@ object CemuSetup {
             }
 
             val copied = mutableListOf<String>()
-            val source = biosKeysFolderUri?.let { DocumentFile.fromTreeUri(context, it) }
+            val source = romsFolderUri?.let { DocumentFile.fromTreeUri(context, it) }
             if (source != null) {
-                val available = source.listFiles()
+                val available = RomsFolderFiles.find(source) { found -> SUPPORT_FILES.any { it.equals(found, ignoreCase = true) } }
                 for (name in SUPPORT_FILES) {
-                    val file = available.firstOrNull { it.isFile && it.name.equals(name, ignoreCase = true) } ?: continue
+                    val file = available.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: continue
                     val bytes = context.contentResolver.openInputStream(file.uri)?.use { it.readBytes() } ?: continue
                     writeFile(context, root, name, bytes)
                     copied += name

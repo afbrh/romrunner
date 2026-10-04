@@ -205,11 +205,6 @@ class LibraryRepository(
         settings.edenFolderUri = uri
     }
 
-    fun isEdenSetupPrompted(): Boolean = settings.edenSetupPrompted
-    fun markEdenSetupPrompted() {
-        settings.edenSetupPrompted = true
-    }
-
     fun isEdenDriverApplied(): Boolean = settings.edenDriverApplied
     fun setEdenDriverApplied(value: Boolean) {
         settings.edenDriverApplied = value
@@ -248,8 +243,4 @@ class LibraryRepository(
         settings.dualScreenSupportEnabled = value
     }
 
-    fun getBiosKeysFolderUri(): String? = settings.biosKeysFolderUri
-    fun setBiosKeysFolderUri(uri: String?) {
-        settings.biosKeysFolderUri = uri
-    }
 }
