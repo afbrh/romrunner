@@ -210,8 +210,8 @@ def grip_ridges(pen, x0, x1, ys, thickness):
     for y in ys:
         pen.rrect(x0, y - thickness / 2, x1 - x0, thickness, thickness / 2)
 
-# Cartridge in unskewed units (roughly Game Boy proportions, 280 x 320).
-X0, Y0, X1, Y1 = 150, 96, 430, 416
+# Cartridge in unskewed units (Game Boy proportions: 57 x 65.5 mm).
+X0, Y0, X1, Y1 = 150, 96, 430, 418   # 280 x 322: the real cartridge's 57 x 65.5 mm proportions
 NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
 # Label window spans x 182..398 (y 172..348).
 WIN_X0, WIN_X1 = 182, 398
@@ -232,7 +232,7 @@ def paths(T):
     b.close()
     # grip ridges along the top, and the little down arrow along the bottom, cut out of the shell
     grip_ridges(b, RIDGE_X0, RIDGE_X1, RIDGE_YS, RIDGE_T)
-    down_arrow(b, (WIN_X0 + WIN_X1) / 2, 382, 8)
+    down_arrow(b, (WIN_X0 + WIN_X1) / 2, (172 + 176 + Y1) / 2, 8)   # centred in the band below the window
     # recessed label window, with the A and B buttons standing solid inside it
     b.rrect(182, 172, 216, 176, 18)
     ab_buttons(b, 290, 260, 9)
