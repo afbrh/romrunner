@@ -73,6 +73,13 @@ fun DeviceStatsPanel(modifier: Modifier = Modifier, level: () -> Float = { 1f })
             }
         }
 
+        s.gpuUsage?.let { usage ->
+            val clock = s.gpuClockMhz?.let { " $it MHZ" }.orEmpty()
+            StatRow("GPU", "${(usage * 100).roundToInt()}%$clock") {
+                SegmentBar(usage, accent, level)
+            }
+        }
+
         val memFraction = s.memoryUsedBytes.toFloat() / s.memoryTotalBytes.coerceAtLeast(1)
         StatRow("MEM", "${gb(s.memoryUsedBytes)} / ${gb(s.memoryTotalBytes)} GB") {
             SegmentBar(memFraction, if (memFraction >= 0.9f) Danger else accent, level)

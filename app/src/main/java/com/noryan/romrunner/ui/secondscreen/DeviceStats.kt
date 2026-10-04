@@ -20,6 +20,10 @@ data class DeviceStats(
     val cpuUsage: Float?,
     /** The fastest core's current clock in kHz; null when the clocks can't be read. */
     val cpuTopKhz: Long?,
+    /** GPU busy share, 0 to 1; null when this device doesn't expose it (so far only Qualcomm Adreno's does). */
+    val gpuUsage: Float?,
+    /** The GPU's current clock in MHz, when readable. */
+    val gpuClockMhz: Int?,
     val memoryUsedBytes: Long,
     val memoryTotalBytes: Long,
     /** The hottest chip (CPU/GPU) temperature, or the battery's when the chip sensors can't be read; null if neither can. */
@@ -59,6 +63,8 @@ object DeviceStatsSampler {
         return DeviceStats(
             cpuUsage = cpuUsage ?: clockUsage,
             cpuTopKhz = cores?.maxOfOrNull { it.currentKhz },
+            gpuUsage = readGpuUsage(),
+            gpuClockMhz = readGpuClockMhz(),
             memoryUsedBytes = memory.totalMem - memory.availMem,
             memoryTotalBytes = memory.totalMem,
             tempC = chipTemp ?: batteryTemp,
@@ -94,6 +100,15 @@ object DeviceStatsSampler {
         // Cores whose max can't be read are skipped; if none can, the clocks aren't available here.
         return cores.filterNotNull().takeIf { it.isNotEmpty() }
     }
+
+    private const val ADRENO_DIR = "/sys/class/kgsl/kgsl-3d0"
+
+    /** Qualcomm Adreno's busy figure, a file holding e.g. "20 %". */
+    private fun readGpuUsage(): Float? = runCatching {
+        File("$ADRENO_DIR/gpu_busy_percentage").readText().trim().substringBefore('%').trim().toFloat() / 100f
+    }.getOrNull()?.coerceIn(0f, 1f)
+
+    private fun readGpuClockMhz(): Int? = readKhz("$ADRENO_DIR/gpuclk")?.let { (it / 1_000_000).toInt() }
 
     /** The kernel's own per-core capacity rating where it publishes one (1024 = the biggest core), else the core's top clock. */
     private fun capacityOf(core: Int, maxKhz: Long): Float {
