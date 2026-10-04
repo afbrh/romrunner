@@ -93,8 +93,11 @@ object PrimeHackControls {
             }
 
             editIni(context, config, "Dolphin.ini") { ini ->
-                // Hide the on-screen touch overlay: a physical controller is expected.
-                setIniValue(ini, "Android", "ShowInputOverlay", "False")
+                // Hide the on-screen touch overlay: a physical controller is expected. Cheats and save states are
+                // both off in Dolphin by default; they're switched on so Gecko codes run and the quick menu's
+                // save/load state works.
+                listOf("EnableCheats", "EnableSaveStates")
+                    .fold(setIniValue(ini, "Android", "ShowInputOverlay", "False")) { acc, key -> setIniValue(acc, "Core", key, "True") }
             }
             editIni(context, config, "GFX.ini") { ini ->
                 // Compile shaders before a game starts, and use asynchronous ubershaders for the ones
