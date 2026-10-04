@@ -212,13 +212,13 @@ def grip_ridges(pen, x0, x1, ys, thickness):
 
 # Cartridge in unskewed units (Game Boy proportions: 57 x 65.5 mm).
 X0, Y0, X1, Y1 = 150, 96, 430, 418   # 280 x 322: the real cartridge's 57 x 65.5 mm proportions
-NOTCH, R_BOTTOM, R_TOP = 34, 8, 8
+NOTCH, R_BOTTOM, R_TOP = 34, 10, 10   # R_TOP also rounds the notch's three corners
 # Real-world sizes, in mm, mapped onto the cartridge's 280 x 322 units (57 x 65.5 mm), so the label window is the
 # real sticker's size and sits where it does on a cartridge: 42 x 37 mm (the real corner radius is 1.5 mm; the window
-# uses 2.4 mm, a little rounder, to taste), centred left to
+# uses 15 units, about 3 mm, to taste), centred left to
 # right (7.5 mm each side). Its distance from the top edge, 17 mm, is an estimate from photos of the cartridge.
 MM = (X1 - X0) / 57
-LABEL_W, LABEL_H, LABEL_R, LABEL_TOP = 42 * MM, 37 * MM, 2.4 * MM, 17 * MM
+LABEL_W, LABEL_H, LABEL_R, LABEL_TOP = 42 * MM, 37 * MM, 15, 17 * MM
 WIN_X0, WIN_X1 = X0 + (57 - 42) / 2 * MM, X1 - (57 - 42) / 2 * MM
 WIN_Y0 = Y0 + LABEL_TOP
 WIN_Y1 = WIN_Y0 + LABEL_H
