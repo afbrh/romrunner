@@ -164,7 +164,7 @@ def pixel_text_cutout(pen, text, x_left, x_right, cy, cap_height, bold, gap):
 # ---- Window art: two R's in the app's pixel font, placed like a Game Boy's B (lower-left) and A (upper-right)
 # buttons, on the slight upward slope the real buttons have. ----
 R_CELL = 15                      # one pixel of the R, in units (the R is 4 x 5 pixels: 60 x 75 units)
-R_STEP = (6.6, 2.2)              # from the lower-left R's centre to the upper-right R's: across, up (in R pixels)
+R_STEP = (5.8, 1.93)             # from the lower-left R's centre to the upper-right R's: across, up (in R pixels); the same 1:3 slope as always
 
 def ab_buttons(pen, cx, cy, cell=R_CELL):
     """The two R's, standing solid in the dark label window, centred as a pair on (cx, cy)."""
