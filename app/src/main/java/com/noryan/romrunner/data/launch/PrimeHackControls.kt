@@ -100,7 +100,9 @@ object PrimeHackControls {
                 // Compile shaders before a game starts, and use asynchronous ubershaders for the ones
                 // that still turn up mid-game. The second is the one that matters: a cold-compile burst
                 // used to spike memory/CPU enough to get PrimeHack OOM-killed.
-                setIniValue(setIniValue(ini, "Settings", "WaitForShadersBeforeStarting", "True"), "Settings", "ShaderCompilationMode", "2")
+                // "Log render time to file" is what lets RomRunner read the game's FPS for the second screen (see FpsMonitor).
+                listOf("WaitForShadersBeforeStarting" to "True", "ShaderCompilationMode" to "2", "LogRenderTimeToFile" to "True")
+                    .fold(ini) { acc, (key, value) -> setIniValue(acc, "Settings", key, value) }
             }
             applySuperMarioSunshineDefaults(context, root, config)
             Result.Applied(profile)
@@ -184,22 +186,7 @@ object PrimeHackControls {
      * Sets `key = value` inside `[section]` of [ini], adding the section or key if missing and leaving
      * every other line alone — these files already hold settings PrimeHack wrote itself.
      */
-    private fun setIniValue(ini: String, section: String, key: String, value: String): String {
-        val lines = ini.lines().toMutableList()
-        val header = "[$section]"
-        val start = lines.indexOfFirst { it.trim() == header }
-        if (start == -1) return ini.trimEnd() + (if (ini.isBlank()) "" else "\n\n") + "$header\n$key = $value\n"
-        var end = lines.size
-        for (i in start + 1 until lines.size) {
-            if (lines[i].trim().startsWith("[")) {
-                end = i
-                break
-            }
-        }
-        val keyIndex = (start + 1 until end).firstOrNull { lines[it].trim().startsWith("$key ") || lines[it].trim().startsWith("$key=") }
-        if (keyIndex != null) lines[keyIndex] = "$key = $value" else lines.add(end, "$key = $value")
-        return lines.joinToString("\n")
-    }
+    private fun setIniValue(ini: String, section: String, key: String, value: String): String = IniEdit.setValue(ini, section, key, value)
 
     private fun DocumentFile.ensureDir(name: String): DocumentFile =
         findFile(name)?.takeIf { it.isDirectory } ?: createDirectory(name) ?: error("couldn't create $name")
