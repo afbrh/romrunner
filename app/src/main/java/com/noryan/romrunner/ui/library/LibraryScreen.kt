@@ -64,6 +64,7 @@ import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.EdenSetup
 import com.noryan.romrunner.data.launch.InstalledApp
+import com.noryan.romrunner.data.launch.Armsx2Setup
 import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
@@ -267,6 +268,22 @@ fun LibraryScreen(
         if (!EmulatorLauncher.isPackageInstalled(context, CemuSetup.PACKAGE)) return@LaunchedEffect
         cemuOfferedThisRun = true
         launchCemuPicker()
+    }
+
+    // ARMSX2 can't be set up from outside (see Armsx2Setup), so once it's installed just open it on its
+    // first-run wizard with a hint of what to pick. Offered once, after the other setups are out of the way.
+    var armsx2OfferedThisRun by remember { mutableStateOf(false) }
+    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showCemuPrompt, edenPickerOpen) {
+        if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showCemuPrompt || edenPickerOpen) return@LaunchedEffect
+        if (armsx2OfferedThisRun || repository.isArmsx2WizardShown()) return@LaunchedEffect
+        if (neededEmulators.none { it.packageName == Armsx2Setup.PACKAGE }) return@LaunchedEffect
+        if (!EmulatorLauncher.isPackageInstalled(context, Armsx2Setup.PACKAGE)) return@LaunchedEffect
+        val launch = context.packageManager.getLaunchIntentForPackage(Armsx2Setup.PACKAGE) ?: return@LaunchedEffect
+        armsx2OfferedThisRun = true
+        repository.markArmsx2WizardShown()
+        val hint = Armsx2Setup.wizardHint(context, repository.getRootFolderUri()?.let { Uri.parse(it) })
+        Toast.makeText(context, hint, Toast.LENGTH_LONG).show()
+        context.startActivity(launch)
     }
 
     // Eden setup (keys, firmware, on-screen controls, graphics driver; see EdenSetup). Runs by itself with

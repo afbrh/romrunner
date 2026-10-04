@@ -60,6 +60,11 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_EDEN_SETUP_PROMPTED, false)
         set(value) = prefs.edit().putBoolean(KEY_EDEN_SETUP_PROMPTED, value).apply()
 
+    /** True once ARMSX2 has been opened on its first-run wizard by RomRunner — there is no way to tell when the wizard is finished, so it's offered once. */
+    var armsx2WizardShown: Boolean
+        get() = prefs.getBoolean(KEY_ARMSX2_WIZARD_SHOWN, false)
+        set(value) = prefs.edit().putBoolean(KEY_ARMSX2_WIZARD_SHOWN, value).apply()
+
     /** The folder grant for Cemu's own user directory (see CemuSetup), if the user gave one. */
     var cemuFolderUri: String?
         get() = prefs.getString(KEY_CEMU_FOLDER_URI, null)
@@ -84,6 +89,7 @@ class LibrarySettings(context: Context) {
         private const val KEY_EMULATOR_SETUP_PENDING = "emulator_setup_pending"
         private const val KEY_STORAGE_ACCESS_ASKED = "storage_access_asked"
         private const val KEY_EDEN_SETUP_PROMPTED = "eden_setup_prompted"
+        private const val KEY_ARMSX2_WIZARD_SHOWN = "armsx2_wizard_shown"
         private const val KEY_CEMU_FOLDER_URI = "cemu_folder_uri"
         private const val KEY_CEMU_SETUP_PROMPTED = "cemu_setup_prompted"
         private const val KEY_EDEN_FOLDER_URI = "eden_folder_uri"

@@ -200,6 +200,11 @@ class LibraryRepository(
         settings.edenSetupPrompted = true
     }
 
+    fun isArmsx2WizardShown(): Boolean = settings.armsx2WizardShown
+    fun markArmsx2WizardShown() {
+        settings.armsx2WizardShown = true
+    }
+
     fun isCemuSetupPrompted(): Boolean = settings.cemuSetupPrompted
     fun markCemuSetupPrompted() {
         settings.cemuSetupPrompted = true
