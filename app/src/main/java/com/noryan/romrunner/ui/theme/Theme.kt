@@ -8,23 +8,28 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColors = darkColorScheme(
-    primary = BrandOrange,
-    onPrimary = BrandNavy,
+private fun darkColors(accent: Color) = darkColorScheme(
+    primary = accent,
+    onPrimary = onAccent(accent),
     secondary = Amber80,
     background = Slate90,
     surface = Slate90
 )
 
-private val LightColors = lightColorScheme(
-    primary = BrandOrange,
-    onPrimary = BrandNavy,
+private fun lightColors(accent: Color) = lightColorScheme(
+    primary = accent,
+    onPrimary = onAccent(accent),
     secondary = Amber40,
     background = Slate10,
     surface = Slate10
 )
+
+/** Text on top of the accent: the dark navy on light accents (gold, orange), white on dark ones (blue, purple, red). */
+private fun onAccent(accent: Color): Color = if (accent.luminance() > 0.4f) BrandNavy else Color.White
 
 @Composable
 fun RomRunnerTheme(
@@ -40,8 +45,8 @@ fun RomRunnerTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColors
-        else -> LightColors
+        darkTheme -> darkColors(Accent.color)
+        else -> lightColors(Accent.color)
     }
 
     MaterialTheme(

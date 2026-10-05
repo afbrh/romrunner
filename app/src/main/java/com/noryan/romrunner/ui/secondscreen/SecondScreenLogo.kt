@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.R
 import com.noryan.romrunner.ui.components.HomeStatusInfo
+import com.noryan.romrunner.ui.theme.Accent
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -97,6 +99,7 @@ fun SecondScreenLogo(gameRunning: Boolean = false, gameTitle: String = "", emula
         Image(
             painter = painterResource(R.drawable.ic_launcher_foreground),
             contentDescription = null,
+            colorFilter = ColorFilter.tint(Accent.color), // the mark follows the chosen accent color
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset { IntOffset(0, (restingTop + (insertedTop - restingTop) * slide.value).roundToInt()) }

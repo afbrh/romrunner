@@ -4,6 +4,7 @@ import android.app.Application
 import com.noryan.romrunner.data.db.AppDatabase
 import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.data.settings.LibrarySettings
+import com.noryan.romrunner.ui.theme.Accent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +22,7 @@ class RomRunnerApp : Application() {
         val db = AppDatabase.getInstance(this)
         val settings = LibrarySettings(this)
         repository = LibraryRepository(db.platformDao(), db.gameDao(), settings)
+        Accent.selected = repository.getAccentColor()
         appScope.launch {
             repository.seedDefaultPlatformsIfEmpty()
             // Must run before seedMissingDefaultPlatforms() below — otherwise that call would see

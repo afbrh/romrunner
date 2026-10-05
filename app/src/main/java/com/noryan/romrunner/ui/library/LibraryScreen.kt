@@ -91,6 +91,7 @@ import com.noryan.romrunner.ui.apps.AppsContent
 import com.noryan.romrunner.ui.platforms.PlatformsContent
 import com.noryan.romrunner.ui.platforms.SystemsContent
 import com.noryan.romrunner.ui.secondscreen.SecondScreenState
+import com.noryan.romrunner.ui.theme.Accent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -921,13 +922,12 @@ private fun ChooseFolderPrompt(onChooseFolder: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // The RomRunner mark itself (see branding/mark.svg) — tint = Unspecified keeps its own
-        // brand orange rather than being recolored to the app's own amber/indigo UI palette.
+        // The RomRunner mark itself (see branding/mark.svg), in the chosen accent color (brand orange by default).
         Icon(
             painterResource(R.drawable.ic_launcher_foreground),
             contentDescription = null,
             modifier = Modifier.size(64.dp),
-            tint = Color.Unspecified
+            tint = Accent.color
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text("Point RomRunner at your Roms/BIOS folder", style = MaterialTheme.typography.titleLarge)
