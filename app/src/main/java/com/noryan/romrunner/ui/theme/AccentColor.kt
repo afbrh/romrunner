@@ -9,14 +9,13 @@ import androidx.compose.ui.graphics.Color
 enum class AccentColor(val id: String, val label: String, val color: Color) {
     RomRunnerOrange("romrunner_orange", "RomRunner Orange", Color(0xFFFF6B4A)),
     MarioRed("mario_red", "Mario Red", Color(0xFFE52521)),
-    TriforceGold("triforce_gold", "Triforce Gold", Color(0xFFF7D21E)),
     LinkGreen("link_green", "Link Green", Color(0xFF3E9B3F)),
-    DarkEcoPurple("dark_eco_purple", "Dark Eco Purple", Color(0xFF9B3DFF)),
-    Ps2Blue("ps2_blue", "PS2 Blue", Color(0xFF2B63E8));
+    DarkEcoPurple("dark_eco_purple", "Dark Eco Purple", Color(0xFF9B3DFF));
 
     companion object {
         val Default = RomRunnerOrange
 
+        /** An unknown id (e.g. a choice that was later removed) falls back to the default. */
         fun fromId(id: String?): AccentColor = entries.firstOrNull { it.id == id } ?: Default
     }
 }
