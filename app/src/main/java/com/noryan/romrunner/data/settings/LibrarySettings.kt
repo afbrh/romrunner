@@ -16,11 +16,6 @@ class LibrarySettings(context: Context) {
         get() = prefs.getBoolean(KEY_KILL_BACKGROUND_APPS_ON_LAUNCH, true)
         set(value) = prefs.edit().putBoolean(KEY_KILL_BACKGROUND_APPS_ON_LAUNCH, value).apply()
 
-    /** The id of the chosen [com.noryan.romrunner.ui.theme.AccentColor]; null means the default (RomRunner Orange). */
-    var accentColorId: String?
-        get() = prefs.getString(KEY_ACCENT_COLOR, null)
-        set(value) = prefs.edit().putString(KEY_ACCENT_COLOR, value).apply()
-
     /** Whether to claim a connected second display (e.g. the AYN Thor's own second screen) and
      *  fill it with RomRunner's own logo — see [com.noryan.romrunner.ui.secondscreen.DualScreenController].
      *  Default on. */
@@ -112,7 +107,6 @@ class LibrarySettings(context: Context) {
     companion object {
         private const val PREFS_NAME = "romrunner_settings"
         private const val KEY_ROOT_FOLDER_URI = "root_folder_uri"
-        private const val KEY_ACCENT_COLOR = "accent_color"
         private const val KEY_KILL_BACKGROUND_APPS_ON_LAUNCH = "kill_background_apps_on_launch"
         private const val KEY_DUAL_SCREEN_SUPPORT_ENABLED = "dual_screen_support_enabled"
         private const val KEY_EMULATOR_SETUP_PROMPTED = "emulator_setup_prompted"

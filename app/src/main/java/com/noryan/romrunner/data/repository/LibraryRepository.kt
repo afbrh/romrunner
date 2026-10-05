@@ -3,7 +3,6 @@ package com.noryan.romrunner.data.repository
 import com.noryan.romrunner.data.dao.GameDao
 import com.noryan.romrunner.data.dao.PlatformDao
 import com.noryan.romrunner.data.launch.DefaultPlatforms
-import com.noryan.romrunner.ui.theme.AccentColor
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.settings.LibrarySettings
@@ -270,11 +269,6 @@ class LibraryRepository(
     fun getKillBackgroundAppsOnLaunch(): Boolean = settings.killBackgroundAppsOnLaunch
     fun setKillBackgroundAppsOnLaunch(value: Boolean) {
         settings.killBackgroundAppsOnLaunch = value
-    }
-
-    fun getAccentColor(): AccentColor = AccentColor.fromId(settings.accentColorId)
-    fun setAccentColor(value: AccentColor) {
-        settings.accentColorId = value.id
     }
 
     fun getDualScreenSupportEnabled(): Boolean = settings.dualScreenSupportEnabled

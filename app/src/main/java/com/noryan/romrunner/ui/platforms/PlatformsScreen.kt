@@ -8,11 +8,7 @@ import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,12 +45,10 @@ import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
-import com.noryan.romrunner.ui.components.AccentColorDialog
 import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
-import com.noryan.romrunner.ui.theme.Accent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,7 +72,6 @@ fun PlatformsContent(
 
     var killBackgroundAppsOnLaunch by remember { mutableStateOf(repository.getKillBackgroundAppsOnLaunch()) }
     var dualScreenSupportEnabled by remember { mutableStateOf(repository.getDualScreenSupportEnabled()) }
-    var showAccentPicker by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -171,45 +164,5 @@ fun PlatformsContent(
             }
         }
 
-        item {
-            val accentInteractionSource = rememberFocusInteractionSource()
-            val accentGlow = accentInteractionSource.glowShadow()
-            val accentTextColor = accentInteractionSource.glowColor(MaterialTheme.colorScheme.onSurface)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(interactionSource = accentInteractionSource, indication = null) { showAccentPicker = true }
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Accent Color",
-                    style = LocalTextStyle.current.copy(shadow = accentGlow),
-                    color = accentTextColor,
-                    modifier = Modifier.weight(1f)
-                )
-                Box(modifier = Modifier.size(20.dp).background(Accent.color, CircleShape))
-                Text(
-                    text = Accent.selected.label,
-                    style = LocalTextStyle.current.copy(shadow = accentGlow),
-                    color = accentTextColor,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
-            }
-        }
-
-    }
-
-    if (showAccentPicker) {
-        AccentColorDialog(
-            selected = Accent.selected,
-            onPick = {
-                Accent.selected = it
-                repository.setAccentColor(it)
-                showAccentPicker = false
-            },
-            onDismiss = { showAccentPicker = false }
-        )
     }
 }
