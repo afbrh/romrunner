@@ -26,9 +26,9 @@ object AzaharSetup {
     }
 
     /**
-     * Sets the renderer defaults RomRunner prefers in Azahar's config.ini inside [romsFolderUri] (OpenGL, 4x
-     * resolution, and the frame limiter on at 100%, which Azahar's first-run file leaves off so games run as fast
-     * as the hardware allows). Returns true once they are written, false if Azahar hasn't created its config yet
+     * Sets the defaults RomRunner prefers in Azahar's config.ini inside [romsFolderUri] (OpenGL, 4x
+     * resolution, the frame limiter on at 100%, which Azahar's first-run file leaves off so games run as fast
+     * as the hardware allows, and the performance overlay off). Returns true once they are written, false if Azahar hasn't created its config yet
      * (it hasn't been set up, or it was pointed at a different folder), so the caller can try again later.
      */
     suspend fun applyDefaults(context: Context, romsFolderUri: Uri?): Boolean = withContext(Dispatchers.IO) {
@@ -36,8 +36,14 @@ object AzaharSetup {
         val file = root.findFile("config")?.takeIf { it.isDirectory }?.findFile("config.ini") ?: return@withContext false
         try {
             val existing = context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            val updated = listOf("graphics_api" to "1", "resolution_factor" to "4", "use_frame_limit" to "true", "frame_limit" to "100")
-                .fold(existing) { ini, (key, value) -> withRendererSetting(ini, key, value) }
+            val updated = listOf(
+                Triple("Renderer", "graphics_api", "1"),
+                Triple("Renderer", "resolution_factor", "4"),
+                Triple("Renderer", "use_frame_limit", "true"),
+                Triple("Renderer", "frame_limit", "100"),
+                // Azahar's on-screen performance stats (FPS, RAM, ...), off.
+                Triple("Layout", "performance_overlay_enable", "false")
+            ).fold(existing) { ini, (section, key, value) -> withSetting(ini, section, key, value) }
             if (updated != existing) {
                 context.contentResolver.openOutputStream(file.uri, "wt")?.bufferedWriter()?.use { it.write(updated) } ?: return@withContext false
             }
@@ -47,11 +53,11 @@ object AzaharSetup {
         }
     }
 
-    /** [ini] with `key = value` set inside its `[Renderer]` section (added if the key or the section is missing). */
-    internal fun withRendererSetting(ini: String, key: String, value: String): String {
+    /** [ini] with `key = value` set inside its `[section]` (added if the key or the section is missing). */
+    internal fun withSetting(ini: String, section: String, key: String, value: String): String {
         val lines = ini.lines().toMutableList()
-        val start = lines.indexOfFirst { it.trim() == "[Renderer]" }
-        if (start == -1) return ini.trimEnd() + "\n\n[Renderer]\n$key = $value\n"
+        val start = lines.indexOfFirst { it.trim() == "[$section]" }
+        if (start == -1) return ini.trimEnd() + "\n\n[$section]\n$key = $value\n"
         var end = lines.size
         for (i in start + 1 until lines.size) {
             if (lines[i].trim().startsWith("[")) {
