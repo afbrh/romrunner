@@ -231,9 +231,9 @@ fun SystemsContent(
                     Text(
                         row.label,
                         style = MaterialTheme.typography.titleMedium.copy(shadow = headingFocus.glowShadow()),
-                        color = headingFocus.glowColor(Color.Unspecified),
-                        modifier = Modifier.weight(1f)
+                        color = headingFocus.glowColor(Color.Unspecified)
                     )
+                    Spacer(Modifier.width(12.dp))
                     Text(
                         if (isOpen) "-" else "+",
                         style = MaterialTheme.typography.titleMedium,
