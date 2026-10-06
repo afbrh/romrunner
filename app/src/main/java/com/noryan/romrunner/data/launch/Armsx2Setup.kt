@@ -55,7 +55,9 @@ object Armsx2Setup {
             if (!EmulatorFolders.canUseDirectly(PACKAGE)) return@withContext PreloadResult.Failed("Turn on All files access for RomRunner first.")
             val dir = EmulatorFolders.directDir(PACKAGE)
             val settingsFile = File(dir, "armsx2-settings.json")
-            if (settingsFile.exists()) return@withContext PreloadResult.AlreadyOpened
+            // ARMSX2 rewrites this file with its full settings once it has adopted it, so a file holding only our keys is
+            // ours from an earlier run (e.g. one that was interrupted before it was recorded) and is safe to write again.
+            if (settingsFile.exists() && !isOurOwnFile(settingsFile)) return@withContext PreloadResult.AlreadyOpened
 
             val summary = mutableListOf<String>()
             val biosName = runCatching { copyBios(context, dir, romsFolderUri) }.getOrNull()
@@ -80,6 +82,11 @@ object Armsx2Setup {
             PreloadResult.Failed("Couldn't preload ARMSX2: ${e.message ?: "unknown error"}")
         }
     }
+
+    private fun isOurOwnFile(file: File): Boolean = runCatching {
+        val keys = JSONObject(file.readText()).optJSONObject("global")?.keys()?.asSequence()?.toSet().orEmpty()
+        keys.isNotEmpty() && keys.all { it == "upscaleFloat" || it == "biosFilename" }
+    }.getOrDefault(false)
 
     /** Copies the PS2 BIOS found in the user's Roms/BIOS folder into ARMSX2's `bios` folder; its file name, or null if there's none. */
     private fun copyBios(context: Context, dir: File, romsFolderUri: Uri?): String? {
