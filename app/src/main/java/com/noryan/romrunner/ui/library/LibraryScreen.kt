@@ -374,9 +374,31 @@ fun LibraryScreen(
         val launch = context.packageManager.getLaunchIntentForPackage(Armsx2Setup.PACKAGE) ?: return@LaunchedEffect
         armsx2OfferedThisRun = true
         repository.markArmsx2WizardShown()
+        // Written before its first start, the only time ARMSX2 reads them (see Armsx2Setup).
+        if (Armsx2Setup.preload(context, repository.getRootFolderUri()?.let { Uri.parse(it) }) is Armsx2Setup.PreloadResult.Applied) {
+            repository.markSetUp("armsx2")
+            emulatorInstallState.bumpRefresh()
+        }
         val hint = Armsx2Setup.wizardHint(context, repository.getRootFolderUri()?.let { Uri.parse(it) })
         Toast.makeText(context, hint, Toast.LENGTH_LONG).show()
         context.startActivity(launch)
+    }
+
+    // The Setup cell on ARMSX2's line: preload its settings again by hand (only works before it has been set up).
+    fun setUpArmsx2() {
+        scope.launch {
+            val message = when (val result = Armsx2Setup.preload(context, repository.getRootFolderUri()?.let { Uri.parse(it) })) {
+                is Armsx2Setup.PreloadResult.Applied -> {
+                    repository.markSetUp("armsx2")
+                    "ARMSX2 preloaded: " + result.summary.joinToString(", ") + "."
+                }
+                Armsx2Setup.PreloadResult.AlreadyOpened ->
+                    "ARMSX2 has already been set up, so its settings can't be preloaded now. Uninstall and reinstall it to start fresh."
+                is Armsx2Setup.PreloadResult.Failed -> result.message
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            emulatorInstallState.bumpRefresh()
+        }
     }
 
     // Azahar keeps its controls, data folder and on-screen-controls toggle in private storage (see AzaharSetup), so
@@ -725,7 +747,8 @@ fun LibraryScreen(
                         onSetUpPrimeHack = { setUpPrimeHack() },
                         onSetUpEdenDriver = { setUpEdenDriver() },
                         onSetUpCemu = { setUpCemu() },
-                        onSetUpRetroArch = { setUpRetroArch() }
+                        onSetUpRetroArch = { setUpRetroArch() },
+                        onSetUpArmsx2 = { setUpArmsx2() }
                     )
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,

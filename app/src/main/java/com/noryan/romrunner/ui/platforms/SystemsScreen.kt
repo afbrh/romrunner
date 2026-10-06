@@ -36,6 +36,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.noryan.romrunner.data.launch.Armsx2Setup
 import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.DefaultPlatforms
 import com.noryan.romrunner.data.launch.EdenGpuDriver
@@ -106,7 +107,8 @@ fun SystemsContent(
     onSetUpPrimeHack: () -> Unit,
     onSetUpEdenDriver: () -> Unit,
     onSetUpCemu: () -> Unit,
-    onSetUpRetroArch: () -> Unit
+    onSetUpRetroArch: () -> Unit,
+    onSetUpArmsx2: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -159,13 +161,15 @@ fun SystemsContent(
     val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null || repository.isSetUp("cemu") }
     val retroArchLinked = remember(installState.refreshTick) { repository.getRetroArchFolderUri() != null || repository.isSetUp("retroarch") }
     val edenDriverApplied = remember(installState.refreshTick) { repository.isEdenDriverApplied() }
+    val armsx2Loaded = remember(installState.refreshTick) { repository.isSetUp("armsx2") }
 
     // The emulators that have a one-time setup, as: whether it's done, and what to run to do it.
     val setups: Map<String, Pair<Boolean, () -> Unit>> = mapOf(
         PrimeHackControls.PACKAGE to (primeHackLinked to onSetUpPrimeHack),
         CemuSetup.PACKAGE to (cemuLinked to onSetUpCemu),
         EdenGpuDriver.PACKAGE to (edenDriverApplied to onSetUpEdenDriver),
-        "com.retroarch" to (retroArchLinked to onSetUpRetroArch)
+        "com.retroarch" to (retroArchLinked to onSetUpRetroArch),
+        Armsx2Setup.PACKAGE to (armsx2Loaded to onSetUpArmsx2)
     )
 
     var choosingFor by remember { mutableStateOf<SystemRow?>(null) }
