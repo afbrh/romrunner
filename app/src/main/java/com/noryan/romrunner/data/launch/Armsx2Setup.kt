@@ -83,6 +83,12 @@ object Armsx2Setup {
         }
     }
 
+    /** True while ARMSX2 hasn't finished its first-run wizard yet: its settings file is still just the one RomRunner wrote. */
+    fun wizardPending(): Boolean {
+        val file = File(EmulatorFolders.directDir(PACKAGE), "armsx2-settings.json")
+        return file.exists() && isOurOwnFile(file)
+    }
+
     private fun isOurOwnFile(file: File): Boolean = runCatching {
         val keys = JSONObject(file.readText()).optJSONObject("global")?.keys()?.asSequence()?.toSet().orEmpty()
         keys.isNotEmpty() && keys.all { it == "upscaleFloat" || it == "biosFilename" }

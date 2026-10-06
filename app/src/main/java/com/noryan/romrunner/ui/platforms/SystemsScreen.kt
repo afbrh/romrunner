@@ -1,5 +1,7 @@
 package com.noryan.romrunner.ui.platforms
 
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -221,6 +223,15 @@ fun SystemsContent(
                             Modifier.width(StatusColumn), statusFocus, "Installed", dot = Good,
                             onClick = {
                                 val launchPackage = EmulatorLauncher.installedPackageFor(context, row.packageName) ?: row.packageName
+                                // Opening ARMSX2 before it has finished its wizard: say what to pick there.
+                                if (launchPackage == Armsx2Setup.PACKAGE) {
+                                    scope.launch {
+                                        if (Armsx2Setup.wizardPending()) {
+                                            val hint = Armsx2Setup.wizardHint(context, repository.getRootFolderUri()?.let { Uri.parse(it) })
+                                            Toast.makeText(context, hint, Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
                                 context.packageManager.getLaunchIntentForPackage(launchPackage)?.let { context.startActivity(it) }
                             }
                         )

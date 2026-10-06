@@ -363,15 +363,14 @@ fun LibraryScreen(
         if (direct) applyRetroArchSetup(null) else launchRetroArchPicker()
     }
 
-    // ARMSX2 can't be set up from outside (see Armsx2Setup), so once it's installed just open it on its
-    // first-run wizard with a hint of what to pick. Offered once, after the other setups are out of the way.
+    // ARMSX2: as soon as it's installed, preload what can be preloaded (see Armsx2Setup). It isn't opened for the user: they
+    // open it from the Systems tab when they're ready (that shows what to pick in its wizard). Done once, after the other setups.
     var armsx2OfferedThisRun by remember { mutableStateOf(false) }
     LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showCemuPrompt, edenPickerOpen, retroArchPickerOpen) {
         if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showCemuPrompt || edenPickerOpen || retroArchPickerOpen) return@LaunchedEffect
         if (armsx2OfferedThisRun || repository.isArmsx2WizardShown()) return@LaunchedEffect
         if (neededEmulators.none { it.packageName == Armsx2Setup.PACKAGE }) return@LaunchedEffect
         if (!EmulatorLauncher.isPackageInstalled(context, Armsx2Setup.PACKAGE)) return@LaunchedEffect
-        val launch = context.packageManager.getLaunchIntentForPackage(Armsx2Setup.PACKAGE) ?: return@LaunchedEffect
         armsx2OfferedThisRun = true
         repository.markArmsx2WizardShown()
         // Runs in the screen's own scope, not this effect's: the effect restarts whenever the list of games or an install
@@ -382,9 +381,6 @@ fun LibraryScreen(
                 repository.markSetUp("armsx2")
                 emulatorInstallState.bumpRefresh()
             }
-            val hint = Armsx2Setup.wizardHint(context, repository.getRootFolderUri()?.let { Uri.parse(it) })
-            Toast.makeText(context, hint, Toast.LENGTH_LONG).show()
-            context.startActivity(launch)
         }
     }
 
