@@ -1,27 +1,25 @@
 package com.noryan.romrunner.ui.platforms
 
-import android.app.DownloadManager
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,40 +29,72 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.CemuSetup
+import com.noryan.romrunner.data.launch.DefaultPlatforms
 import com.noryan.romrunner.data.launch.EdenGpuDriver
+import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.GameLaunchOverrides
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
+import com.noryan.romrunner.data.launch.RecommendedEmulator
 import com.noryan.romrunner.data.launch.SystemOrder
-import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
+import com.noryan.romrunner.ui.components.AppPickerDialog
+import com.noryan.romrunner.ui.components.EmulatorChoiceDialog
 import com.noryan.romrunner.ui.components.FocusGlowColor
-import com.noryan.romrunner.ui.components.RetroToggle
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-private val InstalledGreen = Color(0xFF6BCB77)
-private val NotInstalledRed = Color(0xFFFF6B6B)
+private val Good = Color(0xFF6BCB77)
+private val Bad = Color(0xFFFF6B6B)
+private val Neutral = Color(0xFF9A9A9A)
+
+// Fixed column widths, so every row's emulator, install status and setup status line up.
+private val EmulatorColumn = 210.dp
+private val StatusColumn = 190.dp
+private val SetupColumn = 170.dp
+
+/** One line of the Systems tab: a system with games in the library (or a per-title override like Twilight Princess) and the app that plays it. */
+private data class SystemRow(
+    val key: String,
+    val label: String,
+    val sortRank: Int,
+    /** Null for a per-title override line, whose app can't be swapped here. */
+    val platform: Platform?,
+    val packageName: String,
+    val appLabel: String
+)
+
+/** The short names the system lines use. */
+private fun shortName(platformName: String): String = when (platformName) {
+    "GameBoy (Color + Advance)" -> "GameBoy"
+    "Nintendo 64" -> "N64"
+    "PlayStation" -> "PS1"
+    "PlayStation 2" -> "PS2"
+    "Nintendo 3DS" -> "3DS"
+    "Nintendo DS" -> "DS"
+    "Nintendo Switch" -> "Switch"
+    "Sega Genesis" -> "Genesis"
+    "Sega Master System" -> "Master System"
+    "Sega Game Gear" -> "Game Gear"
+    "Sega 32X" -> "32X"
+    "PC Engine / TurboGrafx-16" -> "PC Engine"
+    else -> platformName
+}
 
 /**
- * The Systems tab: everything that's specific to a game system's emulator — a row per system in the
- * library, showing its app (tap to install or open it) and, for the apps that have one, its one-time setup
- * (PrimeHack, Cemu, Eden, RetroArch) on the same line. General app settings live in [PlatformsContent].
+ * The Systems tab: a line per system in the library, in a fixed set of columns — the system, the emulator that plays it
+ * (tap to change it), whether that app is installed (tap to install or open it) and, for the apps that have a one-time
+ * setup (PrimeHack, Cemu, Eden, RetroArch), its setup state (tap to run it). General app settings live in [PlatformsContent].
  */
 @Composable
 fun SystemsContent(
@@ -78,10 +108,8 @@ fun SystemsContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Safety net alongside downloadLatestRelease's own post-install poll: re-checks every
-    // emulator row whenever RomRunner comes back to the foreground (e.g. returning
-    // from the system installer), so a row still catches up to "Installed" even if the user takes
-    // longer than that poll's own timeout to finish installing.
+    // Safety net alongside the installer's own post-install poll: re-checks every row whenever RomRunner comes
+    // back to the foreground (e.g. returning from the system installer).
     val lifecycleOwner = LocalLifecycleOwner.current
     var installCheckTick by remember { mutableStateOf(0) }
     DisposableEffect(lifecycleOwner) {
@@ -92,21 +120,44 @@ fun SystemsContent(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Only show an emulator row for a platform (or specific title, for a per-title
-    // override) the library actually has a matching game for — e.g. no point recommending Eden if
-    // there isn't a single Switch game scanned in yet.
     val games by repository.observeGames().collectAsStateWithLifecycle(initialValue = emptyList())
     val platforms by repository.observePlatforms().collectAsStateWithLifecycle(initialValue = emptyList())
-    val visibleRecommendedEmulators = remember(games, platforms) {
-        SystemOrder.sortEmulators(RECOMMENDED_EMULATORS.filter { it.isNeeded(platforms, games) })
+
+    val rows = remember(games, platforms, installState.refreshTick) {
+        val platformsById = platforms.associateBy { it.id }
+        val gamePlatformIds = games.mapNotNull { it.platformId }.toSet()
+        val systemRows = platforms.filter { it.id in gamePlatformIds }.map { platform ->
+            SystemRow(
+                key = "p${platform.id}",
+                label = shortName(platform.name),
+                sortRank = SystemOrder.rank(platform.name),
+                platform = platform,
+                packageName = platform.launchPackage,
+                appLabel = appName(context, platform.launchPackage)
+            )
+        }
+        // A game with a per-title override (Twilight Princess) gets its own line, since it plays in a different app.
+        val overrideRows = GameLaunchOverrides.ALL.filter { override ->
+            games.any { game -> platformsById[game.platformId]?.name?.let { GameLaunchOverrides.find(game.title, it) } == override }
+        }.map { override ->
+            SystemRow(
+                key = "o${override.titleKeyword}",
+                label = if ("twilight princess" in override.titleKeyword) "Twilight Princess" else override.titleKeyword.replaceFirstChar { it.uppercase() },
+                sortRank = SystemOrder.OVERRIDE_RANK,
+                platform = null,
+                packageName = override.packageName.orEmpty(),
+                appLabel = override.appLabel
+            )
+        }
+        (systemRows + overrideRows).sortedBy { it.sortRank }
     }
+
     val primeHackLinked = remember(installState.refreshTick) { repository.getPrimeHackFolderUri() != null || repository.isSetUp("primehack") }
     val cemuLinked = remember(installState.refreshTick) { repository.getCemuFolderUri() != null || repository.isSetUp("cemu") }
     val retroArchLinked = remember(installState.refreshTick) { repository.getRetroArchFolderUri() != null || repository.isSetUp("retroarch") }
     val edenDriverApplied = remember(installState.refreshTick) { repository.isEdenDriverApplied() }
 
-    // The emulators that have a one-time setup, as: whether it's done, and what to run to do it. Shown on the
-    // system's own row, next to the app, once the app is installed.
+    // The emulators that have a one-time setup, as: whether it's done, and what to run to do it.
     val setups: Map<String, Pair<Boolean, () -> Unit>> = mapOf(
         PrimeHackControls.PACKAGE to (primeHackLinked to onSetUpPrimeHack),
         CemuSetup.PACKAGE to (cemuLinked to onSetUpCemu),
@@ -114,75 +165,171 @@ fun SystemsContent(
         "com.retroarch" to (retroArchLinked to onSetUpRetroArch)
     )
 
+    var choosingFor by remember { mutableStateOf<SystemRow?>(null) }
+    var pickingAppFor by remember { mutableStateOf<SystemRow?>(null) }
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        visibleRecommendedEmulators.forEach { emulator ->
-            item(key = emulator.packageName) {
-                val isInstalled = remember(emulator.packageName, installCheckTick, installState.refreshTick) {
-                    EmulatorLauncher.isPackageInstalled(context, emulator.packageName)
-                }
-                val status = installState.statuses[emulator.packageName]
-                // The two tappable parts of the row (the app, and its setup if it has one) are separate controller
-                // targets. Whichever holds focus is drawn in the app's focus orange with a glow, and the system's
-                // name lights up too, so it's always clear which row the controller is on.
-                val appFocus = rememberFocusInteractionSource()
-                val setupFocus = rememberFocusInteractionSource()
-                val appFocused by appFocus.collectIsFocusedAsState()
-                val setupFocused by setupFocus.collectIsFocusedAsState()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        emulator.rowLabel(platforms, games),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (appFocused || setupFocused) FocusGlowColor else Color.Unspecified,
-                        modifier = Modifier.weight(1f)
-                    )
-                    val isResolving = status != null
-                    Text(
-                        text = buildAnnotatedString {
-                            append("${emulator.appLabel} — ")
-                            when {
-                                isInstalled -> withStyle(SpanStyle(color = if (appFocused) FocusGlowColor else InstalledGreen)) { append("Installed") }
-                                isResolving -> append(status.orEmpty())
-                                else -> withStyle(SpanStyle(color = if (appFocused) FocusGlowColor else NotInstalledRed)) { append("Not Installed") }
-                            }
-                        },
-                        style = MaterialTheme.typography.bodyLarge.copy(shadow = appFocus.glowShadow()),
-                        color = appFocus.glowColor(Color.Unspecified),
-                        textAlign = TextAlign.End,
-                        // Tapping "Installed" opens the app directly — RomRunner can't configure
-                        // another app's own settings (sandboxed private storage, no public API for
-                        // it; confirmed against ARMSX2's real source), so this is a one-tap
-                        // shortcut into its own setup/settings rather than real automation.
-                        // Tapping "Not Installed" looks up the latest stable release, downloads
-                        // it, and hands it to the system installer. No action while this row's
-                        // download/install is already in flight.
-                        modifier = Modifier.clickable(interactionSource = appFocus, indication = null, enabled = !isResolving) {
-                            if (isInstalled) {
-                                context.packageManager.getLaunchIntentForPackage(emulator.packageName)
-                                    ?.let { context.startActivity(it) }
-                                return@clickable
-                            }
-                            scope.launch { installState.installOne(context, emulator) }
+        item {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+                ColumnTitle("System", Modifier.weight(1f))
+                ColumnTitle("Emulator", Modifier.width(EmulatorColumn))
+                ColumnTitle("Status", Modifier.width(StatusColumn))
+                ColumnTitle("Setup", Modifier.width(SetupColumn))
+            }
+        }
+        items(rows, key = { it.key }) { row ->
+            val recommended = recommendedEmulator(row.packageName)
+            val setupKey = if (row.packageName.startsWith("com.retroarch")) "com.retroarch" else row.packageName
+            val isInstalled = remember(row.packageName, installCheckTick, installState.refreshTick) {
+                row.packageName.isNotBlank() && EmulatorLauncher.isPackageInstalled(context, row.packageName)
+            }
+            val installing = (recommended?.packageName ?: row.packageName).let { installState.statuses[it] }
+
+            val emulatorFocus = rememberFocusInteractionSource()
+            val statusFocus = rememberFocusInteractionSource()
+            val setupFocus = rememberFocusInteractionSource()
+            val anyFocused = listOf(emulatorFocus, statusFocus, setupFocus).any { it.collectIsFocusedAsState().value }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    row.label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (anyFocused) FocusGlowColor else Color.Unspecified,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Emulator: tap to change it (not for a per-title override).
+                Cell(
+                    modifier = Modifier.width(EmulatorColumn),
+                    interaction = emulatorFocus,
+                    text = if (row.platform != null) "${row.appLabel.ifBlank { "Choose app" }}  >" else row.appLabel,
+                    onClick = if (row.platform != null) ({ choosingFor = row }) else null
+                )
+
+                // Install status: tap to open the app, or to install it.
+                val canInstall = recommended != null
+                when {
+                    row.packageName.isBlank() -> Cell(Modifier.width(StatusColumn), statusFocus, "—", color = Neutral)
+                    installing != null -> Cell(Modifier.width(StatusColumn), statusFocus, installing, dot = Neutral)
+                    isInstalled -> Cell(
+                        Modifier.width(StatusColumn), statusFocus, "Installed", dot = Good,
+                        onClick = {
+                            val launchPackage = EmulatorLauncher.installedPackageFor(context, row.packageName) ?: row.packageName
+                            context.packageManager.getLaunchIntentForPackage(launchPackage)?.let { context.startActivity(it) }
                         }
                     )
-                    setups[emulator.packageName]?.takeIf { isInstalled }?.let { (done, run) ->
-                        Text(
-                            text = buildAnnotatedString {
-                                append("Setup — ")
-                                if (done) withStyle(SpanStyle(color = if (setupFocused) FocusGlowColor else InstalledGreen)) { append("Loaded") }
-                                else withStyle(SpanStyle(color = if (setupFocused) FocusGlowColor else NotInstalledRed)) { append("Set up") }
-                            },
-                            style = MaterialTheme.typography.bodyLarge.copy(shadow = setupFocus.glowShadow()),
-                            color = setupFocus.glowColor(Color.Unspecified),
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.padding(start = 32.dp)
-                                .clickable(interactionSource = setupFocus, indication = null, onClick = run)
-                        )
-                    }
+                    else -> Cell(
+                        Modifier.width(StatusColumn), statusFocus, "Not installed", dot = Bad,
+                        onClick = if (canInstall) ({ scope.launch { installState.installOne(context, recommended!!) } }) else null
+                    )
+                }
+
+                // Setup: only for the apps that have one, and only once installed.
+                val setup = setups[setupKey]
+                if (setup != null && isInstalled) {
+                    val (done, run) = setup
+                    Cell(Modifier.width(SetupColumn), setupFocus, if (done) "Loaded" else "Needed", dot = if (done) Good else Bad, onClick = run)
+                } else {
+                    Cell(Modifier.width(SetupColumn), setupFocus, "—", color = Neutral)
                 }
             }
         }
+    }
+
+    choosingFor?.let { row ->
+        val platform = row.platform ?: return@let
+        val defaults = DefaultPlatforms.ALL.firstOrNull { it.name == platform.name }
+        val currentIsRecommended = defaults != null && defaults.launchPackage == platform.launchPackage
+        EmulatorChoiceDialog(
+            systemLabel = row.label,
+            recommendedLabel = defaults?.let { appName(context, it.launchPackage) },
+            currentLabel = row.appLabel,
+            currentIsRecommended = currentIsRecommended,
+            onUseRecommended = {
+                // Restores the app, activity and file type the starter set uses for this system (some need an exact activity).
+                if (defaults != null) {
+                    scope.launch {
+                        repository.savePlatform(platform.copy(launchPackage = defaults.launchPackage, launchActivity = defaults.launchActivity, mimeType = defaults.mimeType))
+                    }
+                }
+                choosingFor = null
+            },
+            onChooseOther = {
+                choosingFor = null
+                pickingAppFor = row
+            },
+            onDismiss = { choosingFor = null }
+        )
+    }
+
+    pickingAppFor?.let { row ->
+        val platform = row.platform ?: return@let
+        AppPickerDialog(
+            title = "Choose an app for ${row.label}",
+            onPick = { app ->
+                pickingAppFor = null
+                // Plain file handoff: the starter set's special activity / file type belong to the original app.
+                scope.launch {
+                    repository.savePlatform(platform.copy(launchPackage = app.packageName, launchActivity = "", mimeType = "application/octet-stream"))
+                }
+            },
+            onDismiss = { pickingAppFor = null }
+        )
+    }
+}
+
+/** The recommended emulator entry (install source) for [packageName], RetroArch's variant packages included. */
+private fun recommendedEmulator(packageName: String): RecommendedEmulator? =
+    RECOMMENDED_EMULATORS.firstOrNull { packageName == it.packageName || packageName.startsWith(it.packageName + ".") }
+
+/** A readable name for an app: the one we know it by, else its label on this device, else the package. */
+private fun appName(context: android.content.Context, packageName: String): String {
+    if (packageName.isBlank()) return ""
+    EmulatorLauncher.labelFor(packageName).takeIf { it.isNotBlank() }?.let { return it }
+    return runCatching {
+        val pm = context.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    }.getOrDefault(packageName)
+}
+
+@Composable
+private fun ColumnTitle(text: String, modifier: Modifier) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+        modifier = modifier
+    )
+}
+
+/**
+ * One column cell: an optional status dot and text. With an [onClick] it's a controller stop and glows when focused,
+ * otherwise it's plain text in the same place.
+ */
+@Composable
+private fun Cell(
+    modifier: Modifier,
+    interaction: MutableInteractionSource,
+    text: String,
+    dot: Color? = null,
+    color: Color = Color.Unspecified,
+    onClick: (() -> Unit)? = null
+) {
+    val clickable = if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick) else Modifier
+    Row(modifier = modifier.then(clickable).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (dot != null) {
+            val focused = interaction.collectIsFocusedAsState().value
+            Box(modifier = Modifier.size(10.dp).background(if (focused) FocusGlowColor else dot, CircleShape))
+            Spacer(Modifier.width(10.dp))
+        }
+        val glow = if (onClick != null) interaction.glowShadow() else null
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge.copy(shadow = glow),
+            color = if (onClick != null) interaction.glowColor(color) else color
+        )
     }
 }

@@ -1,28 +1,34 @@
 package com.noryan.romrunner.data.launch
 
 /**
- * The order systems read in on the Systems tab. Each row there is an emulator app, so rows are
- * ordered by the first of their systems; RetroArch's one row covers every system from GameBoy
- * through PlayStation (its own label lists them in this same order, see RETROARCH_SYSTEM_LABELS),
- * so it leads. Anything not listed here (a future app) goes after, in its existing order.
- *
- * GameBoy, NES, SNES, Genesis / Master System / Game Gear, 32X, N64, PlayStation (all RetroArch),
- * then Dreamcast, PSP, DS, 3DS, GameCube / Wii, PS2, Wii U, Switch, Twilight Princess.
+ * The order systems read in on the Systems tab: GameBoy, NES, SNES, Genesis / Master System / Game Gear, 32X, N64,
+ * PlayStation, Dreamcast, PSP, DS, 3DS, GameCube / Wii, PS2, Wii U, Switch, then Twilight Princess (its own
+ * line, played in Dusklight), then every other system in its existing order.
  */
 object SystemOrder {
-    private val EMULATOR_PACKAGES = listOf(
-        "com.retroarch",
-        "com.flycast.emulator",
-        "org.ppsspp.ppsspp",
-        "me.magnum.melondualds",
-        "org.azahar_emu.azahar",
-        "org.dolphinemu.primehack",
-        "com.armsx2",
-        "info.cemu.cemu",
-        "dev.eden.eden_emulator",
-        "dev.twilitrealm.dusk"
+    private val PLATFORMS = listOf(
+        "GameBoy (Color + Advance)",
+        "NES",
+        "SNES",
+        "Sega Genesis",
+        "Sega Master System",
+        "Sega Game Gear",
+        "Sega 32X",
+        "Nintendo 64",
+        "PlayStation",
+        "Dreamcast",
+        "PSP",
+        "Nintendo DS",
+        "Nintendo 3DS",
+        "GameCube / Wii",
+        "PlayStation 2",
+        "Wii U",
+        "Nintendo Switch"
     )
 
-    fun sortEmulators(emulators: List<RecommendedEmulator>): List<RecommendedEmulator> =
-        emulators.sortedBy { EMULATOR_PACKAGES.indexOf(it.packageName).takeIf { i -> i >= 0 } ?: EMULATOR_PACKAGES.size }
+    /** Where a per-title override line (Twilight Princess) goes: right after the listed systems. */
+    val OVERRIDE_RANK = PLATFORMS.size
+    private val OTHERS_RANK = PLATFORMS.size + 1
+
+    fun rank(platformName: String): Int = PLATFORMS.indexOf(platformName).takeIf { it >= 0 } ?: OTHERS_RANK
 }
