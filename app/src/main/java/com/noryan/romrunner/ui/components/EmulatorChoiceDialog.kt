@@ -13,7 +13,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,21 +44,18 @@ fun EmulatorChoiceDialog(
                 if (!currentIsRecommended && currentLabel.isNotBlank()) {
                     ChoiceRow("$currentLabel (your choice)", selected = true, onClick = onDismiss)
                 }
-                ChoiceRow("Choose another app…", selected = false, onClick = onChooseOther)
-                Text(
-                    "Other apps are handed the game file directly, so one that needs special handling may not open it.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(top = 12.dp)
-                )
+                ChoiceRow("Choose another app…", selected = null, onClick = onChooseOther)
+                ChoiceRow("Close", selected = null, onClick = onDismiss)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+        // The Close row above is the dismiss control; the dialog's own button slot stays empty.
+        confirmButton = {}
     )
 }
 
+/** [selected] is null for a row that has no marker (an action, not a choice). */
 @Composable
-private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ChoiceRow(label: String, selected: Boolean?, onClick: () -> Unit) {
     val interaction = rememberFocusInteractionSource()
     val glow = interaction.glowShadow()
     val color = interaction.glowColor(MaterialTheme.colorScheme.onSurface)
@@ -71,8 +67,8 @@ private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, style = LocalTextStyle.current.copy(shadow = glow), color = color, modifier = Modifier.weight(1f))
-        Box(
-            modifier = Modifier.size(12.dp).background(if (selected) FocusGlowColor else Color.Transparent, CircleShape)
-        )
+        if (selected != null) {
+            Box(modifier = Modifier.size(12.dp).background(if (selected) FocusGlowColor else Color.Transparent, CircleShape))
+        }
     }
 }
