@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -42,6 +44,7 @@ import com.noryan.romrunner.data.launch.Armsx2Setup
 import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.DefaultPlatforms
 import com.noryan.romrunner.data.launch.EdenGpuDriver
+import com.noryan.romrunner.data.launch.EmulatorDownloader
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.GameLaunchOverrides
 import com.noryan.romrunner.data.launch.PrimeHackControls
@@ -60,14 +63,12 @@ import kotlinx.coroutines.launch
 
 private val Good = Color(0xFF6BCB77)
 private val Bad = Color(0xFFFF6B6B)
+private val Warn = Color(0xFFFFD60A)
 private val Neutral = Color(0xFF9A9A9A)
 
-// Fixed column widths, so every row's emulator, install status and setup status line up.
-/** How far the emulator, status and setup are tabbed in under their system heading. */
-private val ItemIndent = 24.dp
-private val EmulatorColumn = 210.dp
-private val StatusColumn = 190.dp
-private val SetupColumn = 170.dp
+/** How far an opened system's emulator, status and configured lines are tabbed in under its heading. */
+private val ItemIndent = 26.dp
+private val DetailLabelWidth = 140.dp
 
 /** One line of the Systems tab: a system with games in the library (or a per-title override like Twilight Princess) and the app that plays it. */
 private data class SystemRow(
@@ -176,15 +177,17 @@ fun SystemsContent(
 
     var choosingFor by remember { mutableStateOf<SystemRow?>(null) }
     var pickingAppFor by remember { mutableStateOf<SystemRow?>(null) }
+    // Which systems are fanned open; they all start collapsed.
+    var expanded by remember { mutableStateOf(setOf<String>()) }
+
+    // Emulators whose APK is already in Downloads (so "Downloaded": fetched but not yet installed).
+    val downloaded by produceState(emptySet<String>(), rows, installCheckTick, installState.refreshTick) {
+        value = rows.mapNotNull { recommendedEmulator(it.packageName) }.distinctBy { it.packageName }
+            .filter { !EmulatorLauncher.isPackageInstalled(context, it.packageName) && EmulatorDownloader.findLocalApk(context, it) != null }
+            .map { it.packageName }.toSet()
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp + ItemIndent, end = 20.dp, top = 8.dp, bottom = 4.dp)) {
-                ColumnTitle("Emulator", Modifier.width(EmulatorColumn))
-                ColumnTitle("Status", Modifier.width(StatusColumn))
-                ColumnTitle("Setup", Modifier.width(SetupColumn))
-            }
-        }
         items(rows, key = { it.key }) { row ->
             val recommended = recommendedEmulator(row.packageName)
             val setupKey = if (row.packageName.startsWith("com.retroarch")) "com.retroarch" else row.packageName
@@ -192,66 +195,105 @@ fun SystemsContent(
                 row.packageName.isNotBlank() && EmulatorLauncher.isPackageInstalled(context, row.packageName)
             }
             val installing = (recommended?.packageName ?: row.packageName).let { installState.statuses[it] }
+            val hasDownload = recommended?.packageName in downloaded
+            val setup = setups[setupKey]
 
+            // The one dot a collapsed system shows: green = installed and configured (or nothing to configure), yellow = on
+            // its way (downloading, downloaded, or installed but not yet configured), red = not installed, gray = no emulator.
+            val dot = when {
+                row.packageName.isBlank() -> Neutral
+                installing != null -> Warn
+                !isInstalled -> if (hasDownload) Warn else Bad
+                setup != null && !setup.first -> Warn
+                else -> Good
+            }
+
+            val headingFocus = rememberFocusInteractionSource()
             val emulatorFocus = rememberFocusInteractionSource()
             val statusFocus = rememberFocusInteractionSource()
-            val setupFocus = rememberFocusInteractionSource()
-            val anyFocused = listOf(emulatorFocus, statusFocus, setupFocus).any { it.collectIsFocusedAsState().value }
+            val configuredFocus = rememberFocusInteractionSource()
+            val isOpen = row.key in expanded
 
-            Column(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp)) {
-                // The system is a heading; its emulator, status and setup sit tabbed in below it.
-                Text(
-                    row.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (anyFocused) FocusGlowColor else Color.Unspecified
-                )
-                Row(modifier = Modifier.padding(start = ItemIndent, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    // Emulator: tap to change it (not for a per-title override).
-                    Cell(
-                        modifier = Modifier.width(EmulatorColumn),
-                        interaction = emulatorFocus,
-                        text = if (row.platform != null) "${row.appLabel.ifBlank { "Choose app" }}  >" else row.appLabel,
-                        onClick = if (row.platform != null) ({ choosingFor = row }) else null
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                // The heading: status dot and system name; tap it to fan the system open or closed.
+                val headingFocused = headingFocus.collectIsFocusedAsState().value
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(interactionSource = headingFocus, indication = null) {
+                            expanded = if (isOpen) expanded - row.key else expanded + row.key
+                        }
+                        .padding(vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(12.dp).background(dot, CircleShape))
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        row.label,
+                        style = MaterialTheme.typography.titleMedium.copy(shadow = headingFocus.glowShadow()),
+                        color = headingFocus.glowColor(Color.Unspecified),
+                        modifier = Modifier.weight(1f)
                     )
+                    Text(
+                        if (isOpen) "-" else "+",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (headingFocused) FocusGlowColor else Neutral
+                    )
+                }
 
-                    // Install status: tap to open the app, or to install it.
-                    val canInstall = recommended != null
-                    when {
-                        row.packageName.isBlank() -> Cell(Modifier.width(StatusColumn), statusFocus, "—", color = Neutral)
-                        installing != null -> Cell(Modifier.width(StatusColumn), statusFocus, installing, dot = Neutral)
-                        isInstalled -> Cell(
-                            Modifier.width(StatusColumn), statusFocus, "Installed", dot = Good,
-                            onClick = {
-                                val launchPackage = EmulatorLauncher.installedPackageFor(context, row.packageName) ?: row.packageName
-                                // Opening ARMSX2 before it has finished its wizard: say what to pick there.
-                                if (launchPackage == Armsx2Setup.PACKAGE) {
-                                    scope.launch {
-                                        if (Armsx2Setup.wizardPending()) {
-                                            val hint = Armsx2Setup.wizardHint(context, repository.getRootFolderUri()?.let { Uri.parse(it) })
-                                            Toast.makeText(context, hint, Toast.LENGTH_LONG).show()
+                if (isOpen) {
+                    Column(modifier = Modifier.padding(start = ItemIndent, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Emulator: tap to change it (not for a per-title override).
+                        DetailLine("Emulator") {
+                            Cell(
+                                interaction = emulatorFocus,
+                                text = if (row.platform != null) "${row.appLabel.ifBlank { "Choose app" }}  >" else row.appLabel,
+                                onClick = if (row.platform != null) ({ choosingFor = row }) else null
+                            )
+                        }
+
+                        // Status: installed, downloaded (but not installed), or neither. Tap to open, install or download it.
+                        DetailLine("Status") {
+                            val canInstall = recommended != null
+                            when {
+                                row.packageName.isBlank() -> Cell(statusFocus, "—", color = Neutral)
+                                installing != null -> Cell(statusFocus, installing, dot = Warn)
+                                isInstalled -> Cell(
+                                    statusFocus, "Installed", dot = Good,
+                                    onClick = {
+                                        val launchPackage = EmulatorLauncher.installedPackageFor(context, row.packageName) ?: row.packageName
+                                        // Opening ARMSX2 before it has finished its wizard: say what to pick there.
+                                        if (launchPackage == Armsx2Setup.PACKAGE) {
+                                            scope.launch {
+                                                if (Armsx2Setup.wizardPending()) {
+                                                    val hint = Armsx2Setup.wizardHint(context, repository.getRootFolderUri()?.let { Uri.parse(it) })
+                                                    Toast.makeText(context, hint, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
                                         }
+                                        context.packageManager.getLaunchIntentForPackage(launchPackage)?.let { context.startActivity(it) }
                                     }
-                                }
-                                context.packageManager.getLaunchIntentForPackage(launchPackage)?.let { context.startActivity(it) }
+                                )
+                                hasDownload -> Cell(
+                                    statusFocus, "Downloaded", dot = Warn,
+                                    onClick = if (canInstall) ({ scope.launch { installState.installOne(context, recommended!!) } }) else null
+                                )
+                                else -> Cell(
+                                    statusFocus, "Not installed", dot = Bad,
+                                    onClick = if (canInstall) ({ scope.launch { installState.installOne(context, recommended!!) } }) else null
+                                )
                             }
-                        )
-                        else -> Cell(
-                            Modifier.width(StatusColumn), statusFocus, "Not installed", dot = Bad,
-                            onClick = if (canInstall) ({ scope.launch { installState.installOne(context, recommended!!) } }) else null
-                        )
-                    }
+                        }
 
-                    // Setup: only for the apps that have one, and only once installed; N/A for the rest.
-                    val setup = setups[setupKey]
-                    if (setup != null && isInstalled) {
-                        val (done, run) = setup
-                        Cell(Modifier.width(SetupColumn), setupFocus, if (done) "Loaded" else "Needed", dot = if (done) Good else Bad, onClick = run)
-                    } else if (setup == null) {
-                        // This system's app has no one-time setup at all.
-                        Cell(Modifier.width(SetupColumn), setupFocus, "N/A", dot = Neutral)
-                    } else {
-                        // It has a setup, but the app isn't installed yet.
-                        Cell(Modifier.width(SetupColumn), setupFocus, "—", color = Neutral)
+                        // Configured: whether what can be set up ahead of time for this emulator has been. N/A when there's nothing to set up.
+                        DetailLine("Configured") {
+                            when {
+                                setup == null -> Cell(configuredFocus, "N/A", dot = Neutral)
+                                !isInstalled -> Cell(configuredFocus, "—", color = Neutral)
+                                setup.first -> Cell(configuredFocus, "Yes", dot = Good, onClick = setup.second)
+                                else -> Cell(configuredFocus, "Not yet", dot = Warn, onClick = setup.second)
+                            }
+                        }
                     }
                 }
             }
@@ -314,14 +356,18 @@ private fun appName(context: android.content.Context, packageName: String): Stri
     }.getOrDefault(packageName)
 }
 
+/** One "Label: value" line under an opened system, the labels in a fixed-width column so the values line up. */
 @Composable
-private fun ColumnTitle(text: String, modifier: Modifier) {
-    Text(
-        text.uppercase(),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-        modifier = modifier
-    )
+private fun DetailLine(label: String, value: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "$label:",
+            style = MaterialTheme.typography.bodyLarge,
+            color = Neutral,
+            modifier = Modifier.width(DetailLabelWidth)
+        )
+        value()
+    }
 }
 
 /**
@@ -330,7 +376,6 @@ private fun ColumnTitle(text: String, modifier: Modifier) {
  */
 @Composable
 private fun Cell(
-    modifier: Modifier,
     interaction: MutableInteractionSource,
     text: String,
     dot: Color? = null,
@@ -338,7 +383,7 @@ private fun Cell(
     onClick: (() -> Unit)? = null
 ) {
     val clickable = if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick) else Modifier
-    Row(modifier = modifier.then(clickable).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = clickable.padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         if (dot != null) {
             val focused = interaction.collectIsFocusedAsState().value
             Box(modifier = Modifier.size(10.dp).background(if (focused) FocusGlowColor else dot, CircleShape))
