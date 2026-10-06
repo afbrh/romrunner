@@ -227,12 +227,16 @@ fun SystemsContent(
                     )
                 }
 
-                // Setup: only for the apps that have one, and only once installed.
+                // Setup: only for the apps that have one, and only once installed; N/A for the rest.
                 val setup = setups[setupKey]
                 if (setup != null && isInstalled) {
                     val (done, run) = setup
                     Cell(Modifier.width(SetupColumn), setupFocus, if (done) "Loaded" else "Needed", dot = if (done) Good else Bad, onClick = run)
+                } else if (setup == null) {
+                    // This system's app has no one-time setup at all.
+                    Cell(Modifier.width(SetupColumn), setupFocus, "N/A", dot = Neutral)
                 } else {
+                    // It has a setup, but the app isn't installed yet.
                     Cell(Modifier.width(SetupColumn), setupFocus, "—", color = Neutral)
                 }
             }
