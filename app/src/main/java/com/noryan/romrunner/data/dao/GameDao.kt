@@ -28,6 +28,9 @@ interface GameDao {
     @Delete
     suspend fun delete(game: Game)
 
+    @Query("DELETE FROM games WHERE fileUri IN (:fileUris)")
+    suspend fun deleteByFileUris(fileUris: List<String>)
+
     @Query("DELETE FROM games WHERE platformId = :platformId")
     suspend fun deleteAllForPlatform(platformId: Long)
 

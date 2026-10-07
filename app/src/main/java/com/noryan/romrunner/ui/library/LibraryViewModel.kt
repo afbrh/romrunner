@@ -62,9 +62,17 @@ class LibraryViewModel(private val repository: LibraryRepository) : ViewModel() 
             isScanning.value = true
             val platforms = uiState.value.platforms
             val existing = repository.allExistingFileUris()
-            val found = RomScanner.scanRoot(context, Uri.parse(rootUriString), platforms, existing)
-            if (found.isNotEmpty()) repository.addGames(found)
-            message.value = if (found.isNotEmpty()) "Added ${found.size} game(s)" else "No new games found"
+            val result = RomScanner.scanRoot(context, Uri.parse(rootUriString), platforms, existing)
+            if (result.newGames.isNotEmpty()) repository.addGames(result.newGames)
+            // A refresh also drops games whose file is gone. Skipped when the folder couldn't be read properly (see ScanResult).
+            val removed = if (result.trustworthy) repository.removeGamesMissingFrom(result.presentUris) else 0
+            val added = result.newGames.size
+            message.value = when {
+                added > 0 && removed > 0 -> "Added $added game(s), removed $removed"
+                added > 0 -> "Added $added game(s)"
+                removed > 0 -> "Removed $removed game(s) no longer in the folder"
+                else -> "No changes"
+            }
             isScanning.value = false
         }
     }

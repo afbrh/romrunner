@@ -173,6 +173,13 @@ class LibraryRepository(
     suspend fun allExistingFileUris(): Set<String> = gameDao.getAllFileUris().toSet()
 
     suspend fun addGames(games: List<Game>) = gameDao.insertAll(games)
+
+    /** Removes every game whose file isn't in [presentUris] any more; returns how many. Done in chunks (SQLite caps the parameters per query). */
+    suspend fun removeGamesMissingFrom(presentUris: Set<String>): Int {
+        val missing = gameDao.getAllFileUris().filter { it !in presentUris }
+        missing.chunked(500).forEach { gameDao.deleteByFileUris(it) }
+        return missing.size
+    }
     suspend fun updateGame(game: Game) = gameDao.update(game)
     suspend fun deleteGame(game: Game) = gameDao.delete(game)
 
