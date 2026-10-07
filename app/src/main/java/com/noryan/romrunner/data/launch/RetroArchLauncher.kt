@@ -56,6 +56,25 @@ object RetroArchLauncher {
     private const val MGBA_SHADER = "shaders/shaders_glsl/handheld/lcd-grid-v2-gba-color.glslp"
 
     /**
+     * The CRT shader for the console (not handheld) systems: the fast Lottes CRT preset, with its screen curvature,
+     * "Trinitron" curve and rounded corners switched off so the picture keeps its rectangle (the parameters are
+     * overridden on top of the shipped preset, which is referenced rather than copied).
+     */
+    private const val CRT_SHADER = "shaders/shaders_glsl/crt/crt-lottes-fast.glslp"
+
+    /**
+     * The per-core folder names RetroArch looks for a core's auto-loaded preset in (each core's own library name) for the
+     * consoles that get the CRT shader. Game Gear shares Genesis Plus GX with Genesis and Master System, so it gets it too.
+     */
+    private val CRT_PRESET_FOLDERS = listOf(
+        "Nestopia", "Snes9x", "Mupen64Plus-Next", "SwanStation", "Genesis Plus GX",
+        "PicoDrive", "Beetle PCE Fast", "Stella", "ProSystem"
+    )
+
+    private fun crtPreset(dataDir: String): String =
+        "#reference \"$dataDir/$CRT_SHADER\"\nCURVATURE = \"0.000000\"\nTRINITRON_CURVE = \"0.000000\"\nCORNER = \"0.000000\"\n"
+
+    /**
      * RomRunner's own RetroArch config, handed to RetroArch as the CONFIGFILE extra on every launch (it's the
      * main config for that run). Written once at setup and then left alone, because RetroArch saves any change
      * the user makes in its menus back into this file.
@@ -196,6 +215,14 @@ object RetroArchLauncher {
         context.contentResolver.openOutputStream(file.uri, "wt")?.use {
             it.write("#reference \"$dataDir/$MGBA_SHADER\"\n".toByteArray())
         } ?: error("couldn't write the mGBA shader preset")
+
+        for (folder in CRT_PRESET_FOLDERS) {
+            val coreDir = ensureDir(ensureDir(root, "files"), folder)
+            if (coreDir.findFile("$folder.glslp") != null) continue
+            val crt = EmulatorFolders.createNamedFile(coreDir, "$folder.glslp") ?: error("couldn't create the $folder shader preset")
+            context.contentResolver.openOutputStream(crt.uri, "wt")?.use { it.write(crtPreset(dataDir).toByteArray()) }
+                ?: error("couldn't write the $folder shader preset")
+        }
     }
 
     private val PLAYER_BIND = Regex("""^input_((up|down|left|right|a|b|x|y|start|select|l|r|l2|r2|l3|r3|[lr]_[xy]_(plus|minus))_(btn|axis))$""")
@@ -285,6 +312,12 @@ object RetroArchLauncher {
         val presetDir = File(dir, MGBA_PRESET_DIR).apply { mkdirs() }
         val preset = File(presetDir, "$MGBA_PRESET_DIR.glslp")
         if (!preset.exists()) preset.writeText("#reference \"$base/$MGBA_SHADER\"\n")
+
+        // Left alone once it exists, so a preset the user saved from RetroArch's own shader menu isn't replaced.
+        for (folder in CRT_PRESET_FOLDERS) {
+            val crt = File(File(dir, folder).apply { mkdirs() }, "$folder.glslp")
+            if (!crt.exists()) crt.writeText(crtPreset(base))
+        }
     }
 
     /** Re-applies the direct config if RetroArch has replaced it with one that lacks RomRunner's settings (e.g. it wrote its own default first). */
