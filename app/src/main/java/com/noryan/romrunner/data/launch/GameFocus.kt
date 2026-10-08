@@ -30,8 +30,16 @@ object GameFocus {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    /** Call right after starting a game's activity from [context]. */
-    fun reassertAfterLaunch(context: Context) {
+    /**
+     * Emulators that pause themselves whenever another activity comes in front of theirs and then stay paused until the
+     * player resumes by hand, so the brief focus kick below would leave the game stopped on its pause screen. Eden does
+     * (its fragment pauses in onPause and has no matching resume), so it's left without the kick.
+     */
+    private val NO_KICK_PACKAGES = setOf("dev.eden.eden_emulator")
+
+    /** Call right after starting a game's activity from [context]; [packageName] is the emulator it opened in, when known. */
+    fun reassertAfterLaunch(context: Context, packageName: String? = null) {
+        if (packageName in NO_KICK_PACKAGES) return
         val app = context.applicationContext
         val displayId = (context as? Activity)?.display?.displayId ?: Display.DEFAULT_DISPLAY
         handler.removeCallbacksAndMessages(null)

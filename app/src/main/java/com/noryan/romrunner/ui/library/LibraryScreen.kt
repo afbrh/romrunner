@@ -590,7 +590,7 @@ fun LibraryScreen(
                 when (val prepared = RetroArchLauncher.prepare(context, platform, game, repository.getRetroArchFolderUri()?.let { Uri.parse(it) })) {
                     is RetroArchLauncher.Prepared.Ready -> {
                         context.startActivity(prepared.intent)
-                        GameFocus.reassertAfterLaunch(context)
+                        GameFocus.reassertAfterLaunch(context, "com.retroarch")
                         SecondScreenState.gameStarted(game.title, "RetroArch")
                         viewModel.markPlayed(game)
                     }
@@ -612,7 +612,7 @@ fun LibraryScreen(
             val intent = EmulatorLauncher.buildIntent(context, platform, game)
             try {
                 context.startActivity(intent)
-                GameFocus.reassertAfterLaunch(context)
+                GameFocus.reassertAfterLaunch(context, target?.packageName)
                 SecondScreenState.gameStarted(game.title, target?.let { EmulatorLauncher.labelFor(it.packageName) }.orEmpty())
                 viewModel.markPlayed(game)
             } catch (e: ActivityNotFoundException) {
@@ -640,7 +640,7 @@ fun LibraryScreen(
         val intent = EmulatorLauncher.buildIntentForPackage(context, platform, game, packageName)
         try {
             context.startActivity(intent)
-            GameFocus.reassertAfterLaunch(context)
+            GameFocus.reassertAfterLaunch(context, packageName)
             SecondScreenState.gameStarted(game.title, EmulatorLauncher.labelFor(packageName))
             viewModel.markPlayed(game)
         } catch (e: ActivityNotFoundException) {
