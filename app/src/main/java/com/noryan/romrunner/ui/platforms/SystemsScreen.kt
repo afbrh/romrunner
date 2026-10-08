@@ -71,7 +71,7 @@ private val Warn = Color(0xFFFFD60A)
 private val Neutral = Color(0xFF9A9A9A)
 
 /** How far an opened system's emulator, status and configured lines are tabbed in under its heading. */
-private val ItemIndent = 26.dp
+private val ItemIndent = 52.dp
 private val DetailLabelWidth = 140.dp
 
 /** One line of the Systems tab: a system with games in the library (or a per-title override like Twilight Princess) and the app that plays it. */

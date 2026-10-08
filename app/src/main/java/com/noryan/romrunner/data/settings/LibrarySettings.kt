@@ -46,6 +46,11 @@ class LibrarySettings(context: Context) {
     fun setRetroArchCore(platformName: String, coreId: String?) =
         prefs.edit().apply { if (coreId == null) remove("retroarch_core_$platformName") else putString("retroarch_core_$platformName", coreId) }.apply()
 
+    /** The user's own menus (see [com.noryan.romrunner.data.model.CustomTab]) as a JSON array; null when there are none. */
+    var customTabsJson: String?
+        get() = prefs.getString("custom_tabs", null)
+        set(value) = prefs.edit().putString("custom_tabs", value).apply()
+
     fun isSetUp(key: String): Boolean = prefs.getBoolean("setup_done_$key", false)
     fun markSetUp(key: String) = prefs.edit().putBoolean("setup_done_$key", true).apply()
 

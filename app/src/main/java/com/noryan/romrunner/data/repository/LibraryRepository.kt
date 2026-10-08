@@ -1,5 +1,8 @@
 package com.noryan.romrunner.data.repository
 
+import com.noryan.romrunner.data.model.CustomTab
+import org.json.JSONArray
+import org.json.JSONObject
 import com.noryan.romrunner.data.dao.GameDao
 import com.noryan.romrunner.data.dao.PlatformDao
 import com.noryan.romrunner.data.launch.DefaultPlatforms
@@ -195,6 +198,30 @@ class LibraryRepository(
     fun isStorageAccessAsked(): Boolean = settings.storageAccessAsked
     fun markStorageAccessAsked() {
         settings.storageAccessAsked = true
+    }
+
+    fun getCustomTabs(): List<CustomTab> = runCatching {
+        val array = JSONArray(settings.customTabsJson ?: return emptyList())
+        (0 until array.length()).map { i ->
+            val o = array.getJSONObject(i)
+            CustomTab(
+                id = o.getString("id"),
+                name = o.getString("name"),
+                gameUris = o.optJSONArray("games")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
+                appPackages = o.optJSONArray("apps")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    fun saveCustomTabs(tabs: List<CustomTab>) {
+        val array = JSONArray()
+        tabs.forEach { tab ->
+            array.put(
+                JSONObject().put("id", tab.id).put("name", tab.name)
+                    .put("games", JSONArray(tab.gameUris)).put("apps", JSONArray(tab.appPackages))
+            )
+        }
+        settings.customTabsJson = if (tabs.isEmpty()) null else array.toString()
     }
 
     fun getRetroArchCore(platformName: String): String? = settings.retroArchCore(platformName)

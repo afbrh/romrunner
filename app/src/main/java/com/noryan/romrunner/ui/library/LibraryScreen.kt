@@ -10,6 +10,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import com.noryan.romrunner.data.model.CustomTab
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -98,10 +101,11 @@ private data class MissingAppRequest(val platform: Platform, val game: Game, val
 
 private enum class HomeTab { GAMES, SYSTEMS, SETTINGS, APPS }
 
-private fun cycleTab(current: HomeTab, delta: Int): HomeTab {
-    val tabs = HomeTab.entries
-    val nextIndex = (tabs.indexOf(current) + delta + tabs.size) % tabs.size
-    return tabs[nextIndex]
+/** The next tab in the bar (L1/R1), the built-in ones first and then the user's own menus in order. */
+private fun cycleTab(currentKey: String, customTabs: List<CustomTab>, delta: Int): String {
+    val keys = HomeTab.entries.map { it.name } + customTabs.map { "custom:${it.id}" }
+    val nextIndex = (keys.indexOf(currentKey).coerceAtLeast(0) + delta + keys.size) % keys.size
+    return keys[nextIndex]
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,7 +114,14 @@ fun LibraryScreen(
     repository: LibraryRepository,
     onDualScreenSupportChanged: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(HomeTab.GAMES) }
+    // The selected tab: a HomeTab's name, or "custom:<id>" for one of the user's own menus (the "+" in the tab bar).
+    var selectedKey by remember { mutableStateOf(HomeTab.GAMES.name) }
+    var customTabs by remember { mutableStateOf(repository.getCustomTabs()) }
+    // Null = no editor open; otherwise the menu being edited, or a blank one when "+" was just pressed.
+    var tabEditor by remember { mutableStateOf<CustomTab?>(null) }
+    var creatingTab by remember { mutableStateOf(false) }
+    val selectedTab = HomeTab.entries.firstOrNull { it.name == selectedKey } ?: HomeTab.GAMES
+    val selectedCustomTab = customTabs.firstOrNull { "custom:${it.id}" == selectedKey }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
     // as big as the whole screen has no sensible "next focusable node below it" for D-pad/joystick
     // spatial search to find, which silently breaks all downward navigation into the list.
@@ -148,7 +159,7 @@ fun LibraryScreen(
             return
         }
         // Jump to Systems so the per-emulator progress is visible while it works.
-        selectedTab = HomeTab.SYSTEMS
+        selectedKey = HomeTab.SYSTEMS.name
         scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
     }
     // First-run offer: right after the first ROMs folder is chosen and scanned, ask once whether to
@@ -656,11 +667,11 @@ fun LibraryScreen(
                 // through them in order instead of each jumping to one fixed tab.
                 when (keyEvent.nativeKeyEvent.keyCode) {
                     android.view.KeyEvent.KEYCODE_BUTTON_L1 -> {
-                        selectedTab = cycleTab(selectedTab, -1)
+                        selectedKey = cycleTab(selectedKey, customTabs, -1)
                         true
                     }
                     android.view.KeyEvent.KEYCODE_BUTTON_R1 -> {
-                        selectedTab = cycleTab(selectedTab, 1)
+                        selectedKey = cycleTab(selectedKey, customTabs, 1)
                         true
                     }
                     else -> false
@@ -674,35 +685,56 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())
+                ) {
                     HomeTabHeading(
                         text = "GAMES",
-                        selected = selectedTab == HomeTab.GAMES,
-                        onClick = { selectedTab = HomeTab.GAMES },
+                        selected = selectedKey == HomeTab.GAMES.name,
+                        onClick = { selectedKey = HomeTab.GAMES.name },
                         modifier = Modifier.focusRequester(gamesTabFocusRequester)
                     )
                     HomeTabHeading(
                         text = "SYSTEMS",
-                        selected = selectedTab == HomeTab.SYSTEMS,
-                        onClick = { selectedTab = HomeTab.SYSTEMS }
+                        selected = selectedKey == HomeTab.SYSTEMS.name,
+                        onClick = { selectedKey = HomeTab.SYSTEMS.name }
                     )
                     HomeTabHeading(
                         text = "SETTINGS",
-                        selected = selectedTab == HomeTab.SETTINGS,
-                        onClick = { selectedTab = HomeTab.SETTINGS }
+                        selected = selectedKey == HomeTab.SETTINGS.name,
+                        onClick = { selectedKey = HomeTab.SETTINGS.name }
                     )
                     HomeTabHeading(
                         text = "APPS",
-                        selected = selectedTab == HomeTab.APPS,
-                        onClick = { selectedTab = HomeTab.APPS }
+                        selected = selectedKey == HomeTab.APPS.name,
+                        onClick = { selectedKey = HomeTab.APPS.name }
                     )
+                    // The user's own menus, then the "+" that makes another.
+                    customTabs.forEach { tab ->
+                        HomeTabHeading(
+                            text = tab.name.uppercase(),
+                            selected = selectedKey == "custom:${tab.id}",
+                            onClick = { selectedKey = "custom:${tab.id}" }
+                        )
+                    }
+                    HomeTabHeading(text = "+", selected = false, onClick = { creatingTab = true })
                 }
                 HomeStatusInfo()
             }
             HorizontalDivider()
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                when (selectedTab) {
+                if (selectedCustomTab != null) {
+                    CustomTabContent(
+                        tab = selectedCustomTab,
+                        games = state.games,
+                        platformNameFor = { game -> displayPlatformName(platformsById[game.platformId], game) },
+                        onGameClick = { game -> platformsById[game.platformId]?.let { attemptLaunch(it, game) } },
+                        onGameLongClick = { game -> actionGame = game },
+                        onEdit = { tabEditor = selectedCustomTab }
+                    )
+                } else when (selectedTab) {
                     HomeTab.GAMES -> PullToRefreshBox(
                         isRefreshing = state.isScanning,
                         onRefresh = { viewModel.rescanAll(context) },
@@ -759,6 +791,33 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    if (creatingTab || tabEditor != null) {
+        CustomTabEditor(
+            initial = tabEditor,
+            games = state.games,
+            onSave = { saved ->
+                customTabs = if (customTabs.any { it.id == saved.id }) customTabs.map { if (it.id == saved.id) saved else it } else customTabs + saved
+                repository.saveCustomTabs(customTabs)
+                selectedKey = "custom:${saved.id}"
+                creatingTab = false
+                tabEditor = null
+            },
+            onDelete = tabEditor?.let { editing ->
+                {
+                    customTabs = customTabs.filter { it.id != editing.id }
+                    repository.saveCustomTabs(customTabs)
+                    if (selectedKey == "custom:${editing.id}") selectedKey = HomeTab.GAMES.name
+                    creatingTab = false
+                    tabEditor = null
+                }
+            },
+            onCancel = {
+                creatingTab = false
+                tabEditor = null
+            }
+        )
     }
 
     actionGame?.let { game ->
