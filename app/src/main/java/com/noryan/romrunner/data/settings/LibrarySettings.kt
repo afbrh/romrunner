@@ -51,6 +51,11 @@ class LibrarySettings(context: Context) {
         get() = prefs.getString("custom_tabs", null)
         set(value) = prefs.edit().putString("custom_tabs", value).apply()
 
+    /** Which of the two built-in menus ("GAMES", "APPS") the user has removed from the tab bar. */
+    var hiddenDefaultTabs: Set<String>
+        get() = prefs.getStringSet("hidden_default_tabs", emptySet()).orEmpty().toSet()
+        set(value) = prefs.edit().putStringSet("hidden_default_tabs", value).apply()
+
     fun isSetUp(key: String): Boolean = prefs.getBoolean("setup_done_$key", false)
     fun markSetUp(key: String) = prefs.edit().putBoolean("setup_done_$key", true).apply()
 

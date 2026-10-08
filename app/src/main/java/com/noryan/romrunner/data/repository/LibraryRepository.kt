@@ -200,6 +200,11 @@ class LibraryRepository(
         settings.storageAccessAsked = true
     }
 
+    fun getHiddenDefaultTabs(): Set<String> = settings.hiddenDefaultTabs
+    fun setHiddenDefaultTabs(value: Set<String>) {
+        settings.hiddenDefaultTabs = value
+    }
+
     fun getCustomTabs(): List<CustomTab> = runCatching {
         val array = JSONArray(settings.customTabsJson ?: return emptyList())
         (0 until array.length()).map { i ->

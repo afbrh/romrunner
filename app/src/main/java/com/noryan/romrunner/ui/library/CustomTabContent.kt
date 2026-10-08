@@ -29,7 +29,9 @@ import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.InstalledApps
 import com.noryan.romrunner.data.model.CustomTab
 import com.noryan.romrunner.data.model.Game
+import com.noryan.romrunner.ui.components.ConfirmRemoveDialog
 import com.noryan.romrunner.ui.components.GameRow
+import com.noryan.romrunner.ui.components.RemoveMenuRow
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
@@ -93,50 +95,20 @@ fun CustomTabContent(
         }
 
         // A "-" at the bottom right deletes the menu, after asking.
-        item {
-            val interaction = rememberFocusInteractionSource()
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.End) {
-                Text(
-                    "-",
-                    style = MaterialTheme.typography.headlineSmall.copy(shadow = interaction.glowShadow()),
-                    color = interaction.glowColor(MaterialTheme.colorScheme.onSurfaceVariant),
-                    modifier = Modifier
-                        .clickable(interactionSource = interaction, indication = null) { askDelete = true }
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
-        }
+        item { RemoveMenuRow { askDelete = true } }
     }
 
     if (askDelete) {
-        AlertDialog(
-            onDismissRequest = { askDelete = false },
-            title = { Text("Delete this menu?") },
-            text = { Text("\"${tab.name}\" will be removed. The games and apps in it aren't touched.") },
-            confirmButton = {
-                Column {
-                    ConfirmLine("Delete") {
-                        askDelete = false
-                        onDelete()
-                    }
-                    ConfirmLine("Keep it") { askDelete = false }
-                }
-            }
+        ConfirmRemoveDialog(
+            title = "Delete this menu?",
+            message = "\"${tab.name}\" will be removed. The games and apps in it aren't touched.",
+            confirmLabel = "Delete",
+            keepLabel = "Keep it",
+            onConfirm = {
+                askDelete = false
+                onDelete()
+            },
+            onDismiss = { askDelete = false }
         )
     }
-}
-
-/** A white line in the delete question that turns orange when selected, matching the other dialogs' options. */
-@Composable
-private fun ConfirmLine(text: String, onClick: () -> Unit) {
-    val interaction = rememberFocusInteractionSource()
-    Text(
-        text,
-        style = MaterialTheme.typography.titleMedium.copy(shadow = interaction.glowShadow()),
-        color = interaction.glowColor(MaterialTheme.colorScheme.onSurface),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(vertical = 12.dp)
-    )
 }

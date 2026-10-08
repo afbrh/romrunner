@@ -87,6 +87,8 @@ import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
+import com.noryan.romrunner.ui.components.RemoveMenuRow
+import com.noryan.romrunner.ui.components.ConfirmRemoveDialog
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
@@ -110,9 +112,9 @@ private enum class HomeTab { GAMES, SETTINGS, APPS }
 /** The shortest sort of menu name that has to fit for a new menu to be allowed at all. */
 private const val MinMenuName = "MENU"
 
-/** The next tab in the bar (L1/R1): Games, Apps, then the user's own menus in order. Settings (and Systems inside it) is the icon, not a tab. */
-private fun cycleTab(currentKey: String, customTabs: List<CustomTab>, delta: Int): String {
-    val keys = listOf(HomeTab.GAMES.name, HomeTab.APPS.name) + customTabs.map { "custom:${it.id}" }
+/** The next tab in the bar (L1/R1) out of [keys] (Games and Apps unless removed, then the user's own menus in order). Settings (and Systems inside it) is the icon, not a tab. */
+private fun cycleTab(currentKey: String, keys: List<String>, delta: Int): String {
+    if (keys.isEmpty()) return currentKey
     val nextIndex = (keys.indexOf(currentKey).coerceAtLeast(0) + delta + keys.size) % keys.size
     return keys[nextIndex]
 }
@@ -124,8 +126,19 @@ fun LibraryScreen(
     onDualScreenSupportChanged: () -> Unit
 ) {
     // The selected tab: a HomeTab's name, or "custom:<id>" for one of the user's own menus (the "+" in the tab bar).
-    var selectedKey by remember { mutableStateOf(HomeTab.GAMES.name) }
+    // Games and Apps are the two menus every install starts with; either can be removed with the "-" at the bottom of its list
+    // (and brought back from Settings), and so can the user's own. With none left, the screen shows Settings.
+    var hiddenDefaults by remember { mutableStateOf(repository.getHiddenDefaultTabs()) }
     var customTabs by remember { mutableStateOf(repository.getCustomTabs()) }
+    var selectedKey by remember {
+        mutableStateOf(
+            listOf(HomeTab.GAMES.name, HomeTab.APPS.name).firstOrNull { it !in hiddenDefaults }
+                ?: customTabs.firstOrNull()?.let { "custom:${it.id}" } ?: HomeTab.SETTINGS.name
+        )
+    }
+    // Which built-in menu is being asked about removing ("GAMES" or "APPS"), if any.
+    var removingDefault by remember { mutableStateOf<String?>(null) }
+    val visibleTabKeys = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customTabs.map { "custom:${it.id}" }
     // Null = no editor open; otherwise the menu being edited, or a blank one when "+" was just pressed.
     var tabEditor by remember { mutableStateOf<CustomTab?>(null) }
     var creatingTab by remember { mutableStateOf(false) }
@@ -137,7 +150,7 @@ fun LibraryScreen(
     var tabBarWidthPx by remember { mutableStateOf(0) }
     fun tabBarFits(customNames: List<String>): Boolean {
         if (tabBarWidthPx == 0) return true // not measured yet
-        val labels = listOf("GAMES", "APPS") + customNames.map { it.uppercase() } + "+"
+        val labels = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customNames.map { it.uppercase() } + "+"
         val spacing = with(tabDensity) { 24.dp.toPx() }
         val total = labels.sumOf { textMeasurer.measure(it, tabHeadingStyle).size.width } + spacing * (labels.size - 1)
         return total <= tabBarWidthPx
@@ -150,7 +163,8 @@ fun LibraryScreen(
     // as big as the whole screen has no sensible "next focusable node below it" for D-pad/joystick
     // spatial search to find, which silently breaks all downward navigation into the list.
     val gamesTabFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { gamesTabFocusRequester.requestFocus() }
+    // (Games can have been removed, in which case there is no heading to focus.)
+    LaunchedEffect(Unit) { runCatching { gamesTabFocusRequester.requestFocus() } }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(repository))
@@ -692,11 +706,11 @@ fun LibraryScreen(
                 // through them in order instead of each jumping to one fixed tab.
                 when (keyEvent.nativeKeyEvent.keyCode) {
                     android.view.KeyEvent.KEYCODE_BUTTON_L1 -> {
-                        selectedKey = cycleTab(selectedKey, customTabs, -1)
+                        selectedKey = cycleTab(selectedKey, visibleTabKeys, -1)
                         true
                     }
                     android.view.KeyEvent.KEYCODE_BUTTON_R1 -> {
-                        selectedKey = cycleTab(selectedKey, customTabs, 1)
+                        selectedKey = cycleTab(selectedKey, visibleTabKeys, 1)
                         true
                     }
                     else -> false
@@ -714,17 +728,21 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.weight(1f).onSizeChanged { tabBarWidthPx = it.width }
                 ) {
-                    HomeTabHeading(
-                        text = "GAMES",
-                        selected = selectedKey == HomeTab.GAMES.name,
-                        onClick = { selectedKey = HomeTab.GAMES.name },
-                        modifier = Modifier.focusRequester(gamesTabFocusRequester)
-                    )
-                    HomeTabHeading(
-                        text = "APPS",
-                        selected = selectedKey == HomeTab.APPS.name,
-                        onClick = { selectedKey = HomeTab.APPS.name }
-                    )
+                    if (HomeTab.GAMES.name !in hiddenDefaults) {
+                        HomeTabHeading(
+                            text = "GAMES",
+                            selected = selectedKey == HomeTab.GAMES.name,
+                            onClick = { selectedKey = HomeTab.GAMES.name },
+                            modifier = Modifier.focusRequester(gamesTabFocusRequester)
+                        )
+                    }
+                    if (HomeTab.APPS.name !in hiddenDefaults) {
+                        HomeTabHeading(
+                            text = "APPS",
+                            selected = selectedKey == HomeTab.APPS.name,
+                            onClick = { selectedKey = HomeTab.APPS.name }
+                        )
+                    }
                     // The user's own menus, then the "+" that makes another.
                     customTabs.forEach { tab ->
                         HomeTabHeading(
@@ -766,7 +784,8 @@ fun LibraryScreen(
                             val id = selectedCustomTab.id
                             customTabs = customTabs.filter { it.id != id }
                             repository.saveCustomTabs(customTabs)
-                            selectedKey = HomeTab.GAMES.name
+                            selectedKey = (listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customTabs.map { "custom:${it.id}" })
+                                .firstOrNull() ?: HomeTab.SETTINGS.name
                         }
                     )
                 } else when (selectedTab) {
@@ -804,6 +823,7 @@ fun LibraryScreen(
                                             onLongClick = onGameLongClick
                                         )
                                     }
+                                    item { RemoveMenuRow { removingDefault = HomeTab.GAMES.name } }
                                 }
                             }
                         }
@@ -814,6 +834,11 @@ fun LibraryScreen(
                         onRomsFolderChanged = { viewModel.rescanAll(context) },
                         systemsOpen = systemsOpen,
                         onToggleSystems = { systemsOpen = !systemsOpen },
+                        hiddenDefaultMenus = hiddenDefaults,
+                        onRestoreDefaultMenus = {
+                            hiddenDefaults = emptySet()
+                            repository.setHiddenDefaultTabs(hiddenDefaults)
+                        },
                         systemsContent = {
                             SystemsContent(
                                 repository = repository,
@@ -826,10 +851,28 @@ fun LibraryScreen(
                             )
                         }
                     )
-                    HomeTab.APPS -> AppsContent()
+                    HomeTab.APPS -> AppsContent(onRemoveMenu = { removingDefault = HomeTab.APPS.name })
                 }
             }
         }
+    }
+
+    removingDefault?.let { key ->
+        val name = if (key == HomeTab.GAMES.name) "Games" else "Apps"
+        ConfirmRemoveDialog(
+            title = "Remove the $name menu?",
+            message = if (key == HomeTab.GAMES.name) "Your games aren't touched. You can bring the menu back from Settings." else "Your apps aren't touched. You can bring the menu back from Settings.",
+            confirmLabel = "Remove",
+            keepLabel = "Keep it",
+            onConfirm = {
+                hiddenDefaults = hiddenDefaults + key
+                repository.setHiddenDefaultTabs(hiddenDefaults)
+                removingDefault = null
+                selectedKey = (listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customTabs.map { "custom:${it.id}" })
+                    .firstOrNull() ?: HomeTab.SETTINGS.name
+            },
+            onDismiss = { removingDefault = null }
+        )
     }
 
     if (creatingTab || tabEditor != null) {

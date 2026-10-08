@@ -68,7 +68,10 @@ fun PlatformsContent(
     systemsOpen: Boolean,
     onToggleSystems: () -> Unit,
     /** The Systems list itself (see SystemsContent), shown under the "Systems" line while it's tabbed down. */
-    systemsContent: @Composable () -> Unit
+    systemsContent: @Composable () -> Unit,
+    /** The built-in menus (Games, Apps) the user has removed from the tab bar, and how to bring them back. */
+    hiddenDefaultMenus: Set<String>,
+    onRestoreDefaultMenus: () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -120,6 +123,25 @@ fun PlatformsContent(
         }
         // Tabbed down: every system, each still collapsed to its one line until opened.
         if (systemsOpen) item { systemsContent() }
+
+        // Only there once Games or Apps has been removed from the tab bar.
+        if (hiddenDefaultMenus.isNotEmpty()) {
+            item {
+                val restoreInteraction = rememberFocusInteractionSource()
+                val restoreGlow = restoreInteraction.glowShadow()
+                val restoreColor = restoreInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
+                val names = hiddenDefaultMenus.sorted().joinToString(" and ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(interactionSource = restoreInteraction, indication = null, onClick = onRestoreDefaultMenus)
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Bring back $names", style = LocalTextStyle.current.copy(shadow = restoreGlow), color = restoreColor, modifier = Modifier.weight(1f))
+                }
+            }
+        }
 
         item {
             val romsFolderInteractionSource = rememberFocusInteractionSource()
