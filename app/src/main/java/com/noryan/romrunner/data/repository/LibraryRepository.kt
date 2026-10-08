@@ -197,6 +197,9 @@ class LibraryRepository(
         settings.storageAccessAsked = true
     }
 
+    fun getRetroArchCore(platformName: String): String? = settings.retroArchCore(platformName)
+    fun setRetroArchCore(platformName: String, coreId: String?) = settings.setRetroArchCore(platformName, coreId)
+
     fun isSetUp(key: String): Boolean = settings.isSetUp(key)
     fun markSetUp(key: String) = settings.markSetUp(key)
 

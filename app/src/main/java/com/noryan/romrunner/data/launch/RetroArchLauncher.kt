@@ -143,6 +143,9 @@ object RetroArchLauncher {
         "WonderSwan" to "mednafen_wswan"
     )
 
+    /** The core RomRunner uses for [platformName] unless the user picked another one. */
+    fun defaultCore(platformName: String): String? = CORE_BY_PLATFORM[platformName]
+
     /** True when this platform is set to RetroArch and RomRunner knows which core to run it with. */
     fun handles(platform: Platform): Boolean =
         platform.launchPackage == RETROARCH_PACKAGE && platform.name in CORE_BY_PLATFORM
@@ -372,10 +375,10 @@ object RetroArchLauncher {
     }
 
     /** Blocking network/disk work happens on Dispatchers.IO; the returned Intent is started by the caller. */
-    suspend fun prepare(context: Context, platform: Platform, game: Game, folderUri: Uri?): Prepared = withContext(Dispatchers.IO) {
+    suspend fun prepare(context: Context, platform: Platform, game: Game, folderUri: Uri?, coreOverride: String? = null): Prepared = withContext(Dispatchers.IO) {
         val retroArchPackage = EmulatorLauncher.installedPackageFor(context, RETROARCH_PACKAGE)
             ?: return@withContext Prepared.Failed("RetroArch isn't installed.")
-        val coreName = CORE_BY_PLATFORM[platform.name]
+        val coreName = coreOverride ?: CORE_BY_PLATFORM[platform.name]
             ?: return@withContext Prepared.Failed("No RetroArch core is set for ${platform.name}.")
 
         if (context.packageManager.checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, retroArchPackage) !=

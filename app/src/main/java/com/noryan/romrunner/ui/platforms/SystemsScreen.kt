@@ -51,6 +51,8 @@ import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.InstalledApps
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
+import com.noryan.romrunner.data.launch.RetroArchCores
+import com.noryan.romrunner.data.launch.RetroArchLauncher
 import com.noryan.romrunner.data.launch.RecommendedEmulator
 import com.noryan.romrunner.data.launch.SystemOrder
 import com.noryan.romrunner.data.model.Platform
@@ -181,6 +183,8 @@ fun SystemsContent(
     // never as a pop-up. Each tab-down has a key ("<system>" for the system itself, "<system>:emulator" for its emulator
     // choices, "<system>:apps" for the list of other apps) and everything starts collapsed.
     var expanded by remember { mutableStateOf(setOf<String>()) }
+    // Bumped when a RetroArch core is changed, so the line showing it re-reads the saved choice.
+    var coreTick by remember { mutableStateOf(0) }
     fun toggle(key: String) { expanded = if (key in expanded) expanded - key else expanded + key }
 
     // The installed apps offered under "Choose another app", read once the first time that's tabbed down.
@@ -268,17 +272,15 @@ fun SystemsContent(
                             val appsKey = "${row.key}:apps"
                             val appsOpen = appsKey in expanded
                             Column(modifier = Modifier.padding(start = ItemIndent), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                if (defaults != null) {
-                                    OptionLine("${appName(context, defaults.launchPackage)} (recommended)", marked = currentIsRecommended) {
+                                // Only there to undo a change: while the recommended app is in use, the emulator name above already says so.
+                                if (defaults != null && !currentIsRecommended) {
+                                    OptionLine("Use recommended (${appName(context, defaults.launchPackage)})", marked = null) {
                                         // Restores the app, activity and file type the starter set uses for this system (some need an exact activity).
                                         scope.launch {
                                             repository.savePlatform(platform.copy(launchPackage = defaults.launchPackage, launchActivity = defaults.launchActivity, mimeType = defaults.mimeType))
                                         }
                                         expanded = expanded - emulatorKey - appsKey
                                     }
-                                }
-                                if (!currentIsRecommended && row.appLabel.isNotBlank()) {
-                                    OptionLine("${row.appLabel} (your choice)", marked = true) { toggle(emulatorKey) }
                                 }
                                 OptionLine("Choose another app", marked = null, toggledOpen = appsOpen) { toggle(appsKey) }
                                 if (appsOpen) {
@@ -294,6 +296,32 @@ fun SystemsContent(
                                                         repository.savePlatform(platform.copy(launchPackage = app.packageName, launchActivity = "", mimeType = "application/octet-stream"))
                                                     }
                                                     expanded = expanded - emulatorKey - appsKey
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // RetroArch plays many systems with a different libretro core each: show the one in use and let it be changed.
+                                val defaultCore = RetroArchLauncher.defaultCore(platform.name)
+                                if (row.packageName.startsWith("com.retroarch") && defaultCore != null) {
+                                    val coreKey = "${row.key}:core"
+                                    val coreOpen = coreKey in expanded
+                                    val options = RetroArchCores.optionsFor(platform.name)
+                                    val currentCore = coreTick.let { repository.getRetroArchCore(platform.name) } ?: defaultCore
+                                    OptionLine(
+                                        "Core: ${RetroArchCores.label(currentCore)}",
+                                        marked = null,
+                                        toggledOpen = if (options.size > 1) coreOpen else null
+                                    ) { if (options.size > 1) toggle(coreKey) }
+                                    if (coreOpen && options.size > 1) {
+                                        Column(modifier = Modifier.padding(start = ItemIndent), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            options.forEach { option ->
+                                                OptionLine(option.label, marked = option.id == currentCore) {
+                                                    // The default core is stored as "no choice", so it keeps following RomRunner's default.
+                                                    repository.setRetroArchCore(platform.name, option.id.takeIf { it != defaultCore })
+                                                    coreTick++
+                                                    expanded = expanded - coreKey
                                                 }
                                             }
                                         }

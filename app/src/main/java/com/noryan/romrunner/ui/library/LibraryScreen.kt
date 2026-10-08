@@ -587,7 +587,7 @@ fun LibraryScreen(
         }
         if (RetroArchLauncher.handles(platform)) {
             scope.launch {
-                when (val prepared = RetroArchLauncher.prepare(context, platform, game, repository.getRetroArchFolderUri()?.let { Uri.parse(it) })) {
+                when (val prepared = RetroArchLauncher.prepare(context, platform, game, repository.getRetroArchFolderUri()?.let { Uri.parse(it) }, repository.getRetroArchCore(platform.name))) {
                     is RetroArchLauncher.Prepared.Ready -> {
                         context.startActivity(prepared.intent)
                         GameFocus.reassertAfterLaunch(context, "com.retroarch")

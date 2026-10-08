@@ -41,6 +41,11 @@ class LibrarySettings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_STORAGE_ACCESS_ASKED, value).apply()
 
     /** Whether [key]'s emulator ("primehack", "cemu", "eden", "retroarch") has been set up by writing straight into its folder, with no folder grant. */
+    /** The libretro core the user picked for a system RetroArch plays (by platform name), or null for RomRunner's default. */
+    fun retroArchCore(platformName: String): String? = prefs.getString("retroarch_core_$platformName", null)
+    fun setRetroArchCore(platformName: String, coreId: String?) =
+        prefs.edit().apply { if (coreId == null) remove("retroarch_core_$platformName") else putString("retroarch_core_$platformName", coreId) }.apply()
+
     fun isSetUp(key: String): Boolean = prefs.getBoolean("setup_done_$key", false)
     fun markSetUp(key: String) = prefs.edit().putBoolean("setup_done_$key", true).apply()
 
