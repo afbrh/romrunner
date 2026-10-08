@@ -47,19 +47,21 @@ import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.EmulatorDownloader
 import com.noryan.romrunner.data.launch.EmulatorLauncher
 import com.noryan.romrunner.data.launch.GameLaunchOverrides
+import com.noryan.romrunner.data.launch.InstalledApp
+import com.noryan.romrunner.data.launch.InstalledApps
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
 import com.noryan.romrunner.data.launch.RecommendedEmulator
 import com.noryan.romrunner.data.launch.SystemOrder
 import com.noryan.romrunner.data.model.Platform
 import com.noryan.romrunner.data.repository.LibraryRepository
-import com.noryan.romrunner.ui.components.AppPickerDialog
-import com.noryan.romrunner.ui.components.EmulatorChoiceDialog
 import com.noryan.romrunner.ui.components.FocusGlowColor
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Good = Color(0xFF6BCB77)
 private val Bad = Color(0xFFFF6B6B)
@@ -175,10 +177,18 @@ fun SystemsContent(
         Armsx2Setup.PACKAGE to (armsx2Loaded to onSetUpArmsx2)
     )
 
-    var choosingFor by remember { mutableStateOf<SystemRow?>(null) }
-    var pickingAppFor by remember { mutableStateOf<SystemRow?>(null) }
-    // Which systems are fanned open; they all start collapsed.
+    // "Tabbing down": everything on this tab that opens does so inline, as more tabbed-in lines under the thing you picked,
+    // never as a pop-up. Each tab-down has a key ("<system>" for the system itself, "<system>:emulator" for its emulator
+    // choices, "<system>:apps" for the list of other apps) and everything starts collapsed.
     var expanded by remember { mutableStateOf(setOf<String>()) }
+    fun toggle(key: String) { expanded = if (key in expanded) expanded - key else expanded + key }
+
+    // The installed apps offered under "Choose another app", read once the first time that's tabbed down.
+    val installedApps by produceState<List<InstalledApp>?>(null, expanded.any { it.endsWith(":apps") }) {
+        if (value == null && expanded.any { it.endsWith(":apps") }) {
+            value = withContext(Dispatchers.Default) { InstalledApps.listLaunchable(context) }
+        }
+    }
 
     // Emulators whose APK is already in Downloads (so "Downloaded": fetched but not yet installed).
     val downloaded by produceState(emptySet<String>(), rows, installCheckTick, installState.refreshTick) {
@@ -220,9 +230,7 @@ fun SystemsContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(interactionSource = headingFocus, indication = null) {
-                            expanded = if (isOpen) expanded - row.key else expanded + row.key
-                        }
+                        .clickable(interactionSource = headingFocus, indication = null) { toggle(row.key) }
                         .padding(vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -243,13 +251,55 @@ fun SystemsContent(
 
                 if (isOpen) {
                     Column(modifier = Modifier.padding(start = ItemIndent, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Emulator: tap to change it (not for a per-title override).
+                        // Emulator: tap to tab down its choices (not for a per-title override).
+                        val emulatorKey = "${row.key}:emulator"
+                        val emulatorOpen = emulatorKey in expanded
                         DetailLine("Emulator") {
                             Cell(
                                 interaction = emulatorFocus,
-                                text = if (row.platform != null) "${row.appLabel.ifBlank { "Choose app" }}  >" else row.appLabel,
-                                onClick = if (row.platform != null) ({ choosingFor = row }) else null
+                                text = if (row.platform != null) "${row.appLabel.ifBlank { "Choose app" }}  ${if (emulatorOpen) "-" else "+"}" else row.appLabel,
+                                onClick = if (row.platform != null) ({ toggle(emulatorKey) }) else null
                             )
+                        }
+                        if (emulatorOpen && row.platform != null) {
+                            val platform = row.platform
+                            val defaults = DefaultPlatforms.ALL.firstOrNull { it.name == platform.name }
+                            val currentIsRecommended = defaults != null && defaults.launchPackage == platform.launchPackage
+                            val appsKey = "${row.key}:apps"
+                            val appsOpen = appsKey in expanded
+                            Column(modifier = Modifier.padding(start = ItemIndent), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (defaults != null) {
+                                    OptionLine("${appName(context, defaults.launchPackage)} (recommended)", marked = currentIsRecommended) {
+                                        // Restores the app, activity and file type the starter set uses for this system (some need an exact activity).
+                                        scope.launch {
+                                            repository.savePlatform(platform.copy(launchPackage = defaults.launchPackage, launchActivity = defaults.launchActivity, mimeType = defaults.mimeType))
+                                        }
+                                        expanded = expanded - emulatorKey - appsKey
+                                    }
+                                }
+                                if (!currentIsRecommended && row.appLabel.isNotBlank()) {
+                                    OptionLine("${row.appLabel} (your choice)", marked = true) { toggle(emulatorKey) }
+                                }
+                                OptionLine("Choose another app", marked = null, toggledOpen = appsOpen) { toggle(appsKey) }
+                                if (appsOpen) {
+                                    Column(modifier = Modifier.padding(start = ItemIndent), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        val apps = installedApps
+                                        if (apps == null) {
+                                            Text("Loading apps…", style = MaterialTheme.typography.bodyLarge, color = Neutral)
+                                        } else {
+                                            apps.forEach { app ->
+                                                OptionLine(app.label, marked = app.packageName == platform.launchPackage) {
+                                                    // Plain file handoff: the starter set's special activity / file type belong to the original app.
+                                                    scope.launch {
+                                                        repository.savePlatform(platform.copy(launchPackage = app.packageName, launchActivity = "", mimeType = "application/octet-stream"))
+                                                    }
+                                                    expanded = expanded - emulatorKey - appsKey
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // Status: installed, downloaded (but not installed), or neither. Tap to open, install or download it.
@@ -299,47 +349,6 @@ fun SystemsContent(
             }
         }
     }
-
-    choosingFor?.let { row ->
-        val platform = row.platform ?: return@let
-        val defaults = DefaultPlatforms.ALL.firstOrNull { it.name == platform.name }
-        val currentIsRecommended = defaults != null && defaults.launchPackage == platform.launchPackage
-        EmulatorChoiceDialog(
-            systemLabel = row.label,
-            recommendedLabel = defaults?.let { appName(context, it.launchPackage) },
-            currentLabel = row.appLabel,
-            currentIsRecommended = currentIsRecommended,
-            onUseRecommended = {
-                // Restores the app, activity and file type the starter set uses for this system (some need an exact activity).
-                if (defaults != null) {
-                    scope.launch {
-                        repository.savePlatform(platform.copy(launchPackage = defaults.launchPackage, launchActivity = defaults.launchActivity, mimeType = defaults.mimeType))
-                    }
-                }
-                choosingFor = null
-            },
-            onChooseOther = {
-                choosingFor = null
-                pickingAppFor = row
-            },
-            onDismiss = { choosingFor = null }
-        )
-    }
-
-    pickingAppFor?.let { row ->
-        val platform = row.platform ?: return@let
-        AppPickerDialog(
-            title = "Choose an app for ${row.label}",
-            onPick = { app ->
-                pickingAppFor = null
-                // Plain file handoff: the starter set's special activity / file type belong to the original app.
-                scope.launch {
-                    repository.savePlatform(platform.copy(launchPackage = app.packageName, launchActivity = "", mimeType = "application/octet-stream"))
-                }
-            },
-            onDismiss = { pickingAppFor = null }
-        )
-    }
 }
 
 /** The recommended emulator entry (install source) for [packageName], RetroArch's variant packages included. */
@@ -354,6 +363,29 @@ private fun appName(context: android.content.Context, packageName: String): Stri
         val pm = context.packageManager
         pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
     }.getOrDefault(packageName)
+}
+
+/**
+ * One tabbed-down choice: its label, a filled dot when it's the one in use ([marked] null for a line that's an action, not
+ * a choice) and a +/- when it tabs down further ([toggledOpen] non-null). Glows when the controller is on it.
+ */
+@Composable
+private fun OptionLine(label: String, marked: Boolean?, toggledOpen: Boolean? = null, onClick: () -> Unit) {
+    val interaction = rememberFocusInteractionSource()
+    Row(
+        modifier = Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick).padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (marked != null) {
+            Box(modifier = Modifier.size(10.dp).background(if (marked) FocusGlowColor else Color.Transparent, CircleShape))
+            Spacer(Modifier.width(12.dp))
+        }
+        Text(
+            if (toggledOpen == null) label else "$label  ${if (toggledOpen) "-" else "+"}",
+            style = MaterialTheme.typography.bodyLarge.copy(shadow = interaction.glowShadow()),
+            color = interaction.glowColor(MaterialTheme.colorScheme.onBackground)
+        )
+    }
 }
 
 /** One "Label: value" line under an opened system, the labels in a fixed-width column so the values line up. */
