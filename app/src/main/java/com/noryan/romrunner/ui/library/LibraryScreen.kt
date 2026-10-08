@@ -15,7 +15,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.Icons
-import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
@@ -106,7 +105,7 @@ import kotlinx.coroutines.launch
 
 private data class MissingAppRequest(val platform: Platform, val game: Game, val target: EmulatorLauncher.Target)
 
-private enum class HomeTab { GAMES, SYSTEMS, SETTINGS, APPS }
+private enum class HomeTab { GAMES, SETTINGS, APPS }
 
 /** The shortest sort of menu name that has to fit for a new menu to be allowed at all. */
 private const val MinMenuName = "MENU"
@@ -144,8 +143,8 @@ fun LibraryScreen(
         return total <= tabBarWidthPx
     }
     val selectedTab = HomeTab.entries.firstOrNull { it.name == selectedKey } ?: HomeTab.GAMES
-    // Back from Systems goes up to Settings.
-    BackHandler(enabled = selectedKey == HomeTab.SYSTEMS.name) { selectedKey = HomeTab.SETTINGS.name }
+    // Whether Settings has its Systems list tabbed down.
+    var systemsOpen by remember { mutableStateOf(false) }
     val selectedCustomTab = customTabs.firstOrNull { "custom:${it.id}" == selectedKey }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
     // as big as the whole screen has no sensible "next focusable node below it" for D-pad/joystick
@@ -183,8 +182,9 @@ fun LibraryScreen(
             )
             return
         }
-        // Jump to Systems so the per-emulator progress is visible while it works.
-        selectedKey = HomeTab.SYSTEMS.name
+        // Jump to Settings > Systems so the per-emulator progress is visible while it works.
+        selectedKey = HomeTab.SETTINGS.name
+        systemsOpen = true
         scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
     }
     // First-run offer: right after the first ROMs folder is chosen and scanned, ask once whether to
@@ -745,7 +745,7 @@ fun LibraryScreen(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SettingsIconButton(
-                        selected = selectedCustomTab == null && (selectedTab == HomeTab.SETTINGS || selectedTab == HomeTab.SYSTEMS),
+                        selected = selectedCustomTab == null && selectedTab == HomeTab.SETTINGS,
                         onClick = { selectedKey = HomeTab.SETTINGS.name }
                     )
                     Spacer(Modifier.width(14.dp))
@@ -803,24 +803,23 @@ fun LibraryScreen(
                             }
                         }
                     }
-                    HomeTab.SYSTEMS -> Column(modifier = Modifier.fillMaxSize()) {
-                        // Systems is a sub-menu of Settings: a line to go back up, then the list.
-                        BackToSettingsLine(onClick = { selectedKey = HomeTab.SETTINGS.name })
-                        SystemsContent(
-                            repository = repository,
-                            installState = emulatorInstallState,
-                            onSetUpPrimeHack = { setUpPrimeHack() },
-                            onSetUpEdenDriver = { setUpEdenDriver() },
-                            onSetUpCemu = { setUpCemu() },
-                            onSetUpRetroArch = { setUpRetroArch() },
-                            onSetUpArmsx2 = { setUpArmsx2() }
-                        )
-                    }
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
                         onRomsFolderChanged = { viewModel.rescanAll(context) },
-                        onOpenSystems = { selectedKey = HomeTab.SYSTEMS.name }
+                        systemsOpen = systemsOpen,
+                        onToggleSystems = { systemsOpen = !systemsOpen },
+                        systemsContent = {
+                            SystemsContent(
+                                repository = repository,
+                                installState = emulatorInstallState,
+                                onSetUpPrimeHack = { setUpPrimeHack() },
+                                onSetUpEdenDriver = { setUpEdenDriver() },
+                                onSetUpCemu = { setUpCemu() },
+                                onSetUpRetroArch = { setUpRetroArch() },
+                                onSetUpArmsx2 = { setUpArmsx2() }
+                            )
+                        }
                     )
                     HomeTab.APPS -> AppsContent()
                 }
@@ -1024,24 +1023,6 @@ private fun SettingsIconButton(selected: Boolean, onClick: () -> Unit) {
         }
         // A focused gear gets the same soft bloom the text does (a pixel glow would blur the blocks, so a faint square halo instead).
         if (glow != null) drawRect(color = color.copy(alpha = 0.15f), topLeft = Offset(0f, 0f), size = size)
-    }
-}
-
-/** The line at the top of a Settings sub-menu that goes back up to Settings. */
-@Composable
-private fun BackToSettingsLine(onClick: () -> Unit) {
-    val interaction = rememberFocusInteractionSource()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-    ) {
-        Text(
-            "< SETTINGS",
-            style = MaterialTheme.typography.titleMedium.copy(shadow = interaction.glowShadow()),
-            color = interaction.glowColor(MaterialTheme.colorScheme.onSurfaceVariant)
-        )
     }
 }
 

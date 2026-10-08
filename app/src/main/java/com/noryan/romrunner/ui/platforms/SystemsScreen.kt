@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -201,8 +200,10 @@ fun SystemsContent(
             .map { it.packageName }.toSet()
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(rows, key = { it.key }) { row ->
+    // A plain column, not a lazy list: this sits inside Settings' own scrolling list (Systems tabs down there), and a system
+    // is only one collapsed line until it's opened, so there's no need to compose them lazily.
+    Column(modifier = Modifier.fillMaxWidth()) {
+        rows.forEach { row -> key(row.key) {
             val recommended = recommendedEmulator(row.packageName)
             val setupKey = if (row.packageName.startsWith("com.retroarch")) "com.retroarch" else row.packageName
             val isInstalled = remember(row.packageName, installCheckTick, installState.refreshTick) {
@@ -375,7 +376,7 @@ fun SystemsContent(
                     }
                 }
             }
-        }
+        } }
     }
 }
 

@@ -62,7 +62,6 @@ fun CustomTabEditor(
 ) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var search by remember { mutableStateOf("") }
     var pickedGames by remember { mutableStateOf(initial?.gameUris.orEmpty().toSet()) }
     var pickedApps by remember { mutableStateOf(initial?.appPackages.orEmpty().toSet()) }
 
@@ -71,9 +70,8 @@ fun CustomTabEditor(
             InstalledApps.listLaunchable(context).filter { it.packageName != context.packageName && "launcher" !in it.label.lowercase() }
         }
     }
-    val query = search.trim().lowercase()
-    val shownGames = if (query.isEmpty()) games else games.filter { query in it.title.lowercase() }
-    val shownApps = if (query.isEmpty()) apps else apps.filter { query in it.label.lowercase() }
+    val shownGames = games
+    val shownApps = apps
     val nameTooLong = name.isNotBlank() && !nameFits(name.trim())
     val canSave = name.isNotBlank() && !nameTooLong
 
@@ -104,22 +102,13 @@ fun CustomTabEditor(
                     }
                 }
                 Spacer(Modifier.size(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it.take(MaxNameLength) },
-                        label = { Text("Menu name") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = search,
-                        onValueChange = { search = it },
-                        label = { Text("Search") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(MaxNameLength) },
+                    label = { Text("Menu name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 if (nameTooLong) {
                     Text(
                         "This name doesn't fit in the tab bar. Shorten it, or delete another menu.",

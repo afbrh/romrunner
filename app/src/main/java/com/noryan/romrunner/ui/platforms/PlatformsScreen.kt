@@ -64,7 +64,11 @@ fun PlatformsContent(
     repository: LibraryRepository,
     onDualScreenSupportChanged: () -> Unit,
     onRomsFolderChanged: () -> Unit,
-    onOpenSystems: () -> Unit
+    /** Whether the Systems list is tabbed down under its line, and how to open or close it. */
+    systemsOpen: Boolean,
+    onToggleSystems: () -> Unit,
+    /** The Systems list itself (see SystemsContent), shown under the "Systems" line while it's tabbed down. */
+    systemsContent: @Composable () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -101,7 +105,7 @@ fun PlatformsContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(interactionSource = systemsInteraction, indication = null, onClick = onOpenSystems)
+                    .clickable(interactionSource = systemsInteraction, indication = null, onClick = onToggleSystems)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -111,9 +115,11 @@ fun PlatformsContent(
                     color = systemsColor,
                     modifier = Modifier.weight(1f)
                 )
-                Text(">", style = LocalTextStyle.current.copy(shadow = systemsGlow), color = systemsColor)
+                Text(if (systemsOpen) "-" else "+", style = LocalTextStyle.current.copy(shadow = systemsGlow), color = systemsColor)
             }
         }
+        // Tabbed down: every system, each still collapsed to its one line until opened.
+        if (systemsOpen) item { systemsContent() }
 
         item {
             val romsFolderInteractionSource = rememberFocusInteractionSource()
