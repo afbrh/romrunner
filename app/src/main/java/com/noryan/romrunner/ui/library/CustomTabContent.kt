@@ -3,6 +3,11 @@ package com.noryan.romrunner.ui.library
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,35 +48,21 @@ fun CustomTabContent(
     platformNameFor: (Game) -> String,
     onGameClick: (Game) -> Unit,
     onGameLongClick: (Game) -> Unit,
-    onEdit: () -> Unit
+    onDelete: () -> Unit
 ) {
     val context = LocalContext.current
     val apps by produceState(emptyList<InstalledApp>(), context) {
         value = withContext(Dispatchers.Default) { InstalledApps.listLaunchable(context) }
     }
+    var askDelete by remember { mutableStateOf(false) }
     val tabGames = games.filter { it.fileUri in tab.gameUris }
     val tabApps = apps.filter { it.packageName in tab.appPackages }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            val interaction = rememberFocusInteractionSource()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(interactionSource = interaction, indication = null, onClick = onEdit)
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                Text(
-                    "EDIT MENU",
-                    style = MaterialTheme.typography.titleMedium.copy(shadow = interaction.glowShadow()),
-                    color = interaction.glowColor(MaterialTheme.colorScheme.onSurfaceVariant)
-                )
-            }
-        }
         if (tabGames.isEmpty() && tabApps.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("Nothing in this menu yet. Choose Edit Menu to add games or apps.")
+                    Text("Nothing in this menu.")
                 }
             }
         }
@@ -100,5 +91,52 @@ fun CustomTabContent(
                 )
             }
         }
+
+        // A "-" at the bottom right deletes the menu, after asking.
+        item {
+            val interaction = rememberFocusInteractionSource()
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "-",
+                    style = MaterialTheme.typography.headlineSmall.copy(shadow = interaction.glowShadow()),
+                    color = interaction.glowColor(MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier
+                        .clickable(interactionSource = interaction, indication = null) { askDelete = true }
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
     }
+
+    if (askDelete) {
+        AlertDialog(
+            onDismissRequest = { askDelete = false },
+            title = { Text("Delete this menu?") },
+            text = { Text("\"${tab.name}\" will be removed. The games and apps in it aren't touched.") },
+            confirmButton = {
+                Column {
+                    ConfirmLine("Delete") {
+                        askDelete = false
+                        onDelete()
+                    }
+                    ConfirmLine("Keep it") { askDelete = false }
+                }
+            }
+        )
+    }
+}
+
+/** A white line in the delete question that turns orange when selected, matching the other dialogs' options. */
+@Composable
+private fun ConfirmLine(text: String, onClick: () -> Unit) {
+    val interaction = rememberFocusInteractionSource()
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium.copy(shadow = interaction.glowShadow()),
+        color = interaction.glowColor(MaterialTheme.colorScheme.onSurface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(vertical = 12.dp)
+    )
 }

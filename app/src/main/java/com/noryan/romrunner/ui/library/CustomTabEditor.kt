@@ -58,7 +58,7 @@ private const val MaxNameLength = 24
 
 /**
  * Making or editing one of the user's own menus (the "+" in the tab bar): a name, then ticking the games and apps that
- * should be in it. Full screen over the home screen; Save keeps it, Cancel drops the changes, Delete (when editing) removes the menu.
+ * should be in it. Full screen over the home screen; Save keeps it; Back (B) closes it without saving.
  */
 @Composable
 fun CustomTabEditor(
@@ -67,7 +67,6 @@ fun CustomTabEditor(
     /** Whether a menu with this name would still fit in the tab bar (which doesn't scroll). */
     nameFits: (String) -> Boolean,
     onSave: (CustomTab) -> Unit,
-    onDelete: (() -> Unit)?,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
@@ -95,12 +94,7 @@ fun CustomTabEditor(
                         style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f)
                     )
-                    if (onDelete != null) {
-                        EditorAction("DELETE", enabled = true, onClick = onDelete)
-                        Spacer(Modifier.width(24.dp))
-                    }
-                    EditorAction("CANCEL", enabled = true, onClick = onCancel)
-                    Spacer(Modifier.width(24.dp))
+                    // No Cancel button: Back (B on the controller) closes the editor without saving.
                     EditorAction("SAVE", enabled = canSave) {
                         onSave(
                             CustomTab(

@@ -762,7 +762,12 @@ fun LibraryScreen(
                         platformNameFor = { game -> displayPlatformName(platformsById[game.platformId], game) },
                         onGameClick = { game -> platformsById[game.platformId]?.let { attemptLaunch(it, game) } },
                         onGameLongClick = { game -> actionGame = game },
-                        onEdit = { tabEditor = selectedCustomTab }
+                        onDelete = {
+                            val id = selectedCustomTab.id
+                            customTabs = customTabs.filter { it.id != id }
+                            repository.saveCustomTabs(customTabs)
+                            selectedKey = HomeTab.GAMES.name
+                        }
                     )
                 } else when (selectedTab) {
                     HomeTab.GAMES -> PullToRefreshBox(
@@ -838,15 +843,6 @@ fun LibraryScreen(
                 selectedKey = "custom:${saved.id}"
                 creatingTab = false
                 tabEditor = null
-            },
-            onDelete = tabEditor?.let { editing ->
-                {
-                    customTabs = customTabs.filter { it.id != editing.id }
-                    repository.saveCustomTabs(customTabs)
-                    if (selectedKey == "custom:${editing.id}") selectedKey = HomeTab.GAMES.name
-                    creatingTab = false
-                    tabEditor = null
-                }
             },
             onCancel = {
                 creatingTab = false
