@@ -54,6 +54,8 @@ private const val MaxNameLength = 24
 fun CustomTabEditor(
     initial: CustomTab?,
     games: List<Game>,
+    /** Whether a menu with this name would still fit in the tab bar (which doesn't scroll). */
+    nameFits: (String) -> Boolean,
     onSave: (CustomTab) -> Unit,
     onDelete: (() -> Unit)?,
     onCancel: () -> Unit
@@ -72,7 +74,8 @@ fun CustomTabEditor(
     val query = search.trim().lowercase()
     val shownGames = if (query.isEmpty()) games else games.filter { query in it.title.lowercase() }
     val shownApps = if (query.isEmpty()) apps else apps.filter { query in it.label.lowercase() }
-    val canSave = name.isNotBlank()
+    val nameTooLong = name.isNotBlank() && !nameFits(name.trim())
+    val canSave = name.isNotBlank() && !nameTooLong
 
     Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -115,6 +118,14 @@ fun CustomTabEditor(
                         label = { Text("Search") },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
+                    )
+                }
+                if (nameTooLong) {
+                    Text(
+                        "This name doesn't fit in the tab bar. Shorten it, or delete another menu.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color(0xFFFF6B6B),
+                        modifier = Modifier.padding(top = 6.dp)
                     )
                 }
                 Spacer(Modifier.size(8.dp))

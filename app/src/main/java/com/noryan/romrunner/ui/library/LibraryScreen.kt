@@ -10,9 +10,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import com.noryan.romrunner.data.model.CustomTab
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,6 +102,9 @@ private data class MissingAppRequest(val platform: Platform, val game: Game, val
 
 private enum class HomeTab { GAMES, SYSTEMS, SETTINGS, APPS }
 
+/** The shortest sort of menu name that has to fit for a new menu to be allowed at all. */
+private const val MinMenuName = "MENU"
+
 /** The next tab in the bar (L1/R1), the built-in ones first and then the user's own menus in order. */
 private fun cycleTab(currentKey: String, customTabs: List<CustomTab>, delta: Int): String {
     val keys = HomeTab.entries.map { it.name } + customTabs.map { "custom:${it.id}" }
@@ -120,6 +124,19 @@ fun LibraryScreen(
     // Null = no editor open; otherwise the menu being edited, or a blank one when "+" was just pressed.
     var tabEditor by remember { mutableStateOf<CustomTab?>(null) }
     var creatingTab by remember { mutableStateOf(false) }
+    // The tab bar never scrolls, so what fits in it limits how many menus there can be and how long their names are:
+    // [tabBarFits] measures the headings (same style and spacing as drawn) against the bar's measured width.
+    val textMeasurer = rememberTextMeasurer()
+    val tabDensity = LocalDensity.current
+    val tabHeadingStyle = MaterialTheme.typography.headlineSmall
+    var tabBarWidthPx by remember { mutableStateOf(0) }
+    fun tabBarFits(customNames: List<String>): Boolean {
+        if (tabBarWidthPx == 0) return true // not measured yet
+        val labels = listOf("GAMES", "SYSTEMS", "SETTINGS", "APPS") + customNames.map { it.uppercase() } + "+"
+        val spacing = with(tabDensity) { 24.dp.toPx() }
+        val total = labels.sumOf { textMeasurer.measure(it, tabHeadingStyle).size.width } + spacing * (labels.size - 1)
+        return total <= tabBarWidthPx
+    }
     val selectedTab = HomeTab.entries.firstOrNull { it.name == selectedKey } ?: HomeTab.GAMES
     val selectedCustomTab = customTabs.firstOrNull { "custom:${it.id}" == selectedKey }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
@@ -687,7 +704,7 @@ fun LibraryScreen(
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())
+                    modifier = Modifier.weight(1f).onSizeChanged { tabBarWidthPx = it.width }
                 ) {
                     HomeTabHeading(
                         text = "GAMES",
@@ -718,7 +735,15 @@ fun LibraryScreen(
                             onClick = { selectedKey = "custom:${tab.id}" }
                         )
                     }
-                    HomeTabHeading(text = "+", selected = false, onClick = { creatingTab = true })
+                    HomeTabHeading(
+                        text = "+",
+                        selected = false,
+                        onClick = {
+                            // The bar doesn't scroll, so a new menu is only allowed while one more still fits.
+                            if (tabBarFits(customTabs.map { it.name } + MinMenuName)) creatingTab = true
+                            else Toast.makeText(context, "The tab bar is full. Delete a menu or shorten a menu name to make room.", Toast.LENGTH_LONG).show()
+                        }
+                    )
                 }
                 HomeStatusInfo()
             }
@@ -797,6 +822,7 @@ fun LibraryScreen(
         CustomTabEditor(
             initial = tabEditor,
             games = state.games,
+            nameFits = { name -> tabBarFits(customTabs.filter { it.id != tabEditor?.id }.map { it.name } + name) },
             onSave = { saved ->
                 customTabs = if (customTabs.any { it.id == saved.id }) customTabs.map { if (it.id == saved.id) saved else it } else customTabs + saved
                 repository.saveCustomTabs(customTabs)
