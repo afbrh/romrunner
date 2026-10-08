@@ -100,30 +100,6 @@ fun PlatformsContent(
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        // Systems (each system's emulator, status and setup) is a sub-menu of Settings.
-        item {
-            val systemsInteraction = rememberFocusInteractionSource()
-            val systemsGlow = systemsInteraction.glowShadow()
-            val systemsColor = systemsInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(interactionSource = systemsInteraction, indication = null, onClick = onToggleSystems)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Systems",
-                    style = LocalTextStyle.current.copy(shadow = systemsGlow),
-                    color = systemsColor,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(if (systemsOpen) "-" else "+", style = LocalTextStyle.current.copy(shadow = systemsGlow), color = systemsColor)
-            }
-        }
-        // Tabbed down: every system, each still collapsed to its one line until opened.
-        if (systemsOpen) item { systemsContent() }
-
         // Only there once Games or Apps has been removed from the tab bar.
         if (hiddenDefaultMenus.isNotEmpty()) {
             item {
@@ -214,6 +190,31 @@ fun PlatformsContent(
                 )
             }
         }
+
+
+        // Systems (each system's emulator, status and setup) is a sub-menu of Settings.
+        item {
+            val systemsInteraction = rememberFocusInteractionSource()
+            val systemsGlow = systemsInteraction.glowShadow()
+            val systemsColor = systemsInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(interactionSource = systemsInteraction, indication = null, onClick = onToggleSystems)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Systems",
+                    style = LocalTextStyle.current.copy(shadow = systemsGlow),
+                    color = systemsColor,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(if (systemsOpen) "-" else "+", style = LocalTextStyle.current.copy(shadow = systemsGlow), color = systemsColor)
+            }
+        }
+        // Tabbed down: every system, each still collapsed to its one line until opened.
+        if (systemsOpen) item { systemsContent() }
 
     }
 }
