@@ -4,6 +4,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,6 +72,7 @@ fun CustomTabEditor(
 ) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var editingName by remember { mutableStateOf(false) }
     var pickedGames by remember { mutableStateOf(initial?.gameUris.orEmpty().toSet()) }
     var pickedApps by remember { mutableStateOf(initial?.appPackages.orEmpty().toSet()) }
 
@@ -102,13 +113,34 @@ fun CustomTabEditor(
                     }
                 }
                 Spacer(Modifier.size(8.dp))
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it.take(MaxNameLength) },
-                    label = { Text("Menu name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // The keyboard stays closed until the name is tapped, or A / confirm is pressed on it (a text field that holds focus
+                // would pop it open as soon as the editor appears, or as the controller passes over it). Until then it's a plain line.
+                if (editingName) {
+                    val focusRequester = remember { FocusRequester() }
+                    val keyboard = LocalSoftwareKeyboardController.current
+                    var hadFocus by remember { mutableStateOf(false) }
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it.take(MaxNameLength) },
+                        label = { Text("Menu name") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { editingName = false }),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
+                            .onFocusChanged {
+                                if (it.isFocused) hadFocus = true
+                                else if (hadFocus) editingName = false
+                            }
+                    )
+                    LaunchedEffect(Unit) {
+                        focusRequester.requestFocus()
+                        keyboard?.show()
+                    }
+                } else {
+                    NameLine(name) { editingName = true }
+                }
                 if (nameTooLong) {
                     Text(
                         "This name doesn't fit in the tab bar. Shorten it, or delete another menu.",
@@ -136,6 +168,28 @@ fun CustomTabEditor(
                 }
             }
         }
+    }
+}
+
+/** The menu name as a plain line that looks like the field: tap it (or A / confirm on it) to start typing. */
+@Composable
+private fun NameLine(name: String, onClick: () -> Unit) {
+    val interaction = rememberFocusInteractionSource()
+    val focused by interaction.collectIsFocusedAsState()
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(if (focused) 2.dp else 1.dp, if (focused) accent else MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(4.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Text("Menu name", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            name.ifBlank { "Tap to name this menu" },
+            style = MaterialTheme.typography.titleMedium.copy(shadow = interaction.glowShadow()),
+            color = if (name.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else interaction.glowColor(MaterialTheme.colorScheme.onSurface)
+        )
     }
 }
 
