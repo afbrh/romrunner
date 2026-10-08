@@ -63,7 +63,8 @@ import kotlinx.coroutines.withContext
 fun PlatformsContent(
     repository: LibraryRepository,
     onDualScreenSupportChanged: () -> Unit,
-    onRomsFolderChanged: () -> Unit
+    onRomsFolderChanged: () -> Unit,
+    onOpenSystems: () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -92,6 +93,28 @@ fun PlatformsContent(
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
+        // Systems (each system's emulator, status and setup) is a sub-menu of Settings.
+        item {
+            val systemsInteraction = rememberFocusInteractionSource()
+            val systemsGlow = systemsInteraction.glowShadow()
+            val systemsColor = systemsInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(interactionSource = systemsInteraction, indication = null, onClick = onOpenSystems)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Systems",
+                    style = LocalTextStyle.current.copy(shadow = systemsGlow),
+                    color = systemsColor,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(">", style = LocalTextStyle.current.copy(shadow = systemsGlow), color = systemsColor)
+            }
+        }
+
         item {
             val romsFolderInteractionSource = rememberFocusInteractionSource()
             val romsFolderGlow = romsFolderInteractionSource.glowShadow()

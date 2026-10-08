@@ -10,6 +10,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.Icons
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
@@ -105,9 +108,9 @@ private enum class HomeTab { GAMES, SYSTEMS, SETTINGS, APPS }
 /** The shortest sort of menu name that has to fit for a new menu to be allowed at all. */
 private const val MinMenuName = "MENU"
 
-/** The next tab in the bar (L1/R1), the built-in ones first and then the user's own menus in order. */
+/** The next tab in the bar (L1/R1): Games, Apps, then the user's own menus in order. Settings (and Systems inside it) is the icon, not a tab. */
 private fun cycleTab(currentKey: String, customTabs: List<CustomTab>, delta: Int): String {
-    val keys = HomeTab.entries.map { it.name } + customTabs.map { "custom:${it.id}" }
+    val keys = listOf(HomeTab.GAMES.name, HomeTab.APPS.name) + customTabs.map { "custom:${it.id}" }
     val nextIndex = (keys.indexOf(currentKey).coerceAtLeast(0) + delta + keys.size) % keys.size
     return keys[nextIndex]
 }
@@ -132,12 +135,14 @@ fun LibraryScreen(
     var tabBarWidthPx by remember { mutableStateOf(0) }
     fun tabBarFits(customNames: List<String>): Boolean {
         if (tabBarWidthPx == 0) return true // not measured yet
-        val labels = listOf("GAMES", "SYSTEMS", "SETTINGS", "APPS") + customNames.map { it.uppercase() } + "+"
+        val labels = listOf("GAMES", "APPS") + customNames.map { it.uppercase() } + "+"
         val spacing = with(tabDensity) { 24.dp.toPx() }
         val total = labels.sumOf { textMeasurer.measure(it, tabHeadingStyle).size.width } + spacing * (labels.size - 1)
         return total <= tabBarWidthPx
     }
     val selectedTab = HomeTab.entries.firstOrNull { it.name == selectedKey } ?: HomeTab.GAMES
+    // Back from Systems goes up to Settings.
+    BackHandler(enabled = selectedKey == HomeTab.SYSTEMS.name) { selectedKey = HomeTab.SETTINGS.name }
     val selectedCustomTab = customTabs.firstOrNull { "custom:${it.id}" == selectedKey }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
     // as big as the whole screen has no sensible "next focusable node below it" for D-pad/joystick
@@ -646,7 +651,7 @@ fun LibraryScreen(
             } catch (e: ActivityNotFoundException) {
                 Toast.makeText(
                     context,
-                    "No app could open this file. Check the emulator for ${platform.name} on the Systems tab.",
+                    "No app could open this file. Check the emulator for ${platform.name} in Settings > Systems.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -713,16 +718,6 @@ fun LibraryScreen(
                         modifier = Modifier.focusRequester(gamesTabFocusRequester)
                     )
                     HomeTabHeading(
-                        text = "SYSTEMS",
-                        selected = selectedKey == HomeTab.SYSTEMS.name,
-                        onClick = { selectedKey = HomeTab.SYSTEMS.name }
-                    )
-                    HomeTabHeading(
-                        text = "SETTINGS",
-                        selected = selectedKey == HomeTab.SETTINGS.name,
-                        onClick = { selectedKey = HomeTab.SETTINGS.name }
-                    )
-                    HomeTabHeading(
                         text = "APPS",
                         selected = selectedKey == HomeTab.APPS.name,
                         onClick = { selectedKey = HomeTab.APPS.name }
@@ -745,7 +740,14 @@ fun LibraryScreen(
                         }
                     )
                 }
-                HomeStatusInfo()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    HomeStatusInfo()
+                    Spacer(Modifier.width(14.dp))
+                    SettingsIconButton(
+                        selected = selectedCustomTab == null && (selectedTab == HomeTab.SETTINGS || selectedTab == HomeTab.SYSTEMS),
+                        onClick = { selectedKey = HomeTab.SETTINGS.name }
+                    )
+                }
             }
             HorizontalDivider()
 
@@ -798,19 +800,24 @@ fun LibraryScreen(
                             }
                         }
                     }
-                    HomeTab.SYSTEMS -> SystemsContent(
-                        repository = repository,
-                        installState = emulatorInstallState,
-                        onSetUpPrimeHack = { setUpPrimeHack() },
-                        onSetUpEdenDriver = { setUpEdenDriver() },
-                        onSetUpCemu = { setUpCemu() },
-                        onSetUpRetroArch = { setUpRetroArch() },
-                        onSetUpArmsx2 = { setUpArmsx2() }
-                    )
+                    HomeTab.SYSTEMS -> Column(modifier = Modifier.fillMaxSize()) {
+                        // Systems is a sub-menu of Settings: a line to go back up, then the list.
+                        BackToSettingsLine(onClick = { selectedKey = HomeTab.SETTINGS.name })
+                        SystemsContent(
+                            repository = repository,
+                            installState = emulatorInstallState,
+                            onSetUpPrimeHack = { setUpPrimeHack() },
+                            onSetUpEdenDriver = { setUpEdenDriver() },
+                            onSetUpCemu = { setUpCemu() },
+                            onSetUpRetroArch = { setUpRetroArch() },
+                            onSetUpArmsx2 = { setUpArmsx2() }
+                        )
+                    }
                     HomeTab.SETTINGS -> PlatformsContent(
                         repository = repository,
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
-                        onRomsFolderChanged = { viewModel.rescanAll(context) }
+                        onRomsFolderChanged = { viewModel.rescanAll(context) },
+                        onOpenSystems = { selectedKey = HomeTab.SYSTEMS.name }
                     )
                     HomeTab.APPS -> AppsContent()
                 }
@@ -980,6 +987,39 @@ private fun openWebSearch(context: Context, query: String) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, "No browser available to search for it.", Toast.LENGTH_LONG).show()
+    }
+}
+
+/** The small gear next to the clock that opens Settings; lit while Settings (or Systems inside it) is open, and glows with the controller. */
+@Composable
+private fun SettingsIconButton(selected: Boolean, onClick: () -> Unit) {
+    val interaction = rememberFocusInteractionSource()
+    val base = if (selected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
+    Icon(
+        Icons.Filled.Settings,
+        contentDescription = "Settings",
+        tint = interaction.glowColor(base),
+        modifier = Modifier
+            .size(26.dp)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+    )
+}
+
+/** The line at the top of a Settings sub-menu that goes back up to Settings. */
+@Composable
+private fun BackToSettingsLine(onClick: () -> Unit) {
+    val interaction = rememberFocusInteractionSource()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        Text(
+            "< SETTINGS",
+            style = MaterialTheme.typography.titleMedium.copy(shadow = interaction.glowShadow()),
+            color = interaction.glowColor(MaterialTheme.colorScheme.onSurfaceVariant)
+        )
     }
 }
 
