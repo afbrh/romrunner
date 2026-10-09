@@ -160,7 +160,6 @@ fun LibraryScreen(
     }
     val selectedTab = HomeTab.entries.firstOrNull { it.name == selectedKey } ?: HomeTab.GAMES
     // Whether Settings has its Systems list tabbed down.
-    var systemsOpen by remember { mutableStateOf(false) }
     var listsOpen by remember { mutableStateOf(false) }
     // A user-made list being asked about removing from Settings > Lists.
     var removingCustom by remember { mutableStateOf<CustomTab?>(null) }
@@ -206,9 +205,8 @@ fun LibraryScreen(
             )
             return
         }
-        // Jump to Settings > Systems so the per-emulator progress is visible while it works.
+        // Jump to Settings, where the systems are listed, so the per-emulator progress is visible while it works.
         selectedKey = HomeTab.SETTINGS.name
-        systemsOpen = true
         scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
     }
     // Starts installing every emulator the library needs: first the "all files access" screen (it lets RomRunner reuse
@@ -897,8 +895,6 @@ fun LibraryScreen(
                         repository = repository,
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
                         onRomsFolderChanged = { viewModel.rescanAll(context) },
-                        systemsOpen = systemsOpen,
-                        onToggleSystems = { systemsOpen = !systemsOpen },
                         listsOpen = listsOpen,
                         onToggleLists = { listsOpen = !listsOpen },
                         listsContent = {

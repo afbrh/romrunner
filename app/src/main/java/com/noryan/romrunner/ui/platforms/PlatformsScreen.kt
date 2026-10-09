@@ -64,10 +64,7 @@ fun PlatformsContent(
     repository: LibraryRepository,
     onDualScreenSupportChanged: () -> Unit,
     onRomsFolderChanged: () -> Unit,
-    /** Whether the Systems list is tabbed down under its line, and how to open or close it. */
-    systemsOpen: Boolean,
-    onToggleSystems: () -> Unit,
-    /** The Systems list itself (see SystemsContent), shown under the "Systems" line while it's tabbed down. */
+    /** The systems (see SystemsContent), listed right in Settings, each with its options open. */
     systemsContent: @Composable () -> Unit,
     /** Whether the Lists settings are tabbed down under their line, how to open or close them, and what they show (see ListsSettingsContent). */
     listsOpen: Boolean,
@@ -192,29 +189,8 @@ fun PlatformsContent(
         }
         if (listsOpen) item { listsContent() }
 
-        // Systems (each system's emulator, status and setup) is a sub-menu of Settings.
-        item {
-            val systemsInteraction = rememberFocusInteractionSource()
-            val systemsGlow = systemsInteraction.glowShadow()
-            val systemsColor = systemsInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(interactionSource = systemsInteraction, indication = null, onClick = onToggleSystems)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Systems",
-                    style = LocalTextStyle.current.copy(shadow = systemsGlow),
-                    color = systemsColor,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(if (systemsOpen) "-" else "+", style = LocalTextStyle.current.copy(shadow = systemsGlow), color = systemsColor)
-            }
-        }
-        // Tabbed down: every system, each still collapsed to its one line until opened.
-        if (systemsOpen) item { systemsContent() }
+        // Every system, at the bottom of Settings with its options already open (each can still be folded shut).
+        item { systemsContent() }
 
     }
 }

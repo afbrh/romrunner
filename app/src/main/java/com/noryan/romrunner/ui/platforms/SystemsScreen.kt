@@ -179,13 +179,16 @@ fun SystemsContent(
         Armsx2Setup.PACKAGE to (armsx2Loaded to onSetUpArmsx2)
     )
 
-    // "Tabbing down": everything on this tab that opens does so inline, as more tabbed-in lines under the thing you picked,
-    // never as a pop-up. Each tab-down has a key ("<system>" for the system itself, "<system>:emulator" for its emulator
-    // choices, "<system>:apps" for the list of other apps) and everything starts collapsed.
+    // "Tabbing down": everything here that opens does so inline, as more tabbed-in lines under the thing you picked, never as a
+    // pop-up. A system's own lines (Emulator, Status, Configured) start open and can be folded shut: [folded] holds the ones
+    // that were. Under them, "<system>:emulator" is its emulator choices, "<system>:apps" the list of other apps and
+    // "<system>:core" the RetroArch cores; those start closed and are in [expanded].
     var expanded by remember { mutableStateOf(setOf<String>()) }
+    var folded by remember { mutableStateOf(setOf<String>()) }
     // Bumped when a RetroArch core is changed, so the line showing it re-reads the saved choice.
     var coreTick by remember { mutableStateOf(0) }
     fun toggle(key: String) { expanded = if (key in expanded) expanded - key else expanded + key }
+    fun toggleSystem(key: String) { folded = if (key in folded) folded - key else folded + key }
 
     // The installed apps offered under "Choose another app", read once the first time that's tabbed down.
     val installedApps by produceState<List<InstalledApp>?>(null, expanded.any { it.endsWith(":apps") }) {
@@ -228,7 +231,7 @@ fun SystemsContent(
             val emulatorFocus = rememberFocusInteractionSource()
             val statusFocus = rememberFocusInteractionSource()
             val configuredFocus = rememberFocusInteractionSource()
-            val isOpen = row.key in expanded
+            val isOpen = row.key !in folded
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                 // The heading: status dot and system name; tap it to fan the system open or closed.
@@ -236,7 +239,7 @@ fun SystemsContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(interactionSource = headingFocus, indication = null) { toggle(row.key) }
+                        .clickable(interactionSource = headingFocus, indication = null) { toggleSystem(row.key) }
                         .padding(vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
