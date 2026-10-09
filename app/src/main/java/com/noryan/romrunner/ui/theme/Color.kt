@@ -17,6 +17,5 @@ val Amber40 = Color(0xFFB4690E)
 val BrandOrange = Color(0xFFFF6B4A)
 val BrandNavy = Color(0xFF0E0A22)
 
-// The highlight color for text the controller is on (and the app's accent): the brand orange moved toward golden amber, deep enough to stand out against the white text.
-// Only text and UI use it; the cartridge mark itself stays the brand orange.
-val HighlightColor = Color(0xFFF59E0B)
+// The highlight color for text the controller is on (and the app's accent): the brand orange of the logo.
+val HighlightColor = BrandOrange
