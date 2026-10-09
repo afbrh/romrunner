@@ -3,8 +3,10 @@ package com.noryan.romrunner.ui.library
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,7 +19,7 @@ import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 
 /**
- * Settings > Lists, tabbed down: every list on the home screen with a "-" to remove it (or a "+" to bring back Games or Apps
+ * Settings > Lists, tabbed down: every list on the home screen with a "-" beside it to remove it (or a "+" to bring back Games or Apps
  * once removed), then "Add a list". The lists are the tabs in the bar: Games and Apps, which everyone starts with, and the
  * user's own. Removing one only removes the list, never the games or apps in it.
  */
@@ -40,7 +42,7 @@ fun ListsSettingsContent(
     }
 }
 
-/** One line: the list's name, and at the right what pressing it does ("-" removes it, "+" adds or brings it back). Glows with the controller. */
+/** One line: the list's name, and right beside it what pressing it does ("-" removes it, "+" adds or brings it back). Glows with the controller. */
 @Composable
 private fun ListLine(label: String, action: String, onClick: () -> Unit) {
     val interaction = rememberFocusInteractionSource()
@@ -53,7 +55,8 @@ private fun ListLine(label: String, action: String, onClick: () -> Unit) {
             .padding(end = 20.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow), color = color, modifier = Modifier.weight(1f))
+        Text(label, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow), color = color)
+        Spacer(Modifier.width(12.dp))
         Text(action, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow), color = color)
     }
 }

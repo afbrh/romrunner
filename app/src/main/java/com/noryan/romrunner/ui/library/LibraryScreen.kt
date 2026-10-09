@@ -149,7 +149,7 @@ fun LibraryScreen(
     var tabBarWidthPx by remember { mutableStateOf(0) }
     fun tabBarFits(customNames: List<String>): Boolean {
         if (tabBarWidthPx == 0) return true // not measured yet
-        val labels = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customNames.map { it.uppercase() }
+        val labels = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customNames.map { it.uppercase() } + "/"
         val spacing = with(tabDensity) { 24.dp.toPx() }
         val total = labels.sumOf { textMeasurer.measure(it, tabHeadingStyle).size.width } + spacing * (labels.size - 1)
         return total <= tabBarWidthPx
@@ -739,15 +739,13 @@ fun LibraryScreen(
                             onClick = { selectedKey = "custom:${tab.id}" }
                         )
                     }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Settings: a "/" that is always the right-most option, right after the lists.
                     SettingsIconButton(
                         selected = selectedCustomTab == null && selectedTab == HomeTab.SETTINGS,
                         onClick = { selectedKey = HomeTab.SETTINGS.name }
                     )
-                    Spacer(Modifier.width(14.dp))
-                    HomeStatusInfo()
                 }
+                HomeStatusInfo()
             }
             HorizontalDivider()
 
@@ -1031,38 +1029,17 @@ private fun openWebSearch(context: Context, query: String) {
     }
 }
 
-/** The small pixel-art gear left of the clock that opens Settings; lit while Settings (or Systems inside it) is open, and glows with the controller. */
+/** The "/" at the right end of the bar, after the lists, that opens Settings; lit while Settings is open, and glows with the controller. */
 @Composable
 private fun SettingsIconButton(selected: Boolean, onClick: () -> Unit) {
     val interaction = rememberFocusInteractionSource()
     val base = if (selected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
-    val color = interaction.glowColor(base)
-    val glow = interaction.glowShadow()
-    Canvas(
-        modifier = Modifier
-            .size(28.dp)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-    ) {
-        // An 11 x 11 grid of square pixels, like the pixel font: a ring with a 3 x 3 hole, a tooth on each side and a 2 x 2 tooth on each diagonal.
-        val grid = 11
-        val cell = kotlin.math.floor(size.minDimension / grid)
-        val offset = (size.minDimension - cell * grid) / 2f
-        for (y in 0 until grid) {
-            for (x in 0 until grid) {
-                val dx = x - 5
-                val dy = y - 5
-                val r2 = dx * dx + dy * dy
-                val ring = r2 in 4..17
-                val sideTooth = kotlin.math.abs(dx) <= 1 && kotlin.math.abs(dy) == 5 || kotlin.math.abs(dy) <= 1 && kotlin.math.abs(dx) == 5
-                val diagonalTooth = kotlin.math.abs(dx) in 3..4 && kotlin.math.abs(dy) in 3..4
-                if (ring || sideTooth || diagonalTooth) {
-                    drawRect(color = color, topLeft = Offset(offset + x * cell, offset + y * cell), size = Size(cell, cell))
-                }
-            }
-        }
-        // A focused gear gets the same soft bloom the text does (a pixel glow would blur the blocks, so a faint square halo instead).
-        if (glow != null) drawRect(color = color.copy(alpha = 0.15f), topLeft = Offset(0f, 0f), size = size)
-    }
+    Text(
+        text = "/",
+        style = MaterialTheme.typography.headlineSmall.copy(shadow = interaction.glowShadow()),
+        color = interaction.glowColor(base),
+        modifier = Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick)
+    )
 }
 
 @Composable
