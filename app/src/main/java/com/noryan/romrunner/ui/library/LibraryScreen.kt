@@ -149,7 +149,7 @@ fun LibraryScreen(
     var tabBarWidthPx by remember { mutableStateOf(0) }
     fun tabBarFits(customNames: List<String>): Boolean {
         if (tabBarWidthPx == 0) return true // not measured yet
-        val labels = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customNames.map { it.uppercase() } + "/"
+        val labels = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customNames.map { it.uppercase() } + "*"
         val spacing = with(tabDensity) { 24.dp.toPx() }
         val total = labels.sumOf { textMeasurer.measure(it, tabHeadingStyle).size.width } + spacing * (labels.size - 1)
         return total <= tabBarWidthPx
@@ -739,7 +739,7 @@ fun LibraryScreen(
                             onClick = { selectedKey = "custom:${tab.id}" }
                         )
                     }
-                    // Settings: a "/" that is always the right-most option, right after the lists.
+                    // Settings: a "*" that is always the right-most option, right after the lists.
                     SettingsIconButton(
                         selected = selectedCustomTab == null && selectedTab == HomeTab.SETTINGS,
                         onClick = { selectedKey = HomeTab.SETTINGS.name }
@@ -1029,13 +1029,13 @@ private fun openWebSearch(context: Context, query: String) {
     }
 }
 
-/** The "/" at the right end of the bar, after the lists, that opens Settings; lit while Settings is open, and glows with the controller. */
+/** The "*" at the right end of the bar, after the lists, that opens Settings; lit while Settings is open, and glows with the controller. */
 @Composable
 private fun SettingsIconButton(selected: Boolean, onClick: () -> Unit) {
     val interaction = rememberFocusInteractionSource()
     val base = if (selected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
     Text(
-        text = "/",
+        text = "*",
         style = MaterialTheme.typography.headlineSmall.copy(shadow = interaction.glowShadow()),
         color = interaction.glowColor(base),
         modifier = Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick)
