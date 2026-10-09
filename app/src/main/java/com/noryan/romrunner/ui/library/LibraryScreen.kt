@@ -87,7 +87,6 @@ import com.noryan.romrunner.data.repository.LibraryRepository
 import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
-import com.noryan.romrunner.ui.components.RemoveMenuRow
 import com.noryan.romrunner.ui.components.ConfirmRemoveDialog
 import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
@@ -150,7 +149,7 @@ fun LibraryScreen(
     var tabBarWidthPx by remember { mutableStateOf(0) }
     fun tabBarFits(customNames: List<String>): Boolean {
         if (tabBarWidthPx == 0) return true // not measured yet
-        val labels = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customNames.map { it.uppercase() } + "+"
+        val labels = listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customNames.map { it.uppercase() }
         val spacing = with(tabDensity) { 24.dp.toPx() }
         val total = labels.sumOf { textMeasurer.measure(it, tabHeadingStyle).size.width } + spacing * (labels.size - 1)
         return total <= tabBarWidthPx
@@ -732,7 +731,7 @@ fun LibraryScreen(
                             onClick = { selectedKey = HomeTab.APPS.name }
                         )
                     }
-                    // The user's own menus, then the "+" that makes another.
+                    // The user's own lists (added and removed in Settings > Lists).
                     customTabs.forEach { tab ->
                         HomeTabHeading(
                             text = tab.name.uppercase(),
@@ -740,11 +739,6 @@ fun LibraryScreen(
                             onClick = { selectedKey = "custom:${tab.id}" }
                         )
                     }
-                    HomeTabHeading(
-                        text = "+",
-                        selected = false,
-                        onClick = { tryCreateList() }
-                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SettingsIconButton(
@@ -765,13 +759,6 @@ fun LibraryScreen(
                         platformNameFor = { game -> displayPlatformName(platformsById[game.platformId], game) },
                         onGameClick = { game -> platformsById[game.platformId]?.let { attemptLaunch(it, game) } },
                         onGameLongClick = { game -> actionGame = game },
-                        onDelete = {
-                            val id = selectedCustomTab.id
-                            customTabs = customTabs.filter { it.id != id }
-                            repository.saveCustomTabs(customTabs)
-                            selectedKey = (listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customTabs.map { "custom:${it.id}" })
-                                .firstOrNull() ?: HomeTab.SETTINGS.name
-                        }
                     )
                 } else when (selectedTab) {
                     HomeTab.GAMES -> PullToRefreshBox(
@@ -808,7 +795,6 @@ fun LibraryScreen(
                                             onLongClick = onGameLongClick
                                         )
                                     }
-                                    item { RemoveMenuRow { removingDefault = HomeTab.GAMES.name } }
                                 }
                             }
                         }
@@ -846,7 +832,7 @@ fun LibraryScreen(
                             )
                         }
                     )
-                    HomeTab.APPS -> AppsContent(onRemoveMenu = { removingDefault = HomeTab.APPS.name })
+                    HomeTab.APPS -> AppsContent()
                 }
             }
         }

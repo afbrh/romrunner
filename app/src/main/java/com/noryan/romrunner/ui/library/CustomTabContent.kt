@@ -29,9 +29,7 @@ import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.InstalledApps
 import com.noryan.romrunner.data.model.CustomTab
 import com.noryan.romrunner.data.model.Game
-import com.noryan.romrunner.ui.components.ConfirmRemoveDialog
 import com.noryan.romrunner.ui.components.GameRow
-import com.noryan.romrunner.ui.components.RemoveMenuRow
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
@@ -49,14 +47,12 @@ fun CustomTabContent(
     games: List<Game>,
     platformNameFor: (Game) -> String,
     onGameClick: (Game) -> Unit,
-    onGameLongClick: (Game) -> Unit,
-    onDelete: () -> Unit
+    onGameLongClick: (Game) -> Unit
 ) {
     val context = LocalContext.current
     val apps by produceState(emptyList<InstalledApp>(), context) {
         value = withContext(Dispatchers.Default) { InstalledApps.listLaunchable(context) }
     }
-    var askDelete by remember { mutableStateOf(false) }
     val tabGames = games.filter { it.fileUri in tab.gameUris }
     val tabApps = apps.filter { it.packageName in tab.appPackages }
 
@@ -94,21 +90,5 @@ fun CustomTabContent(
             }
         }
 
-        // A "-" at the bottom right deletes the menu, after asking.
-        item { RemoveMenuRow { askDelete = true } }
-    }
-
-    if (askDelete) {
-        ConfirmRemoveDialog(
-            title = "Delete this list?",
-            message = "\"${tab.name}\" will be removed. The games and apps in it aren't touched.",
-            confirmLabel = "Delete",
-            keepLabel = "Keep it",
-            onConfirm = {
-                askDelete = false
-                onDelete()
-            },
-            onDismiss = { askDelete = false }
-        )
     }
 }

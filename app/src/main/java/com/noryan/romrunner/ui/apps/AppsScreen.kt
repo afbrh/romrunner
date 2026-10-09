@@ -20,7 +20,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.noryan.romrunner.data.launch.InstalledApp
 import com.noryan.romrunner.data.launch.InstalledApps
-import com.noryan.romrunner.ui.components.RemoveMenuRow
 import com.noryan.romrunner.ui.components.glowColor
 import com.noryan.romrunner.ui.components.glowShadow
 import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
@@ -36,7 +35,7 @@ import kotlinx.coroutines.withContext
  * GAMES/SETTINGS/APPS tab heading row rather than being a separate navigation destination.
  */
 @Composable
-fun AppsContent(onRemoveMenu: () -> Unit) {
+fun AppsContent() {
     val context = LocalContext.current
     // RomRunner integration: PackageManager.queryIntentActivities enumerates every installed
     // package's manifest and was running synchronously on the composing (main) thread via
@@ -76,7 +75,5 @@ fun AppsContent(onRemoveMenu: () -> Unit) {
                 )
             }
         }
-        // A "-" at the bottom right removes the Apps menu from the tab bar, after asking.
-        item { RemoveMenuRow(onRemoveMenu) }
     }
 }
