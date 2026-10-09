@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.noryan.romrunner.ui.theme.BrandOrange
+import com.noryan.romrunner.ui.theme.HighlightColor
 
 @Composable
 fun rememberFocusInteractionSource(): MutableInteractionSource = remember { MutableInteractionSource() }
@@ -22,7 +22,7 @@ fun rememberFocusInteractionSource(): MutableInteractionSource = remember { Muta
  * OLED-black background, and doubles as the app's one unified highlight color alongside
  * MaterialTheme.colorScheme.primary (see Theme.kt), which is set to the same color.
  */
-val FocusGlowColor = BrandOrange
+val FocusGlowColor = HighlightColor
 
 /**
  * A colored bloom to apply to a [androidx.compose.ui.text.TextStyle]'s `shadow` while whatever's

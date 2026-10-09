@@ -143,6 +143,18 @@ object RetroArchLauncher {
         "WonderSwan" to "mednafen_wswan"
     )
 
+    /** Whether RetroArch has been given storage access yet (it asks the first time it's opened); until it has, it can't read a ROM or a core. */
+    fun hasStorageAccess(context: Context): Boolean {
+        val pkg = EmulatorLauncher.installedPackageFor(context, RETROARCH_PACKAGE) ?: return false
+        return context.packageManager.checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, pkg) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /** Stops RetroArch's process (it must be out of the foreground, which Android requires of an app that's asked to be killed). */
+    fun quit(context: Context) {
+        val pkg = EmulatorLauncher.installedPackageFor(context, RETROARCH_PACKAGE) ?: return
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).killBackgroundProcesses(pkg)
+    }
+
     /** The core RomRunner uses for [platformName] unless the user picked another one. */
     fun defaultCore(platformName: String): String? = CORE_BY_PLATFORM[platformName]
 
@@ -381,9 +393,7 @@ object RetroArchLauncher {
         val coreName = coreOverride ?: CORE_BY_PLATFORM[platform.name]
             ?: return@withContext Prepared.Failed("No RetroArch core is set for ${platform.name}.")
 
-        if (context.packageManager.checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, retroArchPackage) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!hasStorageAccess(context)) {
             return@withContext Prepared.NeedsFirstRun(context.packageManager.getLaunchIntentForPackage(retroArchPackage))
         }
 

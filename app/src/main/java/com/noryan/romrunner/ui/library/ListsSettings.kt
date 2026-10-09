@@ -20,7 +20,7 @@ import com.noryan.romrunner.ui.components.rememberFocusInteractionSource
 
 /**
  * Settings > Lists, tabbed down: every list on the home screen with a "-" beside it to remove it (or a "+" to bring back Games or Apps
- * once removed), then "Add a list". The lists are the tabs in the bar: Games and Apps, which everyone starts with, and the
+ * once removed), then "+ Add a List". The lists are the tabs in the bar: Games and Apps, which everyone starts with, and the
  * user's own. Removing one only removes the list, never the games or apps in it.
  */
 @Composable
@@ -38,13 +38,13 @@ fun ListsSettingsContent(
             else ListLine(label, "-") { onRemoveDefault(key) }
         }
         customTabs.forEach { tab -> ListLine(tab.name, "-") { onRemoveCustom(tab) } }
-        ListLine("Add a list", "+", onClick = onAdd)
+        ListLine("+ Add a List", action = null, onClick = onAdd)
     }
 }
 
 /** One line: the list's name, and right beside it what pressing it does ("-" removes it, "+" adds or brings it back). Glows with the controller. */
 @Composable
-private fun ListLine(label: String, action: String, onClick: () -> Unit) {
+private fun ListLine(label: String, action: String?, onClick: () -> Unit) {
     val interaction = rememberFocusInteractionSource()
     val glow = interaction.glowShadow()
     val color = interaction.glowColor(MaterialTheme.colorScheme.onSurface)
@@ -56,7 +56,9 @@ private fun ListLine(label: String, action: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow), color = color)
-        Spacer(Modifier.width(12.dp))
-        Text(action, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow), color = color)
+        if (action != null) {
+            Spacer(Modifier.width(12.dp))
+            Text(action, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow), color = color)
+        }
     }
 }

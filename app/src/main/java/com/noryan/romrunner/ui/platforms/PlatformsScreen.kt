@@ -66,9 +66,7 @@ fun PlatformsContent(
     onRomsFolderChanged: () -> Unit,
     /** The systems (see SystemsContent), listed right in Settings, each with its options open. */
     systemsContent: @Composable () -> Unit,
-    /** Whether the Lists settings are tabbed down under their line, how to open or close them, and what they show (see ListsSettingsContent). */
-    listsOpen: Boolean,
-    onToggleLists: () -> Unit,
+    /** The Lists settings (see ListsSettingsContent), always shown under the "Lists" heading. */
     listsContent: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -171,23 +169,16 @@ fun PlatformsContent(
         }
 
 
-        // Lists: add and remove the lists (tabs) on the home screen. Tabbed down like Systems below it.
+        // Lists: add and remove the lists (tabs) on the home screen. Always open; the heading is just a label.
         item {
-            val listsInteraction = rememberFocusInteractionSource()
-            val listsGlow = listsInteraction.glowShadow()
-            val listsColor = listsInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(interactionSource = listsInteraction, indication = null, onClick = onToggleLists)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Lists", style = LocalTextStyle.current.copy(shadow = listsGlow), color = listsColor, modifier = Modifier.weight(1f))
-                Text(if (listsOpen) "-" else "+", style = LocalTextStyle.current.copy(shadow = listsGlow), color = listsColor)
-            }
+            Text(
+                "Lists",
+                style = LocalTextStyle.current,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+            )
         }
-        if (listsOpen) item { listsContent() }
+        item { listsContent() }
 
         // Every system, at the bottom of Settings with its options already open (each can still be folded shut).
         item { systemsContent() }

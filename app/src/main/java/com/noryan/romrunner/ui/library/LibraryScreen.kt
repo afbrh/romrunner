@@ -105,6 +105,7 @@ import com.noryan.romrunner.ui.platforms.SystemsContent
 import com.noryan.romrunner.ui.secondscreen.SecondScreenState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -160,7 +161,6 @@ fun LibraryScreen(
     }
     val selectedTab = HomeTab.entries.firstOrNull { it.name == selectedKey } ?: HomeTab.GAMES
     // Whether Settings has its Systems list tabbed down.
-    var listsOpen by remember { mutableStateOf(false) }
     // A user-made list being asked about removing from Settings > Lists.
     var removingCustom by remember { mutableStateOf<CustomTab?>(null) }
     val selectedCustomTab = customTabs.firstOrNull { "custom:${it.id}" == selectedKey }
@@ -374,21 +374,23 @@ fun LibraryScreen(
     // and its own config (RGUI menu, hotkeys, quit on close). Same hands-off picker flow as the others.
     var retroArchPickerOpen by remember { mutableStateOf(false) }
     var retroArchOfferedThisRun by remember { mutableStateOf(false) }
-    fun applyRetroArchSetup(treeUri: Uri?) {
-        scope.launch {
-            val systems = state.games.mapNotNull { g -> state.platforms.find { it.id == g.platformId }?.name }.distinct()
-            val cores = RetroArchLauncher.retroArchPlatforms(systems)
-            Toast.makeText(context, "Setting up RetroArch…", Toast.LENGTH_SHORT).show()
-            val outcome = if (treeUri == null) RetroArchLauncher.setUpDirect(context, cores) else RetroArchLauncher.setUp(context, treeUri, cores)
-            val message = when (val result = outcome) {
-                is RetroArchLauncher.SetupResult.Done -> "RetroArch is set up: RGUI menu, hotkeys, quit on close" +
-                    if (result.coresInstalled.isNotEmpty()) ", and cores ready (${result.coresInstalled.joinToString(", ")})." else "."
-                is RetroArchLauncher.SetupResult.Failed -> result.message
-            }
-            if (outcome is RetroArchLauncher.SetupResult.Done) repository.markSetUp("retroarch")
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-            emulatorInstallState.bumpRefresh()
+    suspend fun runRetroArchSetup(treeUri: Uri?): Boolean {
+        val systems = state.games.mapNotNull { g -> state.platforms.find { it.id == g.platformId }?.name }.distinct()
+        val cores = RetroArchLauncher.retroArchPlatforms(systems)
+        Toast.makeText(context, "Setting up RetroArch…", Toast.LENGTH_SHORT).show()
+        val outcome = if (treeUri == null) RetroArchLauncher.setUpDirect(context, cores) else RetroArchLauncher.setUp(context, treeUri, cores)
+        val message = when (val result = outcome) {
+            is RetroArchLauncher.SetupResult.Done -> "RetroArch is set up: RGUI menu, hotkeys, quit on close" +
+                if (result.coresInstalled.isNotEmpty()) ", and cores ready (${result.coresInstalled.joinToString(", ")})." else "."
+            is RetroArchLauncher.SetupResult.Failed -> result.message
         }
+        if (outcome is RetroArchLauncher.SetupResult.Done) repository.markSetUp("retroarch")
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        emulatorInstallState.bumpRefresh()
+        return outcome is RetroArchLauncher.SetupResult.Done
+    }
+    fun applyRetroArchSetup(treeUri: Uri?) {
+        scope.launch { runRetroArchSetup(treeUri) }
     }
     lateinit var launchRetroArchPicker: () -> Unit
     val retroArchPicker = rememberLauncherForActivityResult(
@@ -729,10 +731,36 @@ fun LibraryScreen(
                     is RetroArchLauncher.Prepared.NeedsFirstRun -> {
                         Toast.makeText(
                             context,
-                            "RetroArch needs one-time setup: allow storage access in it, then launch ${game.title} again.",
+                            "RetroArch needs one-time setup: allow storage access in it. RomRunner will close it and finish the setup.",
                             Toast.LENGTH_LONG
                         ).show()
-                        prepared.intent?.let { context.startActivity(it) }
+                        val open = prepared.intent ?: return@launch
+                        // Opened in RomRunner's own task (no NEW_TASK), like the system settings screens, so RomRunner can bring itself
+                        // back to the front the moment access is allowed. That also closes RetroArch's screen on the way.
+                        open.flags = open.flags and Intent.FLAG_ACTIVITY_NEW_TASK.inv()
+                        val tickWhenOpened = resumeTick
+                        context.startActivity(open)
+                        val allowed = withTimeoutOrNull(5 * 60_000L) {
+                            while (!RetroArchLauncher.hasStorageAccess(context)) {
+                                delay(400)
+                                // Backed out of RetroArch without allowing it: stop waiting.
+                                if (resumeTick != tickWhenOpened) return@withTimeoutOrNull false
+                            }
+                            true
+                        } == true
+                        if (!allowed) return@launch
+                        context.startActivity(
+                            Intent(context, com.noryan.romrunner.MainActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        )
+                        delay(1200) // RetroArch is out of the foreground now, so Android lets it be stopped
+                        RetroArchLauncher.quit(context)
+                        delay(1000)
+                        // Whatever setup is still to do (its settings, the cores), then the game the user asked for.
+                        val granted = repository.getRetroArchFolderUri()?.let { Uri.parse(it) }
+                        if (RetroArchLauncher.canSetUpDirectly(context)) runRetroArchSetup(null)
+                        else if (granted != null) runRetroArchSetup(granted)
+                        attemptLaunch(platform, game)
                     }
                     is RetroArchLauncher.Prepared.Failed ->
                         Toast.makeText(context, prepared.message, Toast.LENGTH_LONG).show()
@@ -895,8 +923,6 @@ fun LibraryScreen(
                         repository = repository,
                         onDualScreenSupportChanged = onDualScreenSupportChanged,
                         onRomsFolderChanged = { viewModel.rescanAll(context) },
-                        listsOpen = listsOpen,
-                        onToggleLists = { listsOpen = !listsOpen },
                         listsContent = {
                             ListsSettingsContent(
                                 hiddenDefaults = hiddenDefaults,
