@@ -64,7 +64,7 @@ fun CustomTabContent(
         if (tabGames.isEmpty() && tabApps.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("Nothing in this menu.")
+                    Text("Nothing in this list.")
                 }
             }
         }
@@ -100,7 +100,7 @@ fun CustomTabContent(
 
     if (askDelete) {
         ConfirmRemoveDialog(
-            title = "Delete this menu?",
+            title = "Delete this list?",
             message = "\"${tab.name}\" will be removed. The games and apps in it aren't touched.",
             confirmLabel = "Delete",
             keepLabel = "Keep it",

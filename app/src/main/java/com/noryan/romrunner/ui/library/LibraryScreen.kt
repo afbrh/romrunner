@@ -109,7 +109,7 @@ private data class MissingAppRequest(val platform: Platform, val game: Game, val
 
 private enum class HomeTab { GAMES, SETTINGS, APPS }
 
-/** The shortest sort of menu name that has to fit for a new menu to be allowed at all. */
+/** The shortest sort of list name that has to fit for a new list to be allowed at all. */
 private const val MinMenuName = "MENU"
 
 /** The next tab in the bar (L1/R1) out of [keys] (Games and Apps unless removed, then the user's own menus in order). Settings (and Systems inside it) is the icon, not a tab. */
@@ -158,6 +158,9 @@ fun LibraryScreen(
     val selectedTab = HomeTab.entries.firstOrNull { it.name == selectedKey } ?: HomeTab.GAMES
     // Whether Settings has its Systems list tabbed down.
     var systemsOpen by remember { mutableStateOf(false) }
+    var listsOpen by remember { mutableStateOf(false) }
+    // A user-made list being asked about removing from Settings > Lists.
+    var removingCustom by remember { mutableStateOf<CustomTab?>(null) }
     val selectedCustomTab = customTabs.firstOrNull { "custom:${it.id}" == selectedKey }
     // Focus starts on the GAMES heading itself, not the screen-spanning Scaffold — a focus rect
     // as big as the whole screen has no sensible "next focusable node below it" for D-pad/joystick
@@ -167,6 +170,11 @@ fun LibraryScreen(
     LaunchedEffect(Unit) { runCatching { gamesTabFocusRequester.requestFocus() } }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // The bar doesn't scroll, so a new list is only allowed while one more still fits.
+    fun tryCreateList() {
+        if (tabBarFits(customTabs.map { it.name } + MinMenuName)) creatingTab = true
+        else Toast.makeText(context, "The tab bar is full. Remove a list or shorten a list name to make room.", Toast.LENGTH_LONG).show()
+    }
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(repository))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -735,11 +743,7 @@ fun LibraryScreen(
                     HomeTabHeading(
                         text = "+",
                         selected = false,
-                        onClick = {
-                            // The bar doesn't scroll, so a new menu is only allowed while one more still fits.
-                            if (tabBarFits(customTabs.map { it.name } + MinMenuName)) creatingTab = true
-                            else Toast.makeText(context, "The tab bar is full. Delete a menu or shorten a menu name to make room.", Toast.LENGTH_LONG).show()
-                        }
+                        onClick = { tryCreateList() }
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -815,10 +819,20 @@ fun LibraryScreen(
                         onRomsFolderChanged = { viewModel.rescanAll(context) },
                         systemsOpen = systemsOpen,
                         onToggleSystems = { systemsOpen = !systemsOpen },
-                        hiddenDefaultMenus = hiddenDefaults,
-                        onRestoreDefaultMenus = {
-                            hiddenDefaults = emptySet()
-                            repository.setHiddenDefaultTabs(hiddenDefaults)
+                        listsOpen = listsOpen,
+                        onToggleLists = { listsOpen = !listsOpen },
+                        listsContent = {
+                            ListsSettingsContent(
+                                hiddenDefaults = hiddenDefaults,
+                                customTabs = customTabs,
+                                onRemoveDefault = { removingDefault = it },
+                                onRestoreDefault = { key ->
+                                    hiddenDefaults = hiddenDefaults - key
+                                    repository.setHiddenDefaultTabs(hiddenDefaults)
+                                },
+                                onRemoveCustom = { removingCustom = it },
+                                onAdd = { tryCreateList() }
+                            )
                         },
                         systemsContent = {
                             SystemsContent(
@@ -838,11 +852,30 @@ fun LibraryScreen(
         }
     }
 
+    removingCustom?.let { tab ->
+        ConfirmRemoveDialog(
+            title = "Delete this list?",
+            message = "\"${tab.name}\" will be removed. The games and apps in it aren't touched.",
+            confirmLabel = "Delete",
+            keepLabel = "Keep it",
+            onConfirm = {
+                customTabs = customTabs.filter { it.id != tab.id }
+                repository.saveCustomTabs(customTabs)
+                removingCustom = null
+                if (selectedKey == "custom:${tab.id}") {
+                    selectedKey = (listOf(HomeTab.GAMES.name, HomeTab.APPS.name).filter { it !in hiddenDefaults } + customTabs.map { "custom:${it.id}" })
+                        .firstOrNull() ?: HomeTab.SETTINGS.name
+                }
+            },
+            onDismiss = { removingCustom = null }
+        )
+    }
+
     removingDefault?.let { key ->
         val name = if (key == HomeTab.GAMES.name) "Games" else "Apps"
         ConfirmRemoveDialog(
-            title = "Remove the $name menu?",
-            message = if (key == HomeTab.GAMES.name) "Your games aren't touched. You can bring the menu back from Settings." else "Your apps aren't touched. You can bring the menu back from Settings.",
+            title = "Remove the $name list?",
+            message = if (key == HomeTab.GAMES.name) "Your games aren't touched. You can bring the list back from Settings > Lists." else "Your apps aren't touched. You can bring the list back from Settings > Lists.",
             confirmLabel = "Remove",
             keepLabel = "Keep it",
             onConfirm = {

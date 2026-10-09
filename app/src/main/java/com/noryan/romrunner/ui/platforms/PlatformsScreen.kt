@@ -69,9 +69,10 @@ fun PlatformsContent(
     onToggleSystems: () -> Unit,
     /** The Systems list itself (see SystemsContent), shown under the "Systems" line while it's tabbed down. */
     systemsContent: @Composable () -> Unit,
-    /** The built-in menus (Games, Apps) the user has removed from the tab bar, and how to bring them back. */
-    hiddenDefaultMenus: Set<String>,
-    onRestoreDefaultMenus: () -> Unit
+    /** Whether the Lists settings are tabbed down under their line, how to open or close them, and what they show (see ListsSettingsContent). */
+    listsOpen: Boolean,
+    onToggleLists: () -> Unit,
+    listsContent: @Composable () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -100,25 +101,6 @@ fun PlatformsContent(
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        // Only there once Games or Apps has been removed from the tab bar.
-        if (hiddenDefaultMenus.isNotEmpty()) {
-            item {
-                val restoreInteraction = rememberFocusInteractionSource()
-                val restoreGlow = restoreInteraction.glowShadow()
-                val restoreColor = restoreInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
-                val names = hiddenDefaultMenus.sorted().joinToString(" and ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(interactionSource = restoreInteraction, indication = null, onClick = onRestoreDefaultMenus)
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Bring back $names", style = LocalTextStyle.current.copy(shadow = restoreGlow), color = restoreColor, modifier = Modifier.weight(1f))
-                }
-            }
-        }
-
         item {
             val romsFolderInteractionSource = rememberFocusInteractionSource()
             val romsFolderGlow = romsFolderInteractionSource.glowShadow()
@@ -191,6 +173,24 @@ fun PlatformsContent(
             }
         }
 
+
+        // Lists: add and remove the lists (tabs) on the home screen. Tabbed down like Systems below it.
+        item {
+            val listsInteraction = rememberFocusInteractionSource()
+            val listsGlow = listsInteraction.glowShadow()
+            val listsColor = listsInteraction.glowColor(MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(interactionSource = listsInteraction, indication = null, onClick = onToggleLists)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Lists", style = LocalTextStyle.current.copy(shadow = listsGlow), color = listsColor, modifier = Modifier.weight(1f))
+                Text(if (listsOpen) "-" else "+", style = LocalTextStyle.current.copy(shadow = listsGlow), color = listsColor)
+            }
+        }
+        if (listsOpen) item { listsContent() }
 
         // Systems (each system's emulator, status and setup) is a sub-menu of Settings.
         item {

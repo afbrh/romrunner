@@ -90,7 +90,7 @@ fun CustomTabEditor(
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (initial == null) "NEW MENU" else "EDIT MENU",
+                        if (initial == null) "NEW LIST" else "EDIT LIST",
                         style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f)
                     )
@@ -116,7 +116,7 @@ fun CustomTabEditor(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it.take(MaxNameLength) },
-                        label = { Text("Menu name") },
+                        label = { Text("List name") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { editingName = false }),
@@ -137,7 +137,7 @@ fun CustomTabEditor(
                 }
                 if (nameTooLong) {
                     Text(
-                        "This name doesn't fit in the tab bar. Shorten it, or delete another menu.",
+                        "This name doesn't fit in the tab bar. Shorten it, or delete another list.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color(0xFFFF6B6B),
                         modifier = Modifier.padding(top = 6.dp)
@@ -178,9 +178,9 @@ private fun NameLine(name: String, onClick: () -> Unit) {
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
-        Text("Menu name", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("List name", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            name.ifBlank { "Tap to name this menu" },
+            name.ifBlank { "Tap to name this list" },
             style = MaterialTheme.typography.titleMedium.copy(shadow = interaction.glowShadow()),
             color = if (name.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else interaction.glowColor(MaterialTheme.colorScheme.onSurface)
         )
