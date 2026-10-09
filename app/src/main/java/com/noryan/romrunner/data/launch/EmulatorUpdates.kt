@@ -68,7 +68,7 @@ object EmulatorUpdates {
                 unchecked += emulator.appLabel
                 continue
             }
-            val remembered = repository.getReleaseFingerprint(emulator.packageName)
+            val remembered = repository.getReleaseFingerprint(emulator.packageName)?.let(::withoutLastModified)
             val isCurrent = when {
                 remembered == release.fingerprint -> true
                 remembered == null && release.tag != null && versionMatches(installedVersion(context, emulator.packageName), release.tag) -> {
@@ -122,11 +122,19 @@ object EmulatorUpdates {
             connection.requestMethod = "HEAD"
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
-            listOf(connection.getHeaderField("ETag"), connection.getHeaderField("Last-Modified"), connection.getHeaderField("Content-Length"))
+            // ETag and size only: Last-Modified differs from one request to the next on some servers (Eden's), which made an
+            // unchanged release look new every time.
+            listOf(connection.getHeaderField("ETag"), connection.getHeaderField("Content-Length"))
                 .joinToString("|") { it.orEmpty() }
         } finally {
             connection.disconnect()
         }
+    }
+
+    /** A fingerprint saved by an earlier version (address|etag|last-modified|size) without the last-modified part, to compare like with like. */
+    private fun withoutLastModified(fingerprint: String): String {
+        val parts = fingerprint.split('|')
+        return if (parts.size == 4) listOf(parts[0], parts[1], parts[3]).joinToString("|") else fingerprint
     }
 
     private fun installedVersion(context: Context, packageName: String): String? = runCatching {
