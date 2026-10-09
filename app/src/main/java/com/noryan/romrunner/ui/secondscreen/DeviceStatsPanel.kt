@@ -85,6 +85,14 @@ fun DeviceStatsPanel(modifier: Modifier = Modifier, level: () -> Float = { 1f })
             SegmentBar(memFraction, if (memFraction >= 0.9f) Danger else accent, level)
         }
 
+        // The storage the games live on: how much of it is taken. Decimal GB, the way Android's own Settings shows storage.
+        if (s.storageTotalBytes > 0) {
+            val storageFraction = s.storageUsedBytes.toFloat() / s.storageTotalBytes
+            StatRow("DISK", "${decimalGb(s.storageUsedBytes)} / ${decimalGb(s.storageTotalBytes)} GB") {
+                SegmentBar(storageFraction, if (storageFraction >= 0.95f) Danger else accent, level)
+            }
+        }
+
         s.tempC?.let { temp ->
             // The bar runs from empty at 20 °C to full at 90 °C. Chips run hot by design (80+ °C under load is
             // normal) and the battery doesn't, so a battery reading (the fallback) gets its own, cooler scale.
@@ -116,6 +124,8 @@ private fun heatColor(fraction: Float): Color {
     val (f1, c1) = stops[upper]
     return lerp(c0, c1, (f - f0) / (f1 - f0))
 }
+
+private fun decimalGb(bytes: Long) = String.format(Locale.US, "%.0f", bytes / 1_000_000_000.0)
 
 private fun gb(bytes: Long) = String.format(Locale.US, "%.1f", bytes / 1_073_741_824.0)
 

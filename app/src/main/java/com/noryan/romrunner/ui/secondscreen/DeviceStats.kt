@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.Environment
+import android.os.StatFs
 import android.os.PowerManager
 import java.io.File
 
@@ -26,6 +28,9 @@ data class DeviceStats(
     val gpuClockMhz: Int?,
     val memoryUsedBytes: Long,
     val memoryTotalBytes: Long,
+    /** The user's storage (the shared storage volume the games live on): how much is used and its total size. */
+    val storageUsedBytes: Long,
+    val storageTotalBytes: Long,
     /** The hottest chip (CPU/GPU) temperature, or the battery's when the chip sensors can't be read; null if neither can. */
     val tempC: Float?,
     /** Whether [tempC] is a chip temperature (hot is normal for those) rather than the battery's. */
@@ -54,6 +59,7 @@ object DeviceStatsSampler {
             if (capacity <= 0) null
             else (awake.sumOf { it.capacity * it.currentKhz.toDouble() / it.maxKhz } / capacity).toFloat().coerceIn(0f, 1f)
         }
+        val storage = readStorage()
         val chipTemp = readChipTempC()
         val batteryTemp = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
@@ -67,6 +73,8 @@ object DeviceStatsSampler {
             gpuClockMhz = readGpuClockMhz(),
             memoryUsedBytes = memory.totalMem - memory.availMem,
             memoryTotalBytes = memory.totalMem,
+            storageUsedBytes = storage.first,
+            storageTotalBytes = storage.second,
             tempC = chipTemp ?: batteryTemp,
             tempIsChip = chipTemp != null,
             thermalStatus = power.currentThermalStatus
@@ -88,6 +96,13 @@ object DeviceStatsSampler {
         .map { if (it > 1000f) it / 1000f else it }
         .filter { it in 10f..130f }
         .maxOrNull()
+
+    /** (used, total) bytes of the shared storage volume. */
+    private fun readStorage(): Pair<Long, Long> = runCatching {
+        val stat = StatFs(Environment.getExternalStorageDirectory().path)
+        val total = stat.blockCountLong * stat.blockSizeLong
+        (total - stat.availableBlocksLong * stat.blockSizeLong) to total
+    }.getOrDefault(0L to 0L)
 
     private fun readCores(): List<CpuCore>? {
         val count = (0 until 32).takeWhile { File("$CPU_DIR/cpu$it").exists() }.size
