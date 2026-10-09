@@ -200,6 +200,9 @@ class LibraryRepository(
         settings.storageAccessAsked = true
     }
 
+    fun getReleaseFingerprint(packageName: String): String? = settings.releaseFingerprint(packageName)
+    fun setReleaseFingerprint(packageName: String, value: String) = settings.setReleaseFingerprint(packageName, value)
+
     fun getHiddenDefaultTabs(): Set<String> = settings.hiddenDefaultTabs
     fun setHiddenDefaultTabs(value: Set<String>) {
         settings.hiddenDefaultTabs = value

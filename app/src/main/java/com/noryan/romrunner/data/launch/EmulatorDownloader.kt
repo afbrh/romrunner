@@ -110,11 +110,16 @@ object EmulatorDownloader {
      * which is also how it knows the user has finished, so installs in a batch don't stack up.
      * Returns true once the app is installed, false if the user cancelled or it failed.
      */
-    suspend fun installApk(context: Context, apkUri: Uri): Boolean {
+    suspend fun installApk(context: Context, apkUri: Uri, unattended: Boolean = false): Boolean {
         val app = context.applicationContext
         val installer = app.packageManager.packageInstaller
         val sessionId = withContext(Dispatchers.IO) {
-            installer.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            // An update to an app this app installed can go through without a confirmation on Android 12+; elsewhere the usual one shows.
+            if (unattended && android.os.Build.VERSION.SDK_INT >= 31) {
+                params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            }
+            installer.createSession(params)
         }
         val action = "com.noryan.romrunner.INSTALL_RESULT.$sessionId"
         val result = CompletableDeferred<Int>()

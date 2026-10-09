@@ -1,6 +1,8 @@
 package com.noryan.romrunner.data.launch
 
 import android.content.Context
+import android.hardware.display.DisplayManager
+import android.os.Environment
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
@@ -8,6 +10,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * ARMSX2 (PlayStation 2) keeps its live settings in private storage, so most of it can't be configured from outside,
@@ -28,6 +32,9 @@ object Armsx2Setup {
 
     const val PACKAGE = "com.armsx2"
 
+    /** The restorable settings backup RomRunner writes for the user to pick in ARMSX2 (see [writeRestoreBackup]). */
+    const val BACKUP_NAME = "ARMSX2-RomRunner-settings.zip"
+
     /** PS2 BIOS dumps are usually named like "SCPH-70012.bin" (or "ps2-0230e-20080220.bin"). */
     private val BIOS_NAME = Regex("""(?i)^(scph|ps2).*\.bin$""")
 
@@ -36,7 +43,8 @@ object Armsx2Setup {
         val root = romsFolderUri?.let { DocumentFile.fromTreeUri(context, it) }
         val bios = root?.let { RomsFolderFiles.find(it) { name -> BIOS_NAME.matches(name) }.firstOrNull()?.name }
         val folder = romsFolderUri?.lastPathSegment?.substringAfterLast(':')?.takeIf { it.isNotBlank() }
-        "ARMSX2: import BIOS ${bios ?: "(your PS2 BIOS)"}, then add ROM folder ${folder ?: "(your Roms folder)"}"
+        "ARMSX2: import BIOS ${bios ?: "(your PS2 BIOS)"}, then add ROM folder ${folder ?: "(your Roms folder)"}. " +
+            "Then Settings > App > Restore backup: $BACKUP_NAME in Downloads/RomRunner."
     }
 
     sealed interface PreloadResult {
@@ -77,6 +85,10 @@ object Armsx2Setup {
                 File(profiles, "Default.touch.json").writeText(hiddenTouchLayout())
                 summary += "on-screen controls hidden"
             }
+            runCatching {
+                writeRestoreBackup(context, romsFolderUri, biosName, global)
+                summary += "settings backup to restore in ARMSX2 ($BACKUP_NAME)"
+            }
             PreloadResult.Applied(summary)
         } catch (e: Exception) {
             PreloadResult.Failed("Couldn't preload ARMSX2: ${e.message ?: "unknown error"}")
@@ -87,6 +99,60 @@ object Armsx2Setup {
     fun wizardPending(): Boolean {
         val file = File(EmulatorFolders.directDir(PACKAGE), "armsx2-settings.json")
         return file.exists() && isOurOwnFile(file)
+    }
+
+    /**
+     * ARMSX2 keeps its controller, on-screen control and second-screen settings in private preferences that nothing outside it
+     * can write, but its own Settings > App > Restore backup replaces those preferences with the ones in a backup zip. So this
+     * writes a zip holding exactly the preferences RomRunner wants (and what ARMSX2 needs to count its setup as done), into
+     * Downloads/RomRunner, for the user to pick there once the wizard is finished. The same format ARMSX2's own Backup writes:
+     * `armsx2-backup.json` and `prefs/ARMSX2.xml`.
+     *
+     * Keeps the wizard's results (done flag, the Roms folder, the BIOS), then sets: 2x upscaling and the BIOS, the Thor's face
+     * buttons, the right stick's X axis inverted, the on-screen controls never shown with the pause button tap-to-reveal, and the
+     * second-screen panel on when this device has a second display.
+     */
+    private fun writeRestoreBackup(context: Context, romsFolderUri: Uri?, biosName: String?, globalSettings: JSONObject) {
+        val ints = linkedMapOf(
+            "pad.map.cross" to 97, "pad.map.circle" to 96, "pad.map.triangle" to 99, "pad.map.square" to 100, // BUTTON_B, A, X, Y
+            "touch.visibilityMode" to 0 // never show the on-screen controls
+        )
+        val booleans = linkedMapOf(
+            "setupComplete" to true,
+            "pad.rstick.invertX" to true,
+            "touch.pauseTapToReveal" to true
+        )
+        if (hasSecondDisplay(context)) booleans["secondScreen.enabled"] = true
+        val strings = linkedMapOf("config.global" to globalSettings.toString())
+        romsFolderUri?.let { strings["romsDirs"] = JSONArray().put(it.toString()).toString() }
+        biosName?.let {
+            strings["bios"] = File(File(EmulatorFolders.directDir(PACKAGE), "bios"), it).absolutePath
+        }
+
+        val xml = buildString {
+            append("<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n")
+            booleans.forEach { (k, v) -> append("    <boolean name=\"$k\" value=\"$v\" />\n") }
+            ints.forEach { (k, v) -> append("    <int name=\"$k\" value=\"$v\" />\n") }
+            strings.forEach { (k, v) -> append("    <string name=\"$k\">${xmlEscape(v)}</string>\n") }
+            append("</map>\n")
+        }
+        val out = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "RomRunner").also { it.mkdirs() }
+        ZipOutputStream(File(out, BACKUP_NAME).outputStream().buffered()).use { zip ->
+            zip.putNextEntry(ZipEntry("armsx2-backup.json"))
+            zip.write("""{"schemaVersion":1,"package":"$PACKAGE","versionName":"RomRunner"}""".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("prefs/ARMSX2.xml"))
+            zip.write(xml.toByteArray())
+            zip.closeEntry()
+        }
+    }
+
+    private fun xmlEscape(text: String) = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    /** Whether this device has a second screen for apps to use (the Thor and other two-screen handhelds). */
+    private fun hasSecondDisplay(context: Context): Boolean {
+        val displays = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        return displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).any { it.name !in setOf("HiddenDisplay", "WebRTC_ScreenCapture") }
     }
 
     private fun isOurOwnFile(file: File): Boolean = runCatching {

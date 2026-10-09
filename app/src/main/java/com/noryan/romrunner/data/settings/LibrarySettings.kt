@@ -56,6 +56,10 @@ class LibrarySettings(context: Context) {
         get() = prefs.getStringSet("hidden_default_tabs", emptySet()).orEmpty().toSet()
         set(value) = prefs.edit().putStringSet("hidden_default_tabs", value).apply()
 
+    /** The release RomRunner last installed or confirmed for an emulator (by package), see EmulatorUpdates; null when unknown. */
+    fun releaseFingerprint(packageName: String): String? = prefs.getString("release_$packageName", null)
+    fun setReleaseFingerprint(packageName: String, value: String) = prefs.edit().putString("release_$packageName", value).apply()
+
     fun isSetUp(key: String): Boolean = prefs.getBoolean("setup_done_$key", false)
     fun markSetUp(key: String) = prefs.edit().putBoolean("setup_done_$key", true).apply()
 

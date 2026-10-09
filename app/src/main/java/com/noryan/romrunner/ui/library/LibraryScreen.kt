@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -70,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noryan.romrunner.data.launch.BackgroundAppCleaner
 import com.noryan.romrunner.data.launch.EmulatorLauncher
+import com.noryan.romrunner.data.launch.EmulatorUpdates
 import com.noryan.romrunner.data.launch.GameFocus
 import com.noryan.romrunner.data.launch.EdenGpuDriver
 import com.noryan.romrunner.data.launch.EdenSetup
@@ -80,6 +82,7 @@ import com.noryan.romrunner.data.launch.AzaharSetup
 import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.PrimeHackControls
 import com.noryan.romrunner.data.launch.RECOMMENDED_EMULATORS
+import com.noryan.romrunner.data.launch.RomsFolderFinder
 import com.noryan.romrunner.data.launch.RetroArchLauncher
 import com.noryan.romrunner.data.model.Game
 import com.noryan.romrunner.data.model.Platform
@@ -88,7 +91,6 @@ import com.noryan.romrunner.ui.components.AppPickerDialog
 import com.noryan.romrunner.ui.components.GameActionSheet
 import com.noryan.romrunner.ui.components.GameRow
 import com.noryan.romrunner.ui.components.ConfirmRemoveDialog
-import com.noryan.romrunner.ui.components.EmulatorSetupDialog
 import com.noryan.romrunner.ui.components.ForceStopDialog
 import com.noryan.romrunner.ui.components.MissingAppDialog
 import com.noryan.romrunner.ui.platforms.EmulatorInstallState
@@ -102,6 +104,8 @@ import com.noryan.romrunner.ui.platforms.PlatformsContent
 import com.noryan.romrunner.ui.platforms.SystemsContent
 import com.noryan.romrunner.ui.secondscreen.SecondScreenState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 private data class MissingAppRequest(val platform: Platform, val game: Game, val target: EmulatorLauncher.Target)
@@ -184,7 +188,6 @@ fun LibraryScreen(
 
     // Shared with the Settings tab so its rows show live progress for installs started from here.
     val emulatorInstallState = remember { EmulatorInstallState() }
-    var showEmulatorSetupPrompt by remember { mutableStateOf(false) }
     // Set while the user is in Android's "all files access" settings, so the install-all they asked for
     // continues once they return to RomRunner.
     var installAllAfterStorageAccess by remember { mutableStateOf(false) }
@@ -208,9 +211,22 @@ fun LibraryScreen(
         systemsOpen = true
         scope.launch { emulatorInstallState.installAll(context, neededEmulators) }
     }
-    // First-run offer: right after the first ROMs folder is chosen and scanned, ask once whether to
-    // download the emulators those games need. Waits for the scan to finish and for at least one
-    // game to turn up; if everything needed is already installed there's nothing to ask about.
+    // Starts installing every emulator the library needs: first the "all files access" screen (it lets RomRunner reuse
+    // emulator APKs already in Downloads) if that hasn't been asked yet, which brings RomRunner back by itself afterwards.
+    fun beginInstallAll() {
+        if (android.os.Environment.isExternalStorageManager() || repository.isStorageAccessAsked()) {
+            startInstallAll()
+        } else {
+            repository.markStorageAccessAsked()
+            installAllAfterStorageAccess = true
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+            )
+        }
+    }
+    // First run: as soon as the first ROMs folder has been chosen and scanned, install the emulators those games need, with
+    // no question asked first (Android still confirms each install). Waits for the scan to finish and for at least one
+    // game to turn up; if everything needed is already installed there's nothing to do.
     LaunchedEffect(state.games, state.platforms, state.isScanning) {
         if (!repository.isEmulatorSetupPending() || state.isScanning || state.games.isEmpty()) return@LaunchedEffect
         val missing = neededEmulators.filter { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
@@ -218,7 +234,7 @@ fun LibraryScreen(
             repository.clearEmulatorSetupPending()
         } else {
             repository.markEmulatorSetupPromptShown()
-            showEmulatorSetupPrompt = true
+            beginInstallAll()
         }
     }
 
@@ -597,10 +613,90 @@ fun LibraryScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Every start-up: check the emulators this library needs against their release channels, update the old ones on their own,
+    // and say so (or that everything is current). Waits for the games to load and for any install or setup in progress to
+    // finish, and happens once per run of the app.
+    LaunchedEffect(state.games.isNotEmpty(), state.isScanning) {
+        if (state.games.isEmpty() || state.isScanning) return@LaunchedEffect
+        delay(4000) // let the first-run installs and prompts get going first
+        if (emulatorInstallState.isInstallingAll || emulatorInstallState.statuses.isNotEmpty()) return@LaunchedEffect
+        if (!EmulatorUpdates.claimThisLaunch()) return@LaunchedEffect
+        scope.launch {
+            val report = runCatching {
+                EmulatorUpdates.run(
+                    context = context,
+                    repository = repository,
+                    emulators = neededEmulators,
+                    announce = { message ->
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        launch { snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short) }
+                    },
+                    setStatus = { pkg, text ->
+                        if (text == null) emulatorInstallState.statuses.remove(pkg) else emulatorInstallState.statuses[pkg] = text
+                        if (text == null) emulatorInstallState.bumpRefresh()
+                    }
+                )
+            }.getOrNull() ?: return@launch
+            val message = when {
+                report.updated.isNotEmpty() || report.failed.isNotEmpty() ->
+                    listOfNotNull(
+                        report.updated.takeIf { it.isNotEmpty() }?.let { "Updated ${it.joinToString(", ")}." },
+                        report.failed.takeIf { it.isNotEmpty() }?.let { "Couldn't update ${it.joinToString(", ")}." }
+                    ).joinToString(" ")
+                report.current.isEmpty() && report.unchecked.isNotEmpty() -> "Couldn't check the emulators for updates."
+                else -> "All emulators are up to date." +
+                    (report.notInstalled.takeIf { it.isNotEmpty() }?.let { " Not installed yet: ${it.joinToString(", ")}." } ?: "")
+            }
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
+        }
+    }
+
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         if (uri != null) viewModel.setRootFolder(context, uri)
+    }
+
+    // First start (no Roms/BIOS folder chosen yet): look through storage for a folder with ROMS / roms in its name and open the
+    // system folder picker right on it (Android gives an app access to a folder only through that picker, so it still has to
+    // be confirmed), or on the usual start if there's none. Looking needs "all files access", so that is asked for first
+    // and RomRunner brings itself back to the front once it's on.
+    var romsSearchStarted by remember { mutableStateOf(false) }
+    var waitingForStorageForRoms by remember { mutableStateOf(false) }
+    fun findRomsAndPick() {
+        scope.launch {
+            val found = withContext(Dispatchers.IO) { runCatching { RomsFolderFinder.find() }.getOrNull() }
+            val pickerUri = found?.let { RomsFolderFinder.pickerUri(it) }
+            if (found != null) Toast.makeText(context, "Found your ROMs folder: ${found.name}. Tap \"Use this folder\".", Toast.LENGTH_LONG).show()
+            folderPicker.launch(pickerUri)
+        }
+    }
+    LaunchedEffect(Unit) {
+        if (romsSearchStarted || repository.getRootFolderUri() != null) return@LaunchedEffect
+        romsSearchStarted = true
+        if (android.os.Environment.isExternalStorageManager()) {
+            findRomsAndPick()
+        } else {
+            repository.markStorageAccessAsked()
+            waitingForStorageForRoms = true
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+            )
+        }
+    }
+    LaunchedEffect(waitingForStorageForRoms) {
+        if (!waitingForStorageForRoms) return@LaunchedEffect
+        while (!android.os.Environment.isExternalStorageManager()) delay(300)
+        context.startActivity(
+            Intent(context, com.noryan.romrunner.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        )
+    }
+    LaunchedEffect(resumeTick) {
+        if (!waitingForStorageForRoms) return@LaunchedEffect
+        waitingForStorageForRoms = false
+        findRomsAndPick() // granted or not: without access it finds nothing and just opens the picker
     }
 
     LaunchedEffect(state.message) {
@@ -926,29 +1022,6 @@ fun LibraryScreen(
                 openAppInfo(packageName)
             },
             onDone = { forceStopApp = null }
-        )
-    }
-
-    if (showEmulatorSetupPrompt) {
-        EmulatorSetupDialog(
-            emulatorLabels = neededEmulators
-                .filter { !EmulatorLauncher.isPackageInstalled(context, it.packageName) }
-                .map { it.appLabel },
-            onYes = {
-                showEmulatorSetupPrompt = false
-                if (android.os.Environment.isExternalStorageManager() || repository.isStorageAccessAsked()) {
-                    startInstallAll()
-                } else {
-                    // Straight to Android's "all files access" screen (lets RomRunner reuse emulator APKs
-                    // already in Downloads); the install-all carries on when the user comes back.
-                    repository.markStorageAccessAsked()
-                    installAllAfterStorageAccess = true
-                    context.startActivity(
-                        Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
-                    )
-                }
-            },
-            onNotNow = { showEmulatorSetupPrompt = false }
         )
     }
 
