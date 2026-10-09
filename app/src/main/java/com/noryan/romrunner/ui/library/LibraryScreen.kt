@@ -451,25 +451,6 @@ fun LibraryScreen(
         }
     }
 
-    // Azahar keeps its controls, data folder and on-screen-controls toggle in private storage (see AzaharSetup), so
-    // once it's installed just open it on its first-run setup with a hint of what to pick. Offered once, and only
-    // after ARMSX2's own wizard so two apps aren't opened at the same moment.
-    var azaharOfferedThisRun by remember { mutableStateOf(false) }
-    LaunchedEffect(emulatorInstallState.refreshTick, emulatorInstallState.isInstallingAll, state.games, showPrimeHackPrompt, showCemuPrompt, edenPickerOpen, retroArchPickerOpen, armsx2OfferedThisRun) {
-        if (emulatorInstallState.isInstallingAll || showPrimeHackPrompt || showCemuPrompt || edenPickerOpen || retroArchPickerOpen) return@LaunchedEffect
-        if (azaharOfferedThisRun || armsx2OfferedThisRun || repository.isAzaharWizardShown()) return@LaunchedEffect
-        val armsx2Pending = neededEmulators.any { it.packageName == Armsx2Setup.PACKAGE } &&
-            EmulatorLauncher.isPackageInstalled(context, Armsx2Setup.PACKAGE) && !repository.isArmsx2WizardShown()
-        if (armsx2Pending) return@LaunchedEffect
-        if (neededEmulators.none { it.packageName == AzaharSetup.PACKAGE }) return@LaunchedEffect
-        if (!EmulatorLauncher.isPackageInstalled(context, AzaharSetup.PACKAGE)) return@LaunchedEffect
-        val launch = context.packageManager.getLaunchIntentForPackage(AzaharSetup.PACKAGE) ?: return@LaunchedEffect
-        azaharOfferedThisRun = true
-        repository.markAzaharWizardShown()
-        Toast.makeText(context, AzaharSetup.wizardHint(repository.getRootFolderUri()?.let { Uri.parse(it) }), Toast.LENGTH_LONG).show()
-        context.startActivity(launch)
-    }
-
     // Eden setup (keys, firmware, on-screen controls, graphics driver; see EdenSetup). Runs by itself with
     // no confirmation dialogs: the only thing Android makes the user do is the one-time folder pick.
     var edenSetupRunning by remember { mutableStateOf(false) }

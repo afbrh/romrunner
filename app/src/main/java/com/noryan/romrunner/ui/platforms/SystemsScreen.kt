@@ -40,6 +40,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noryan.romrunner.data.launch.Armsx2Setup
+import com.noryan.romrunner.data.launch.AzaharSetup
 import com.noryan.romrunner.data.launch.CemuSetup
 import com.noryan.romrunner.data.launch.DefaultPlatforms
 import com.noryan.romrunner.data.launch.EdenGpuDriver
@@ -341,6 +342,11 @@ fun SystemsContent(
                                     statusFocus, "Installed", dot = Good,
                                     onClick = {
                                         val launchPackage = EmulatorLauncher.installedPackageFor(context, row.packageName) ?: row.packageName
+                                        // Opening Azahar before its first-run setup is done (RomRunner only learns that once Azahar has made
+                                        // its config in the folder you picked): say what to pick there.
+                                        if (launchPackage == AzaharSetup.PACKAGE && !repository.isAzaharDefaultsApplied()) {
+                                            Toast.makeText(context, AzaharSetup.wizardHint(repository.getRootFolderUri()?.let { Uri.parse(it) }), Toast.LENGTH_LONG).show()
+                                        }
                                         // Opening ARMSX2 before it has finished its wizard: say what to pick there.
                                         if (launchPackage == Armsx2Setup.PACKAGE) {
                                             scope.launch {
