@@ -327,10 +327,10 @@ fun SystemsContent(
                         DetailLine("Status") {
                             val canInstall = recommended != null
                             when {
-                                row.packageName.isBlank() -> Cell(statusFocus, "—", color = Neutral)
-                                installing != null -> Cell(statusFocus, installing, dot = Warn)
+                                row.packageName.isBlank() -> Cell(statusFocus, "—", tint = Neutral)
+                                installing != null -> Cell(statusFocus, installing, tint = Warn)
                                 isInstalled -> Cell(
-                                    statusFocus, "Installed", dot = Good,
+                                    statusFocus, "Installed", tint = Good,
                                     onClick = {
                                         val launchPackage = EmulatorLauncher.installedPackageFor(context, row.packageName) ?: row.packageName
                                         // Opening Azahar before its first-run setup is done (RomRunner only learns that once Azahar has made
@@ -351,11 +351,11 @@ fun SystemsContent(
                                     }
                                 )
                                 hasDownload -> Cell(
-                                    statusFocus, "Downloaded", dot = Warn,
+                                    statusFocus, "Downloaded", tint = Warn,
                                     onClick = if (canInstall) ({ scope.launch { installState.installOne(context, recommended!!) } }) else null
                                 )
                                 else -> Cell(
-                                    statusFocus, "Not installed", dot = Bad,
+                                    statusFocus, "Not installed", tint = Bad,
                                     onClick = if (canInstall) ({ scope.launch { installState.installOne(context, recommended!!) } }) else null
                                 )
                             }
@@ -364,10 +364,10 @@ fun SystemsContent(
                         // Configured: whether what can be set up ahead of time for this emulator has been. N/A when there's nothing to set up.
                         DetailLine("Configured") {
                             when {
-                                setup == null -> Cell(configuredFocus, "N/A", dot = Neutral)
-                                !isInstalled -> Cell(configuredFocus, "—", color = Neutral)
-                                setup.first -> Cell(configuredFocus, "Yes", dot = Good, onClick = setup.second)
-                                else -> Cell(configuredFocus, "Not yet", dot = Warn, onClick = setup.second)
+                                setup == null -> Cell(configuredFocus, "N/A", tint = Neutral)
+                                !isInstalled -> Cell(configuredFocus, "—", tint = Neutral)
+                                setup.first -> Cell(configuredFocus, "Yes", tint = Good, onClick = setup.second)
+                                else -> Cell(configuredFocus, "Not yet", tint = Warn, onClick = setup.second)
                             }
                         }
                     }
@@ -429,29 +429,22 @@ private fun DetailLine(label: String, value: @Composable () -> Unit) {
 }
 
 /**
- * One column cell: an optional status dot and text. With an [onClick] it's a controller stop and glows when focused,
- * otherwise it's plain text in the same place.
+ * One line's value: its text in [tint] (green, yellow, red or gray for a status; the normal text color if none). With an
+ * [onClick] it's a controller stop and turns the highlight color with a glow when focused, otherwise it's plain text.
  */
 @Composable
 private fun Cell(
     interaction: MutableInteractionSource,
     text: String,
-    dot: Color? = null,
-    color: Color = Color.Unspecified,
+    tint: Color = Color.Unspecified,
     onClick: (() -> Unit)? = null
 ) {
     val clickable = if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick) else Modifier
-    Row(modifier = clickable.padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (dot != null) {
-            val focused = interaction.collectIsFocusedAsState().value
-            Box(modifier = Modifier.size(10.dp).background(if (focused) FocusGlowColor else dot, CircleShape))
-            Spacer(Modifier.width(10.dp))
-        }
-        val glow = if (onClick != null) interaction.glowShadow() else null
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge.copy(shadow = glow),
-            color = if (onClick != null) interaction.glowColor(color) else color
-        )
-    }
+    val glow = if (onClick != null) interaction.glowShadow() else null
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge.copy(shadow = glow),
+        color = if (onClick != null) interaction.glowColor(tint) else tint,
+        modifier = clickable.padding(end = 12.dp)
+    )
 }
