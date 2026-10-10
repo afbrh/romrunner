@@ -217,16 +217,6 @@ fun SystemsContent(
             val hasDownload = recommended?.packageName in downloaded
             val setup = setups[setupKey]
 
-            // The one dot a collapsed system shows: green = installed and configured (or nothing to configure), yellow = on
-            // its way (downloading, downloaded, or installed but not yet configured), red = not installed, gray = no emulator.
-            val dot = when {
-                row.packageName.isBlank() -> Neutral
-                installing != null -> Warn
-                !isInstalled -> if (hasDownload) Warn else Bad
-                setup != null && !setup.first -> Warn
-                else -> Good
-            }
-
             val headingFocus = rememberFocusInteractionSource()
             val emulatorFocus = rememberFocusInteractionSource()
             val statusFocus = rememberFocusInteractionSource()
@@ -243,8 +233,6 @@ fun SystemsContent(
                         .padding(vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(modifier = Modifier.size(12.dp).background(dot, CircleShape))
-                    Spacer(Modifier.width(14.dp))
                     Text(
                         row.label,
                         style = MaterialTheme.typography.titleMedium.copy(shadow = headingFocus.glowShadow()),
